@@ -176,56 +176,15 @@ def index():
     # Redirect to SAT form if user is logged in and it's the main entry point
     return redirect(url_for('main.sat_form'))
 
-@main_bp.route('/sat_form', methods=['GET', 'POST'])
+@main_bp.route('/sat_form', methods=['GET'])
 @login_required
 def sat_form():
     """Render the SAT form (index.html) for creating a new report"""
-    from flask import session
-
-    # Handle POST request from wizard
-    if request.method == 'POST':
-        # Get the form data from the wizard
-        wizard_data = {
-            'document_title': request.form.get('document_title', ''),
-            'project_reference': request.form.get('project_reference', ''),
-            'client_name': request.form.get('client_name', ''),
-            'date': request.form.get('date', ''),
-            'prepared_by': request.form.get('prepared_by', ''),
-            'revision': request.form.get('revision', ''),
-            'purpose': request.form.get('purpose', ''),
-            'scope': request.form.get('scope', ''),
-            'approver_1_email': request.form.get('approver_1_email', ''),
-            'approver_2_email': request.form.get('approver_2_email', ''),
-            'approver_3_email': request.form.get('approver_3_email', ''),
-        }
-        # Store in session for rendering
-        session['wizard_data'] = wizard_data
-
-    # Check if we have wizard data in the session
-    wizard_data = session.pop('wizard_data', {})
-
-    # Pre-populate submission_data with wizard data if available
+    # Always render a blank form for a new report
     submission_data = {
         'USER_EMAIL': current_user.email if current_user.is_authenticated else '',
         'PREPARED_BY': current_user.full_name if current_user.is_authenticated else '',
     }
-    if wizard_data:
-        submission_data.update({
-            'DOCUMENT_TITLE': wizard_data.get('document_title', ''),
-            'PROJECT_REFERENCE': wizard_data.get('project_reference', ''),
-            'CLIENT_NAME': wizard_data.get('client_name', ''),
-            'DATE': wizard_data.get('date', ''),
-            'PREPARED_BY': current_user.full_name if current_user.is_authenticated else wizard_data.get('prepared_by', ''),
-            'REVISION': wizard_data.get('revision', ''),
-            'PURPOSE': wizard_data.get('purpose', ''),
-            'SCOPE': wizard_data.get('scope', ''),
-            'approver_1_email': wizard_data.get('approver_1_email', ''),
-            'approver_2_email': wizard_data.get('approver_2_email', ''),
-            'approver_3_email': wizard_data.get('approver_3_email', ''),
-            'USER_EMAIL': current_user.email if current_user.is_authenticated else wizard_data.get('user_email', ''),
-        })
-
-    # Always render the SAT.html template (the full SAT form)
     return render_template(
         'SAT.html',
         submission_data=submission_data,
@@ -507,9 +466,9 @@ def generate():
         alarm_image_objects = []
 
         # Process new image uploads
-        save_new("SCADA_IMAGES", scada_urls, scada_image_objects)
-        save_new("TRENDS_IMAGES", trends_urls, trends_image_objects)
-        save_new("ALARM_IMAGES", alarm_urls, alarm_image_objects)
+        save_new("scada_screenshots[]", scada_urls, scada_image_objects)
+        save_new("trends_screenshots[]", trends_urls, trends_image_objects)
+        save_new("alarm_screenshots[]", alarm_urls, alarm_image_objects)
 
         # Process related documents
         related_documents = process_table_rows(
