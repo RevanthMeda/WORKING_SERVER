@@ -9,8 +9,8 @@ from dataclasses import dataclass, asdict
 from typing import Dict, Any, Optional, List
 from flask import request, session, current_app, g
 from flask_login import current_user
-from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, Index, JSON
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, Index
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from models import db
 import uuid
 
@@ -112,7 +112,7 @@ class AuditLog(db.Model):
     resource_type = Column(String(50), nullable=True)
     resource_id = Column(String(100), nullable=True)
     action = Column(String(100), nullable=True)
-    details = Column(JSON, nullable=True)
+    details = Column(JSONB, nullable=True)
     timestamp = Column(DateTime, nullable=False, default=datetime.utcnow)
     checksum = Column(String(64), nullable=False)  # SHA-256 hash for integrity
     

@@ -6,7 +6,7 @@ Use this to test if the application works on port 8080
 
 import os
 import sys
-from app_config import config
+from config import config
 from app import create_app
 
 def setup_test_environment():

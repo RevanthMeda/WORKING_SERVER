@@ -10,8 +10,8 @@ from flask_login import current_user, login_required
 from flask_session import Session
 from typing import Optional, Any
 
-# Import Config directly from app_config.py file
-config_file_path = os.path.join(os.path.dirname(__file__), 'app_config.py')
+# Import Config directly from config.py file
+config_file_path = os.path.join(os.path.dirname(__file__), 'config.py')
 spec = importlib.util.spec_from_file_location("config_module", config_file_path)
 if spec and spec.loader:
     config_module = importlib.util.module_from_spec(spec)
@@ -43,16 +43,13 @@ except ImportError as e:
     print(f"❌ Import error: {e}")
     sys.exit(1)
 
-def create_app(config_name='default', config_obj=None):
+def create_app(config_name='default'):
     """Create and configure Flask application"""
     app = Flask(__name__)
     
-    if config_obj:
-        app.config.from_object(config_obj)
-    else:
-        # Load configuration based on environment
-        config_class = config.get(config_name, config['default'])
-        app.config.from_object(config_class)
+    # Load configuration based on environment
+    config_class = config.get(config_name, config['default'])
+    app.config.from_object(config_class)
     
     # Initialize hierarchical configuration system
     try:

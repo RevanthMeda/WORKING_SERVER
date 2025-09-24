@@ -98,41 +98,37 @@ class TestDatabasePerformance:
         assert creation_time < 30.0, f"Report creation took too long: {creation_time:.2f}s"
         assert (creation_time / num_reports) < 0.1, "Individual report creation too slow"
     
-    def test_concurrent_database_operations(self, app, db_session, admin_user):
+    def test_concurrent_database_operations(self, db_session, admin_user):
         """Test concurrent database operations."""
         num_threads = 10
         operations_per_thread = 50
         
-        def create_reports_thread(thread_id, app):
+        def create_reports_thread(thread_id):
             """Create reports in a separate thread."""
-            with app.app_context():
-                from models import db
-                from sqlalchemy.orm import sessionmaker
-                Session = sessionmaker(bind=db.get_engine())
-                session = Session()
-                thread_reports = []
-                for i in range(operations_per_thread):
-                    report = Report(
-                        id=f'concurrent-{thread_id}-{i:03d}',
-                        type='SAT',
-                        status='DRAFT',
-                        document_title=f'Concurrent Test Report {thread_id}-{i}',
-                        user_email=admin_user.email,
-                        version='R0'
-                    )
-                    thread_reports.append(report)
-                
-                session.add_all(thread_reports)
-                session.commit()
-                session.close()
-                
-                return len(thread_reports)
+            thread_reports = []
+            for i in range(operations_per_thread):
+                report = Report(
+                    id=f'concurrent-{thread_id}-{i:03d}',
+                    type='SAT',
+                    status='DRAFT',
+                    document_title=f'Concurrent Test Report {thread_id}-{i}',
+                    user_email=admin_user.email,
+                    version='R0'
+                )
+                thread_reports.append(report)
+            
+            # Use separate session for thread safety
+            from models import db
+            db.session.add_all(thread_reports)
+            db.session.commit()
+            
+            return len(thread_reports)
         
         start_time = time.time()
         
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             futures = [
-                executor.submit(create_reports_thread, thread_id, app) 
+                executor.submit(create_reports_thread, thread_id) 
                 for thread_id in range(num_threads)
             ]
             

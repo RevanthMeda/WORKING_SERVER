@@ -7,7 +7,7 @@ Run this on your server (172.16.18.21) for domain-only access on port 80
 import os
 import sys
 import subprocess
-from app_config import config
+from config import config
 from app import create_app
 
 def setup_environment():

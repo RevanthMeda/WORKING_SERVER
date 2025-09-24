@@ -14,7 +14,7 @@ def test_imports():
         from flask_login import current_user
         
         print("  ✓ Config imports...")
-        from app_config import Config
+        from config import Config
         
         print("  ✓ Models imports...")
         from models import db, init_db

@@ -6,7 +6,7 @@ Runs on localhost:8080 for iframe embedding
 
 import os
 import sys
-from app_config import config
+from config import config
 from app import create_app
 
 def setup_local_environment():

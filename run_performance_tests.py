@@ -41,27 +41,27 @@ def run_locust_test(scenario, host, duration=300, users=50, spawn_rate=5, output
     
     try:
         print(f"Executing: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd='SERVER')
         
         if result.returncode == 0:
-            print("Locust test completed successfully")
-            print(f"HTML report: {html_report}")
-            print(f"CSV stats: {csv_stats}")
+            print("✅ Locust test completed successfully")
+            print(f"📊 HTML report: {html_report}")
+            print(f"📈 CSV stats: {csv_stats}")
             
             # Print summary from stdout
             if result.stdout:
-                print("\nTest Summary:")
+                print("\n📋 Test Summary:")
                 print(result.stdout)
         else:
-            print("Locust test failed")
+            print("❌ Locust test failed")
             print(f"Error: {result.stderr}")
             return False
             
     except FileNotFoundError:
-        print("Locust not found. Install with: pip install locust")
+        print("❌ Locust not found. Install with: pip install locust")
         return False
     except Exception as e:
-        print(f"Error running Locust: {e}")
+        print(f"❌ Error running Locust: {e}")
         return False
     
     return True
@@ -95,18 +95,18 @@ def run_pytest_performance_tests(test_pattern='tests/performance/', output_dir='
     
     try:
         print(f"Executing: {' '.join(cmd)}")
-        result = subprocess.run(cmd)
+        result = subprocess.run(cmd, cwd='SERVER')
         
         if result.returncode == 0:
-            print("Pytest performance tests completed successfully")
-            print(f"HTML report: {html_report}")
-            print(f"JUnit XML: {junit_xml}")
+            print("✅ Pytest performance tests completed successfully")
+            print(f"📊 HTML report: {html_report}")
+            print(f"📋 JUnit XML: {junit_xml}")
         else:
-            print("Some pytest performance tests failed")
+            print("❌ Some pytest performance tests failed")
             return False
             
     except Exception as e:
-        print(f"Error running pytest: {e}")
+        print(f"❌ Error running pytest: {e}")
         return False
     
     return True
@@ -129,16 +129,16 @@ def run_database_benchmarks(output_dir='performance_results'):
     ]
     
     try:
-        result = subprocess.run(cmd)
+        result = subprocess.run(cmd, cwd='SERVER')
         
         if result.returncode == 0:
-            print("Database benchmarks completed successfully")
+            print("✅ Database benchmarks completed successfully")
         else:
-            print("Database benchmarks failed")
+            print("❌ Database benchmarks failed")
             return False
             
     except Exception as e:
-        print(f"Error running database benchmarks: {e}")
+        print(f"❌ Error running database benchmarks: {e}")
         return False
     
     return True
@@ -165,16 +165,16 @@ def run_api_benchmarks(host='http://localhost:5000', output_dir='performance_res
     ]
     
     try:
-        result = subprocess.run(cmd, env=env)
+        result = subprocess.run(cmd, cwd='SERVER', env=env)
         
         if result.returncode == 0:
-            print("API benchmarks completed successfully")
+            print("✅ API benchmarks completed successfully")
         else:
-            print("API benchmarks failed")
+            print("❌ API benchmarks failed")
             return False
             
     except Exception as e:
-        print(f"Error running API benchmarks: {e}")
+        print(f"❌ Error running API benchmarks: {e}")
         return False
     
     return True
@@ -216,7 +216,7 @@ def generate_summary_report(output_dir='performance_results'):
     with open(summary_file, 'w') as f:
         json.dump(summary, f, indent=2)
     
-    print(f"Summary report saved: {summary_file}")
+    print(f"📋 Summary report saved: {summary_file}")
     
     # Print summary to console
     print("\n" + "="*60)
@@ -255,7 +255,7 @@ def main():
     
     args = parser.parse_args()
     
-    print("Starting SAT Report Generator Performance Tests")
+    print("🚀 Starting SAT Report Generator Performance Tests")
     print(f"Target Host: {args.host}")
     print(f"Output Directory: {args.output_dir}")
     print(f"Test Type: {args.test_type}")
@@ -303,10 +303,10 @@ def main():
     generate_summary_report(output_dir=args.output_dir)
     
     if success:
-        print("\nAll performance tests completed successfully!")
+        print("\n✅ All performance tests completed successfully!")
         return 0
     else:
-        print("\nSome performance tests failed!")
+        print("\n❌ Some performance tests failed!")
         return 1
 
 

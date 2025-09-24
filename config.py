@@ -20,9 +20,8 @@ class Config:
     BLOCK_IP_ACCESS = os.environ.get('BLOCK_IP_ACCESS', 'False').lower() == 'true'
 
     # Security - Bulletproof CSRF settings with HTTPS
-    SECRET_KEY = os.environ.get('SECRET_KEY')
-    if not SECRET_KEY:
-        raise ValueError("SECRET_KEY environment variable must be set")    WTF_CSRF_ENABLED = True
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-here-change-in-production-sat-2025'
+    WTF_CSRF_ENABLED = True
     WTF_CSRF_TIME_LIMIT = 86400  # 24 hours - very long timeout
     WTF_CSRF_SSL_STRICT = False  # More lenient for login compatibility
     WTF_CSRF_CHECK_DEFAULT = False  # More lenient CSRF checking
@@ -109,9 +108,10 @@ class Config:
         if not smtp_password:
             load_dotenv(override=True)
             smtp_password = os.environ.get('SMTP_PASSWORD', '')
-        # Log credential status without exposing sensitive data
+        
+        print(f"🔄 Fresh SMTP credentials loaded - Password length: {len(smtp_password)}")
         if smtp_password:
-            print(f"🔄 SMTP credentials loaded successfully")            print(f"🔐 Password: {smtp_password[:4]}...{smtp_password[-4:]}")
+            print(f"🔐 Password: {smtp_password[:4]}...{smtp_password[-4:]}")
         
         return {
             'server': Config.SMTP_SERVER,

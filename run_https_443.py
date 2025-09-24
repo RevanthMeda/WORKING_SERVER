@@ -6,7 +6,7 @@ Direct access with SSL/TLS encryption
 
 import os
 import sys
-from app_config import config
+from config import config
 from app import create_app
 
 def setup_https_environment():

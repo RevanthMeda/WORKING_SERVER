@@ -13,7 +13,7 @@ class UserFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta:
         model = User
         sqlalchemy_session = db.session
-        sqlalchemy_session_persistence = 'flush'
+        sqlalchemy_session_persistence = 'commit'
     
     email = factory.Sequence(lambda n: f'user{n}@test.com')
     full_name = factory.Faker('name')
@@ -55,7 +55,7 @@ class ReportFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta:
         model = Report
         sqlalchemy_session = db.session
-        sqlalchemy_session_persistence = 'flush'
+        sqlalchemy_session_persistence = 'commit'
     
     id = factory.Sequence(lambda n: f'report-{n:04d}')
     type = 'SAT'
@@ -149,7 +149,7 @@ class SATReportFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta:
         model = SATReport
         sqlalchemy_session = db.session
-        sqlalchemy_session_persistence = 'flush'
+        sqlalchemy_session_persistence = 'commit'
     
     report = factory.SubFactory(ReportFactory)
     report_id = factory.SelfAttribute('report.id')
@@ -228,7 +228,7 @@ class NotificationFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta:
         model = Notification
         sqlalchemy_session = db.session
-        sqlalchemy_session_persistence = 'flush'
+        sqlalchemy_session_persistence = 'commit'
     
     user_email = factory.Faker('email')
     title = factory.Faker('sentence', nb_words=4)
@@ -267,7 +267,7 @@ class SystemSettingsFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta:
         model = SystemSettings
         sqlalchemy_session = db.session
-        sqlalchemy_session_persistence = 'flush'
+        sqlalchemy_session_persistence = 'commit'
     
     key = factory.Sequence(lambda n: f'setting_key_{n}')
     value = factory.Faker('word')

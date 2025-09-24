@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
     # Test importing from config.py
-    import app_config as config_module
+    import config as config_module
     print("✅ Successfully imported config module")
     print(f"Config module file: {config_module.__file__}")
     

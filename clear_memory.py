@@ -41,7 +41,7 @@ def test_fresh_credentials():
     print("🧪 Testing fresh credential loading...")
     
     try:
-        from app_config import Config
+        from config import Config
         creds = Config.get_smtp_credentials()
         
         print(f"   📧 SMTP Server: {creds['server']}")

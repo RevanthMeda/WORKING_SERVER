@@ -7,7 +7,7 @@ import pytest
 from flask import Flask
 from models import db, User, Report, SATReport
 from app import create_app
-from app_config import Config
+from config import Config
 
 
 class TestConfig(Config):
@@ -27,13 +27,13 @@ class TestConfig(Config):
     SMTP_PASSWORD = 'test-password'
     ENABLE_PDF_EXPORT = False
     USE_HTTPS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {}
 
 
 @pytest.fixture(scope='session')
 def app():
     """Create application for the tests."""
-    app = create_app(config_obj=TestConfig)
+    app = create_app('testing')
+    app.config.from_object(TestConfig)
     
     # Create application context
     ctx = app.app_context()
@@ -53,16 +53,14 @@ def client(app):
 @pytest.fixture(scope='function')
 def db_session(app):
     """Create a database session for testing."""
-    with app.app_context():
-        # Create all tables
-        db.create_all()
+    # Create all tables
+    db.create_all()
     
     yield db.session
     
     # Clean up after test
-    with app.app_context():
-        db.session.remove()
-        db.drop_all()
+    db.session.remove()
+    db.drop_all()
 
 
 @pytest.fixture

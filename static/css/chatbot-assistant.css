@@ -61,7 +61,6 @@
     background: radial-gradient(circle at center, rgba(0, 229, 255, 0.55) 0%, transparent 70%);
     animation: assistantPulse 3s ease-in-out infinite;
     opacity: 0.85;
-    pointer-events: none;
 }
 
 .assistant-icon {
