@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design System - Cully Report Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/welcome-cully.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --cully-navy: #5a7fa3;
+            --cully-blue: #7ba5c7;
+            --cully-light-blue: #9ec5e5;
+            --cully-dark: #2c3e50;
+            --cully-gray: #8fa3b5;
+            --cully-light-gray: #e8f2f7;
+            --cully-bg-light: #f5f7fa;
+            --cully-white: #ffffff;
+            --cully-shadow: 0 4px 12px rgba(90, 127, 163, 0.15);
+        }
+        
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background: var(--cully-bg-light);
+            color: var(--cully-dark);
+            margin: 0;
+            padding: 0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        
+        .header {
+            background: var(--cully-navy);
+            color: var(--cully-white);
+            padding: 40px;
+            border-radius: 16px;
+            margin-bottom: 32px;
+            box-shadow: var(--cully-shadow);
+        }
+        
+        .section {
+            background: var(--cully-white);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 32px;
+            box-shadow: var(--cully-shadow);
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0 0 16px 0;
+        }
+        
+        h2 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin: 0 0 24px 0;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--cully-light-gray);
+        }
+        
+        h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--cully-navy);
+            margin: 0 0 16px 0;
+        }
+        
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .color-item {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .color-preview {
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .color-info {
+            padding: 12px;
+            background: white;
+        }
+        
+        .component-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .component-item {
+            border: 1px solid var(--cully-light-gray);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .component-preview {
+            padding: 24px;
+            background: white;
+            border-bottom: 1px solid var(--cully-light-gray);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .component-code {
+            padding: 16px;
+            background: var(--cully-dark);
+            color: white;
+            font-family: monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+        }
+        
+        .code-block {
+            background: var(--cully-dark);
+            color: white;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            margin-bottom: 24px;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+            .header {
+                padding: 24px;
+            }
+            .section {
+                padding: 24px;
+            }
+            .color-grid, .component-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot-assistant.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-palette"></i> Cully Design System</h1>
+            <p>A comprehensive guide to maintain visual consistency across all Cully Report Generator pages</p>
+        </div>
+        
+        <div class="section">
+            <h2>Color Scheme</h2>
+            <h3>Primary Colors</h3>
+            <div class="color-grid">
+                <div class="color-item">
+                    <div class="color-preview" style="background-color: #5a7fa3;">Primary</div>
+                    <div class="color-info">
+                        <p><strong>Cully Navy</strong></p>
+                        <p><code>--cully-navy: #5a7fa3;</code></p>
+                    </div>
+                </div>
+                <div class="color-item">
+                    <div class="color-preview" style="background-color: #7ba5c7;">Secondary</div>
+                    <div class="color-info">
+                        <p><strong>Cully Blue</strong></p>
+                        <p><code>--cully-blue: #7ba5c7;</code></p>
+                    </div>
+                </div>
+                <div class="color-item">
+                    <div class="color-preview" style="background-color: #9ec5e5;">Accent</div>
+                    <div class="color-info">
+                        <p><strong>Cully Light Blue</strong></p>
+                        <p><code>--cully-light-blue: #9ec5e5;</code></p>
+                    </div>
+                </div>
+            </div>
+            
+            <h3>Neutral Colors</h3>
+            <div class="color-grid">
+                <div class="color-item">
+                    <div class="color-preview" style="background-color: #2c3e50; color: white;">Dark</div>
+                    <div class="color-info">
+                        <p><strong>Cully Dark</strong></p>
+                        <p><code>--cully-dark: #2c3e50;</code></p>
+                    </div>
+                </div>
+                <div class="color-item">
+                    <div class="color-preview" style="background-color: #8fa3b5;">Gray</div>
+                    <div class="color-info">
+                        <p><strong>Cully Gray</strong></p>
+                        <p><code>--cully-gray: #8fa3b5;</code></p>
+                    </div>
+                </div>
+                <div class="color-item">
+                    <div class="color-preview" style="background-color: #e8f2f7; color: #2c3e50;">Light Gray</div>
+                    <div class="color-info">
+                        <p><strong>Cully Light Gray</strong></p>
+                        <p><code>--cully-light-gray: #e8f2f7;</code></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>Typography</h2>
+            <h3>Font Family</h3>
+            <p style="font-family: 'Montserrat', sans-serif;">Montserrat is our primary font family for all text elements.</p>
+            <div class="code-block">font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;</div>
+            
+            <h3>Headings</h3>
+            <h1 style="margin-bottom: 8px;">Heading 1 (2.5rem, 700)</h1>
+            <h2 style="margin-bottom: 8px; border: none;">Heading 2 (2rem, 600)</h2>
+            <h3 style="margin-bottom: 8px;">Heading 3 (1.5rem, 600)</h3>
+            <h4 style="margin-bottom: 8px; font-size: 1.25rem;">Heading 4 (1.25rem, 600)</h4>
+            
+            <h3>Body Text</h3>
+            <p>Regular paragraph text with standard sizing and weight. (1rem, 400)</p>
+            <p style="font-size: 0.9rem; color: var(--cully-gray);">Smaller text often used for secondary information. (0.9rem, 400)</p>
+        </div>
+        
+        <div class="section">
+            <h2>UI Components</h2>
+            <h3>Buttons</h3>
+            <div class="component-grid">
+                <div class="component-item">
+                    <div class="component-preview">
+                        <button style="background: var(--cully-navy); color: var(--cully-white); padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Primary Button</button>
+                    </div>
+                    <div class="component-code">&lt;button class="btn btn-primary"&gt;Primary Button&lt;/button&gt;</div>
+                </div>
+                <div class="component-item">
+                    <div class="component-preview">
+                        <button style="background: transparent; color: var(--cully-navy); padding: 12px 24px; border: 2px solid var(--cully-navy); border-radius: 8px; font-weight: 600; cursor: pointer;">Secondary Button</button>
+                    </div>
+                    <div class="component-code">&lt;button class="btn btn-secondary"&gt;Secondary Button&lt;/button&gt;</div>
+                </div>
+            </div>
+            
+            <h3>Form Elements</h3>
+            <div class="component-grid">
+                <div class="component-item">
+                    <div class="component-preview">
+                        <div style="width: 100%;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--cully-dark);">Input Label</label>
+                            <input type="text" placeholder="Placeholder text" style="width: 100%; padding: 12px; border: 2px solid var(--cully-light-gray); border-radius: 8px; font-family: 'Montserrat', sans-serif;">
+                        </div>
+                    </div>
+                    <div class="component-code">&lt;div class="form-group"&gt;
+  &lt;label for="input-id"&gt;Input Label&lt;/label&gt;
+  &lt;input type="text" id="input-id" placeholder="Placeholder text"&gt;
+&lt;/div&gt;</div>
+                </div>
+            </div>
+            
+            <h3>Cards</h3>
+            <div class="component-grid">
+                <div class="component-item">
+                    <div class="component-preview">
+                        <div style="background: var(--cully-white); border-radius: 8px; box-shadow: var(--cully-shadow); padding: 24px; width: 100%;">
+                            <h3 style="margin-top: 0; color: var(--cully-dark); font-size: 1.25rem;">Card Title</h3>
+                            <p style="color: var(--cully-gray); margin-bottom: 16px;">Card description text goes here.</p>
+                            <button style="background: var(--cully-navy); color: var(--cully-white); padding: 8px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.9rem;">Card Action</button>
+                        </div>
+                    </div>
+                    <div class="component-code">&lt;div class="card"&gt;
+  &lt;h3 class="card-title"&gt;Card Title&lt;/h3&gt;
+  &lt;p class="card-text"&gt;Card description text goes here...&lt;/p&gt;
+  &lt;button class="btn btn-primary btn-sm"&gt;Card Action&lt;/button&gt;
+&lt;/div&gt;</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>Responsive Behavior</h2>
+            <h3>Breakpoints</h3>
+            <ul>
+                <li><strong>Mobile:</strong> max-width: 480px</li>
+                <li><strong>Tablet:</strong> max-width: 768px</li>
+                <li><strong>Desktop:</strong> max-width: 1024px</li>
+                <li><strong>Large Desktop:</strong> max-width: 1200px</li>
+            </ul>
+            
+            <h3>Responsive Grid Example</h3>
+            <div class="code-block">/* Mobile-first grid */
+.grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+
+/* Tablet (2 columns) */
+@media (min-width: 481px) {
+    .grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+    }
+}
+
+/* Desktop (3 columns) */
+@media (min-width: 769px) {
+    .grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+    }
+}</div>
+        </div>
+    </div>
+
+    {% include 'partials/chatbot_widget.html' %}
+    <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
+</body>
+</html>

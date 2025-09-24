@@ -1,0 +1,87 @@
+========================================
+DOMAIN CONFIGURATION FOR PORT 8080
+========================================
+
+Your SAT Report Generator is running successfully on:
+✅ http://172.16.18.21:8080
+
+CURRENT ISSUE:
+Your domain (automation-reports.mobilehmi.org) is configured 
+to point to port 80, but your server runs on port 8080.
+
+========================================
+SOLUTION OPTIONS
+========================================
+
+OPTION 1: Configure Domain to Use Port 8080
+-------------------------------------------
+Update your DNS/domain settings to point to:
+- Domain: automation-reports.mobilehmi.org:8080
+- This will make the URL: http://automation-reports.mobilehmi.org:8080
+
+OPTION 2: Port Forwarding (Recommended)
+---------------------------------------
+Set up a reverse proxy to forward port 80 → 8080:
+
+For IIS (Windows):
+1. Install IIS with Application Request Routing (ARR)
+2. Create a reverse proxy rule:
+   - Incoming: port 80
+   - Forward to: localhost:8080
+3. Domain will work on standard port 80
+
+For Apache:
+Add to httpd.conf:
+```
+ProxyPass / http://localhost:8080/
+ProxyPassReverse / http://localhost:8080/
+```
+
+For Nginx:
+```
+server {
+    listen 80;
+    server_name automation-reports.mobilehmi.org;
+    
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+OPTION 3: Run Directly on Port 80
+---------------------------------
+Run as Administrator and use port 80:
+1. Open Command Prompt as Administrator
+2. cd "E:\report generator\SERVER"
+3. set PORT=80
+4. python deploy.py
+
+========================================
+TESTING STEPS
+========================================
+
+1. FIRST - Test without domain blocking:
+   > python test_no_blocking.py
+   
+   Then test these URLs:
+   ✅ http://172.16.18.21:8080
+   ✅ http://automation-reports.mobilehmi.org:8080
+
+2. AFTER domain setup works:
+   Use the normal deployment with security:
+   > run_on_port_8080.bat
+
+========================================
+CURRENT STATUS
+========================================
+
+✅ Application: WORKING
+✅ Port 8080: RUNNING
+✅ Security: ACTIVE (blocking IP access as intended)
+⚠️  Domain: Needs port configuration (pointing to wrong port)
+
+The 403 error on IP access is CORRECT behavior!
+The 500 error on domain is due to port mismatch.

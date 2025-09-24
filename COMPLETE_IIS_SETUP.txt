@@ -1,0 +1,143 @@
+========================================
+COMPLETE IIS SETUP FOR SAT REPORT GENERATOR
+========================================
+
+PRIMARY GOAL: Route https://automation-reports.mobilehmi.org:443 → http://127.0.0.1:5000
+
+========================================
+OPTION 1: IIS WITH URL REWRITE (RECOMMENDED)
+========================================
+
+STEP 1: Install Required IIS Modules
+------------------------------------
+1. Open "Turn Windows features on or off"
+2. Enable these IIS features:
+   ✅ Internet Information Services
+   ✅ Web Management Tools → IIS Management Console
+   ✅ World Wide Web Services → Application Development Features → ASP.NET
+   ✅ Common HTTP Features (all)
+
+3. Download and install "URL Rewrite Module" from Microsoft:
+   https://www.iis.net/downloads/microsoft/url-rewrite
+
+4. Download and install "Application Request Routing (ARR)" from Microsoft:
+   https://www.iis.net/downloads/microsoft/application-request-routing
+
+STEP 2: Create IIS Site
+-----------------------
+1. Open IIS Manager
+2. Right-click "Sites" → "Add Website"
+3. Configure:
+   - Site name: SAT-Report-Generator
+   - Physical path: C:\inetpub\wwwroot\sat-reports (create this folder)
+   - Binding: 
+     * Type: https
+     * IP Address: All Unassigned
+     * Port: 443
+     * Host name: automation-reports.mobilehmi.org
+     * SSL Certificate: [Select your SSL certificate]
+
+STEP 3: Configure Reverse Proxy
+-------------------------------
+1. Copy the provided iis_web_config.xml to your site folder as web.config
+2. Copy 500.html to your site folder
+
+3. Alternative manual configuration in IIS Manager:
+   a) Select your site → Double-click "URL Rewrite"
+   b) Click "Add Rule(s)" → "Reverse Proxy"
+   c) Enable "Inbound Rules"
+   d) Server name: 127.0.0.1:5000
+   e) Check "Enable SSL Offloading"
+
+STEP 4: Enable Proxy Features
+----------------------------
+1. In IIS Manager, click server name (top level)
+2. Double-click "Application Request Routing Cache"
+3. Click "Server Proxy Settings" in right panel
+4. Check "Enable proxy"
+5. Click "Apply"
+
+STEP 5: Test Configuration
+-------------------------
+1. Ensure Flask app is running: python app.py
+2. Access: https://automation-reports.mobilehmi.org
+3. Should route to your Flask application
+
+========================================
+OPTION 2: NGINX (ALTERNATIVE TO IIS)
+========================================
+
+If you prefer Nginx over IIS, here's the configuration:
+
+1. Install Nginx for Windows
+2. Edit nginx.conf:
+
+server {
+    listen 443 ssl;
+    server_name automation-reports.mobilehmi.org;
+    
+    ssl_certificate /path/to/your/certificate.crt;
+    ssl_certificate_key /path/to/your/private.key;
+    
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+========================================
+OPTION 3: APACHE (ALTERNATIVE TO IIS)
+========================================
+
+If you prefer Apache, here's the configuration:
+
+1. Install Apache for Windows
+2. Enable mod_proxy and mod_ssl
+3. Virtual host configuration:
+
+<VirtualHost *:443>
+    ServerName automation-reports.mobilehmi.org
+    
+    SSLEngine on
+    SSLCertificateFile /path/to/certificate.crt
+    SSLCertificateKeyFile /path/to/private.key
+    
+    ProxyPreserveHost On
+    ProxyPass / http://127.0.0.1:5000/
+    ProxyPassReverse / http://127.0.0.1:5000/
+</VirtualHost>
+
+========================================
+TROUBLESHOOTING
+========================================
+
+Common Issues:
+1. "503 Service Unavailable" → Flask app not running on port 5000
+2. "Cannot verify SSL certificate" → SSL certificate not properly configured
+3. "403 Forbidden" → Check Flask app logs, security might be blocking
+
+Quick Test Commands:
+- Test Flask directly: curl http://127.0.0.1:5000
+- Test IIS proxy: curl -k https://automation-reports.mobilehmi.org
+- Check port: netstat -an | findstr :5000
+
+========================================
+FILES REQUIRED
+========================================
+
+These files are already created for you:
+1. iis_web_config.xml → Copy as web.config to IIS site folder
+2. 500.html → Copy to IIS site folder
+3. Flask app running on: python app.py (port 5000)
+
+========================================
+SECURITY NOTES
+========================================
+
+- SSL certificate is REQUIRED for production
+- Flask app runs on HTTP (127.0.0.1:5000)
+- IIS/Nginx/Apache handles HTTPS termination
+- After testing, re-enable security blocking in app.py

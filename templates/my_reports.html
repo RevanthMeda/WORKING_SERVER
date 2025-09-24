@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}My Reports - {{ super() }}{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard-light.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set total_reports = reports|length if reports else 0 %}
+{% set pending_reports = (reports|selectattr('status', 'equalto', 'pending')|list|length if reports else 0) + (reports|selectattr('status', 'equalto', 'PENDING')|list|length if reports else 0) %}
+{% set approved_reports = (reports|selectattr('status', 'equalto', 'approved')|list|length if reports else 0) + (reports|selectattr('status', 'equalto', 'APPROVED')|list|length if reports else 0) %}
+{% set draft_reports = (reports|selectattr('status', 'equalto', 'draft')|list|length if reports else 0) + (reports|selectattr('status', 'equalto', 'DRAFT')|list|length if reports else 0) %}
+{% set rejected_reports = (reports|selectattr('status', 'equalto', 'rejected')|list|length if reports else 0) + (reports|selectattr('status', 'equalto', 'REJECTED')|list|length if reports else 0) %}
+
+<section class="cully-page myreports-page">
+    <header class="page-hero">
+        <div class="page-hero__content">
+            <h1 class="page-hero__title"><i class="fas fa-folder-open"></i> My Reports</h1>
+            <p class="page-hero__subtitle">Review, refine, and share the reports you have generated across projects.</p>
+        </div>
+        <div class="page-hero__actions">
+            <a href="{{ url_for('notifications.notification_center') }}" class="btn btn--ghost">
+                <i class="fas fa-bell"></i> Notifications
+            </a>
+            <a href="{{ url_for('reports.new') }}" class="btn btn--primary">
+                <i class="fas fa-plus-circle"></i> Create Report
+            </a>
+        </div>
+    </header>
+    <nav class="module-nav">
+        <div class="module-nav__links">
+            <a class="module-nav__link" href="{{ url_for('dashboard.engineer') }}"><i class="fas fa-home"></i> Dashboard</a>
+            <a class="module-nav__link module-nav__link--active" href="{{ url_for('dashboard.my_reports') }}"><i class="fas fa-folder-open"></i> Reports</a>
+            <a class="module-nav__link" href="{{ url_for('io_builder.index') }}"><i class="fas fa-sitemap"></i> I/O builder</a>
+        </div>
+        <div class="module-nav__meta">
+            <i class="fas fa-chart-line"></i> Manage and track your generated reports
+        </div>
+    </nav>
+
+
+    <div class="summary-grid">
+        <article class="summary-card">
+            <div class="summary-card__icon" aria-hidden="true">
+                <i class="fas fa-layer-group"></i>
+            </div>
+            <div>
+                <p class="summary-card__value">{{ total_reports }}</p>
+                <p class="summary-card__label">Total Reports</p>
+            </div>
+        </article>
+        <article class="summary-card">
+            <div class="summary-card__icon" aria-hidden="true" style="background: linear-gradient(135deg, #60a5fa, #3b82f6);">
+                <i class="fas fa-pencil-alt"></i>
+            </div>
+            <div>
+                <p class="summary-card__value">{{ draft_reports }}</p>
+                <p class="summary-card__label">Drafts in Progress</p>
+            </div>
+        </article>
+        <article class="summary-card">
+            <div class="summary-card__icon" aria-hidden="true" style="background: linear-gradient(135deg, #facc15, #f59e0b);">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div>
+                <p class="summary-card__value">{{ pending_reports }}</p>
+                <p class="summary-card__label">Pending Approval</p>
+            </div>
+        </article>
+        <article class="summary-card">
+            <div class="summary-card__icon" aria-hidden="true" style="background: linear-gradient(135deg, #22c55e, #16a34a);">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div>
+                <p class="summary-card__value">{{ approved_reports }}</p>
+                <p class="summary-card__label">Approved Reports</p>
+            </div>
+        </article>
+    </div>
+
+    <div class="card-shell">
+        <div class="card-shell__header">
+            <h2 class="card-shell__title">
+                <i class="fas fa-table"></i> Report Catalogue
+            </h2>
+            <div class="card-shell__actions">
+                <span class="summary-card__trend">
+                    {{ rejected_reports }} rejected -  {{ reports|selectattr('status', 'equalto', 'partially_approved')|list|length if reports else 0 }} partial
+                </span>
+            </div>
+        </div>
+        <div class="card-shell__body">
+            {% if reports %}
+                <div class="cully-table-wrapper">
+                    <table class="cully-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Title</th>
+                                <th scope="col">Type</th>
+                                <th scope="col">Client</th>
+                                <th scope="col">Project Ref</th>
+                                <th scope="col">Owner</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Created</th>
+                                <th scope="col">Updated</th>
+                                <th scope="col" class="sr-only">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for report in reports %}
+                                {% set status_label = (report.status or '').upper() %}
+                                {% set status_lower = status_label|lower %}
+                                <tr>
+                                    <td>
+                                        <div style="color: var(--cully-dark); font-size: 0.95rem; font-weight: 600;">{{ report.document_title or 'Untitled Report' }}</div>
+                                        <div style="color: var(--cully-gray); font-size: 0.8rem;">#{{ report.id }}</div>
+                                    </td>
+                                    <td>
+                                        <span style="color: var(--cully-dark); font-weight: 600;">{{ report.report_type or 'SAT' }}</span>
+                                        {% if report.template_name %}
+                                            <div style="color: var(--cully-gray); font-size: 0.8rem;">Template: {{ report.template_name }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div style="color: var(--cully-dark);">{{ report.client_name or '-' }}</div>
+                                    </td>
+                                    <td>
+                                        <div style="color: var(--cully-gray);">{{ report.project_reference or '-' }}</div>
+                                    </td>
+                                    <td>
+                                        <div style="color: var(--cully-dark); font-weight: 600;">{{ report.user_email or '-' }}</div>
+                                        {% if report.user_email != current_user.email %}
+                                            <span class="status-chip status-chip--locked" title="Assigned to another teammate">
+                                                <i class="fas fa-users"></i> Assigned
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="status-chip {% if status_lower == 'approved' %}status-chip--approved{% elif status_lower == 'rejected' %}status-chip--rejected{% elif status_lower == 'pending' %}status-chip--pending{% elif status_lower == 'draft' %}status-chip--draft{% else %}status-chip--locked{% endif %}">
+                                            <i class="fas {% if status_lower == 'approved' %}fa-check{% elif status_lower == 'rejected' %}fa-times{% elif status_lower == 'pending' %}fa-clock{% elif status_lower == 'draft' %}fa-pencil-alt{% else %}fa-info-circle{% endif %}"></i>
+                                            {{ status_label or 'UNKNOWN' }}
+                                        </span>
+                                        {% if not report.locked and status_lower in ['draft', 'pending'] and report.user_email == current_user.email %}
+                                            <span class="status-chip status-chip--draft" title="You can still edit this report">
+                                                <i class="fas fa-unlock"></i> Editable
+                                            </span>
+                                        {% elif report.locked %}
+                                            <span class="status-chip status-chip--locked" title="Report is locked">
+                                                <i class="fas fa-lock"></i> Locked
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <time datetime="{{ report.created_at.isoformat() if report.created_at else '' }}" style="color: var(--cully-gray);">
+                                            {{ report.created_at.strftime('%Y-%m-%d') if report.created_at else '-' }}
+                                        </time>
+                                    </td>
+                                    <td>
+                                        <time datetime="{{ report.updated_at.isoformat() if report.updated_at else '' }}" style="color: var(--cully-gray);">
+                                            {{ report.updated_at.strftime('%Y-%m-%d %H:%M') if report.updated_at else '-' }}
+                                        </time>
+                                    </td>
+                                    <td>
+                                        <div class="inline-actions">
+                                            <a href="{{ url_for('status.view_status', submission_id=report.id) }}" class="btn-inline btn-inline--primary">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                            <a href="{{ url_for('reports.new_sat_full', template_id=report.id) }}" class="btn-inline">
+                                                <i class="fas fa-copy"></i> Duplicate
+                                            </a>
+                                            {% if not report.locked and status_lower in ['draft', 'pending'] and report.user_email == current_user.email %}
+                                                <a href="{{ url_for('edit.edit_report', report_id=report.id) }}" class="btn-inline">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </a>
+                                            {% endif %}
+                                            <a href="{{ url_for('status.download_report', submission_id=report.id) }}" class="btn-inline">
+                                                <i class="fas fa-download"></i> Download
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-file-circle-plus" aria-hidden="true"></i>
+                    <h4>No reports created yet</h4>
+                    <p>Once you start generating SAT or survey packs they will appear here. Launch a new report to get started.</p>
+                    <a href="{{ url_for('reports.new') }}">
+                        <i class="fas fa-plus-circle"></i> Create your first report
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

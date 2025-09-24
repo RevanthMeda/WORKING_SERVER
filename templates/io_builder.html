@@ -1,0 +1,971 @@
+{% extends 'base.html' %}
+
+{% block title %}I/O Builder - {{ super() }}{% endblock %}
+
+{% block head %}
+<style>
+    :root {
+        --admin-primary: var(--cully-blue);
+        --admin-primary-dark: var(--cully-navy);
+        --admin-primary-light: var(--cully-light-blue);
+        --admin-success: var(--cully-success);
+        --admin-warning: var(--cully-warning);
+        --admin-danger: var(--cully-danger);
+        --admin-neutral: var(--cully-gray);
+        --card-shadow: var(--shadow-sm);
+        --card-shadow-hover: var(--shadow-lg);
+    }
+
+    .io-layout {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xl);
+    }
+
+    .widgets-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: var(--space-lg);
+    }
+
+    .widget-card {
+        background: var(--cully-white);
+        border-radius: 20px;
+        box-shadow: var(--shadow-sm);
+        border: 1px solid rgba(90, 127, 163, 0.08);
+        overflow: hidden;
+    }
+
+    .widget-header {
+        padding: var(--space-md) var(--space-lg);
+        border-bottom: 1px solid var(--cully-light-gray);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .widget-title {
+        margin: 0;
+        font-size: 1.2rem;
+        color: var(--cully-dark);
+    }
+
+    .widget-content {
+        padding: var(--space-lg);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-lg);
+    }
+
+    .form-container {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-lg);
+    }
+
+    .form-section {
+        background: rgba(123, 165, 199, 0.08);
+        border-radius: 16px;
+        padding: var(--space-lg);
+    }
+
+    .form-section h4 {
+        margin-top: 0;
+        margin-bottom: var(--space-md);
+        color: var(--cully-dark);
+    }
+
+    .form-grid {
+        display: grid;
+        gap: var(--space-md);
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xs);
+    }
+
+    .form-group label {
+        font-weight: 600;
+        color: var(--cully-dark);
+    }
+
+    .form-group input,
+    .form-group select {
+        border-radius: 10px;
+        border: 1px solid var(--cully-light-gray);
+        padding: 0.65rem 0.85rem;
+        font-size: 0.95rem;
+        transition: var(--transition-smooth);
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+        outline: none;
+        border-color: var(--cully-blue);
+        box-shadow: 0 0 0 3px rgba(123, 165, 199, 0.25);
+    }
+
+    .spec-grid {
+        display: grid;
+        gap: var(--space-md);
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    }
+
+    .spec-item,
+    .modules-list {
+        background: var(--cully-white);
+        border-radius: 16px;
+        padding: var(--space-md);
+        box-shadow: inset 0 0 0 1px rgba(90, 127, 163, 0.08);
+    }
+
+    .spec-item label {
+        display: block;
+        font-size: 0.85rem;
+        color: var(--cully-gray);
+    }
+
+    .spec-item .value {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: var(--cully-dark);
+    }
+
+    .modules-list-header {
+        font-weight: 600;
+        margin-bottom: var(--space-md);
+        color: var(--cully-dark);
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-xs);
+        border-radius: 12px;
+        padding: 0.65rem 1.2rem;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: var(--transition-smooth);
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, var(--cully-light-blue), var(--cully-blue));
+        color: var(--cully-white);
+    }
+
+    .btn-secondary {
+        background: rgba(123, 165, 199, 0.15);
+        color: var(--cully-blue);
+    }
+
+    .btn-success {
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.85), var(--cully-success));
+        color: var(--cully-white);
+    }
+
+    .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .config-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+    }
+
+    .config-table th,
+    .config-table td {
+        padding: 0.75rem;
+        border-bottom: 1px solid var(--cully-light-gray);
+        text-align: left;
+    }
+
+    .config-table th {
+        background: rgba(123, 165, 199, 0.15);
+        color: var(--cully-dark);
+        font-weight: 600;
+    }
+
+    .hidden {
+        display: none !important;
+    }
+
+    #statusMessages .alert {
+        margin-bottom: var(--space-sm);
+    }
+
+    .history-list {
+        display: grid;
+        gap: var(--space-sm);
+    }
+
+    .history-item {
+        padding: var(--space-sm) var(--space-md);
+        border-radius: 12px;
+        background: rgba(123, 165, 199, 0.08);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--cully-dark);
+    }
+
+    @media (max-width: 1024px) {
+        .widgets-grid {
+            gap: var(--space-md);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="page-hero__content">
+        <div>
+            <h1 class="page-hero__title"><i class="fas fa-sitemap"></i> I/O Configuration Builder</h1>
+            <p class="page-hero__subtitle">Build, validate, and export I/O module specifications with consistent automation styling.</p>
+        </div>
+        <div class="page-hero__actions">
+            <a class="btn-ghost" href="{{ url_for('dashboard.engineer') }}"><i class="fas fa-arrow-left"></i> Back to dashboard</a>
+            <a class="button-primary" href="{{ url_for('reports.new') }}"><i class="fas fa-plus-circle"></i> New report</a>
+        </div>
+    </div>
+</section>
+
+<nav class="module-nav">
+    <div class="module-nav__links">
+        <a class="module-nav__link" href="{{ url_for('dashboard.my_reports') }}"><i class="fas fa-folder-open"></i> My reports</a>
+        <a class="module-nav__link module-nav__link--active" href="{{ url_for('io_builder.index') }}"><i class="fas fa-sitemap"></i> I/O builder</a>
+        <a class="module-nav__link" href="{{ url_for('notifications.notification_center') }}"><i class="fas fa-bell"></i> Notifications</a>
+        <a class="module-nav__link" href="{{ url_for('system_settings') }}"><i class="fas fa-sliders-h"></i> Settings</a>
+    </div>
+    <div class="module-nav__meta">
+        <i class="fas fa-check-circle"></i> Digital, analog, and mixed module templates supported
+    </div>
+</nav>
+
+<div class="io-layout">
+<div class="widgets-grid">
+            <div class="widget-card">
+                <div class="widget-header">
+                    <h3 class="widget-title">
+                        <i class="fa fa-microchip"></i>
+                        I/O Module Configuration
+                    </h3>
+                </div>
+                <div class="widget-content">
+                    <!-- Module Configuration Form -->
+                    <div class="form-container">
+                        <!-- Module Selection -->
+                        <div class="form-section">
+                            <h4><i class="fa fa-search"></i> Module Selection</h4>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="vendor">Vendor:</label>
+                                    <select id="vendor" name="vendor" required>
+                                        <option value="">Select Vendor</option>
+                                        <option value="ABB">ABB</option>
+                                        <option value="SIEMENS">Siemens</option>
+                                        <option value="SCHNEIDER">Schneider Electric</option>
+                                        <option value="ROCKWELL">Rockwell Automation</option>
+                                        <option value="OMRON">Omron</option>
+                                        <option value="MITSUBISHI">Mitsubishi</option>
+                                        <option value="BECKHOFF">Beckhoff</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="model">Model Number:</label>
+                                    <input type="text" id="model" name="model" placeholder="e.g., DA501, DI810, SM1231" required>
+                                </div>
+                                <div class="form-group full-width">
+                                    <button type="button" id="lookupBtn" class="btn btn-primary" onclick="lookupModuleSpecs()">
+                                        <i class="fa fa-search"></i> Search for Module Specifications
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- System Configuration -->
+                        <div class="form-section">
+                            <h4><i class="fa fa-cogs"></i> System Configuration</h4>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="rack_no">Rack Number:</label>
+                                    <input type="number" id="rack_no" name="rack_no" value="1" min="0" max="99" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="slot_no">Slot/Position:</label>
+                                    <input type="number" id="slot_no" name="slot_no" value="1" min="1" max="32" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="start_address">Start Address:</label>
+                                    <input type="number" id="start_address" name="start_address" value="0" min="0" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="description_prefix">Description Prefix:</label>
+                                    <input type="text" id="description_prefix" name="description_prefix" placeholder="e.g., PUMP_01, VALVE_" maxlength="20">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status Messages -->
+                    <div id="statusMessages"></div>
+
+                    <!-- Module Specifications Display -->
+                    <div id="moduleSpecDisplay" class="module-spec-display hidden">
+                        <h5><i class="fa fa-info-circle"></i> Module Specifications Found</h5>
+                        <div class="spec-grid">
+                            <div class="spec-item">
+                                <label>Digital Inputs</label>
+                                <div class="value" id="specDI">0</div>
+                            </div>
+                            <div class="spec-item">
+                                <label>Digital Outputs</label>
+                                <div class="value" id="specDO">0</div>
+                            </div>
+                            <div class="spec-item">
+                                <label>Analog Inputs</label>
+                                <div class="value" id="specAI">0</div>
+                            </div>
+                            <div class="spec-item">
+                                <label>Analog Outputs</label>
+                                <div class="value" id="specAO">0</div>
+                            </div>
+                            <div class="spec-item">
+                                <label>Total Channels</label>
+                                <div class="value" id="specTotal">0</div>
+                            </div>
+                            <div class="spec-item">
+                                <label>Signal Type</label>
+                                <div class="value" id="specType">Mixed</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 16px; text-align: center;">
+                            <button type="button" class="btn btn-success" onclick="addModuleToConfiguration()">
+                                <i class="fa fa-plus"></i> Add to Configuration
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="editModuleSpecs()">
+                                <i class="fa fa-edit"></i> Edit Specifications
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Manual Specification Editor -->
+                    <div id="manualSpecEditor" class="module-spec-display hidden">
+                        <h5><i class="fa fa-edit"></i> Manual Specification Entry</h5>
+                        <div class="spec-grid">
+                            <div class="form-group">
+                                <label>Digital Inputs:</label>
+                                <input type="number" id="manualDI" value="0" min="0" max="999">
+                            </div>
+                            <div class="form-group">
+                                <label>Digital Outputs:</label>
+                                <input type="number" id="manualDO" value="0" min="0" max="999">
+                            </div>
+                            <div class="form-group">
+                                <label>Analog Inputs:</label>
+                                <input type="number" id="manualAI" value="0" min="0" max="999">
+                            </div>
+                            <div class="form-group">
+                                <label>Analog Outputs:</label>
+                                <input type="number" id="manualAO" value="0" min="0" max="999">
+                            </div>
+                            <div class="form-group">
+                                <label>Voltage Range:</label>
+                                <input type="text" id="manualVoltage" value="24 VDC" placeholder="e.g., 24 VDC, 0-10V">
+                            </div>
+                            <div class="form-group">
+                                <label>Current Range:</label>
+                                <input type="text" id="manualCurrent" value="4-20mA" placeholder="e.g., 4-20mA, 0-20mA">
+                            </div>
+                        </div>
+                        <div style="margin-top: 16px; text-align: center;">
+                            <button type="button" class="btn btn-success" onclick="applyManualSpecs()">
+                                <i class="fa fa-check"></i> Apply Specifications
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="cancelManualEdit()">
+                                <i class="fa fa-times"></i> Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configured Modules List -->
+        <div id="modulesList" class="widgets-grid hidden">
+            <div class="widget-card">
+                <div class="widget-header">
+                    <h3 class="widget-title">
+                        <i class="fa fa-list"></i>
+                        Configured Modules
+                    </h3>
+                </div>
+                <div class="widget-content">
+                    <div id="modulesContainer" class="modules-list">
+                        <div class="modules-list-header">
+                            Configured I/O Modules
+                        </div>
+                        <div id="modulesListContent">
+                            <!-- Module items will be added here -->
+                        </div>
+                    </div>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button type="button" class="btn btn-primary" onclick="generateIOTables()">
+                            <i class="fa fa-table"></i> Generate I/O Testing Tables
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="clearAllModules()">
+                            <i class="fa fa-trash"></i> Clear All
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generated I/O Tables -->
+        <div id="ioTablesSection" class="widgets-grid hidden">
+            <div class="widget-card">
+                <div class="widget-header">
+                    <h3 class="widget-title">
+                        <i class="fa fa-table"></i>
+                        Generated I/O Testing Tables
+                    </h3>
+                </div>
+                <div class="widget-content">
+                    <div id="ioTablesContent">
+                        <!-- Generated tables will appear here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+        // Global variables
+        let configuredModules = [];
+        let currentModuleSpec = null;
+
+        // Initialize application
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('I/O Builder initialized');
+            
+            // Add event listeners
+            document.getElementById('model').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    lookupModuleSpecs();
+                }
+            });
+        });
+
+        // Lookup module specifications online
+        async function lookupModuleSpecs() {
+            const vendor = document.getElementById('vendor').value;
+            const model = document.getElementById('model').value;
+
+            console.log(`Looking up: Vendor='${vendor}', Model='${model}'`);
+
+            if (!vendor || !model) {
+                showStatusMessage('Please select a vendor and enter a model number', 'warning');
+                return;
+            }
+
+            const lookupBtn = document.getElementById('lookupBtn');
+            const originalText = lookupBtn.innerHTML;
+            lookupBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Searching...';
+            lookupBtn.disabled = true;
+
+            try {
+                showStatusMessage(`🔍 Searching for ${vendor} ${model} specifications...`, 'info');
+
+                const response = await fetch('/io-builder/api/module-lookup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({ 
+                        company: vendor, 
+                        model: model 
+                    })
+                });
+
+                console.log('Response status:', response.status);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('Lookup response:', data);
+
+                if (data.success && data.module) {
+                    currentModuleSpec = data.module;
+                    console.log('Current module spec:', currentModuleSpec);
+                    
+                    displayModuleSpecs(data.module);
+                    
+                    let message = '';
+                    let messageType = 'success';
+                    
+                    if (data.source === 'database') {
+                        message = `✅ Found ${vendor} ${model} specifications in database`;
+                    } else if (data.source === 'web') {
+                        message = `✅ Found ${vendor} ${model} specifications online!`;
+                    } else if (data.source === 'manual') {
+                        message = data.message || `⚠ Module ${vendor} ${model} not found. Please enter specifications manually.`;
+                        messageType = 'warning';
+                        showManualSpecEditor();
+                    }
+
+                    // Add detailed I/O info to message
+                    const totalChannels = (data.module.digital_inputs || 0) + (data.module.digital_outputs || 0) + 
+                                         (data.module.analog_inputs || 0) + (data.module.analog_outputs || 0);
+                    
+                    if (totalChannels > 0) {
+                        message += ` | DI: ${data.module.digital_inputs || 0}, DO: ${data.module.digital_outputs || 0}, AI: ${data.module.analog_inputs || 0}, AO: ${data.module.analog_outputs || 0}`;
+                    }
+
+                    showStatusMessage(message, messageType);
+                } else {
+                    const errorMessage = data.error || 'Module not found. Please enter specifications manually.';
+                    showStatusMessage(errorMessage, 'warning');
+                    showManualSpecEditor();
+                }
+            } catch (error) {
+                console.error('Lookup error:', error);
+                showStatusMessage(`❌ Network error: ${error.message}. Please try again or enter specifications manually.`, 'error');
+                showManualSpecEditor();
+            } finally {
+                lookupBtn.innerHTML = originalText;
+                lookupBtn.disabled = false;
+            }
+        }
+
+        // Display module specifications
+        function displayModuleSpecs(module) {
+            console.log('Displaying module specs:', module);
+            
+            document.getElementById('specDI').textContent = module.digital_inputs || 0;
+            document.getElementById('specDO').textContent = module.digital_outputs || 0;
+            document.getElementById('specAI').textContent = module.analog_inputs || 0;
+            document.getElementById('specAO').textContent = module.analog_outputs || 0;
+            
+            const total = (module.digital_inputs || 0) + (module.digital_outputs || 0) + 
+                         (module.analog_inputs || 0) + (module.analog_outputs || 0);
+            document.getElementById('specTotal').textContent = total;
+            
+            // Determine signal type
+            let signalType = 'Unknown';
+            const hasDigital = (module.digital_inputs || 0) + (module.digital_outputs || 0) > 0;
+            const hasAnalog = (module.analog_inputs || 0) + (module.analog_outputs || 0) > 0;
+            
+            if (hasDigital && hasAnalog) {
+                signalType = 'Mixed';
+            } else if (hasDigital) {
+                signalType = 'Digital';
+            } else if (hasAnalog) {
+                signalType = 'Analog';
+            }
+            
+            document.getElementById('specType').textContent = signalType;
+            
+            document.getElementById('moduleSpecDisplay').classList.remove('hidden');
+            document.getElementById('manualSpecEditor').classList.add('hidden');
+        }
+
+        // Show manual specification editor
+        function showManualSpecEditor() {
+            document.getElementById('manualSpecEditor').classList.remove('hidden');
+            document.getElementById('moduleSpecDisplay').classList.add('hidden');
+        }
+
+        // Edit module specifications
+        function editModuleSpecs() {
+            if (currentModuleSpec) {
+                document.getElementById('manualDI').value = currentModuleSpec.digital_inputs || 0;
+                document.getElementById('manualDO').value = currentModuleSpec.digital_outputs || 0;
+                document.getElementById('manualAI').value = currentModuleSpec.analog_inputs || 0;
+                document.getElementById('manualAO').value = currentModuleSpec.analog_outputs || 0;
+                document.getElementById('manualVoltage').value = currentModuleSpec.voltage_range || '24 VDC';
+                document.getElementById('manualCurrent').value = currentModuleSpec.current_range || '4-20mA';
+            }
+            showManualSpecEditor();
+        }
+
+        // Apply manual specifications
+        function applyManualSpecs() {
+            const vendor = document.getElementById('vendor').value;
+            const model = document.getElementById('model').value;
+
+            if (!vendor || !model) {
+                showStatusMessage('Please select a vendor and enter a model number', 'warning');
+                return;
+            }
+
+            currentModuleSpec = {
+                company: vendor,
+                model: model,
+                digital_inputs: parseInt(document.getElementById('manualDI').value) || 0,
+                digital_outputs: parseInt(document.getElementById('manualDO').value) || 0,
+                analog_inputs: parseInt(document.getElementById('manualAI').value) || 0,
+                analog_outputs: parseInt(document.getElementById('manualAO').value) || 0,
+                voltage_range: document.getElementById('manualVoltage').value || '24 VDC',
+                current_range: document.getElementById('manualCurrent').value || '4-20mA',
+                description: `${vendor} ${model} - Manual Entry`,
+                verified: false
+            };
+
+            console.log('Applied manual specs:', currentModuleSpec);
+            displayModuleSpecs(currentModuleSpec);
+            showStatusMessage('✅ Manual specifications applied successfully', 'success');
+        }
+
+        // Cancel manual edit
+        function cancelManualEdit() {
+            if (currentModuleSpec) {
+                displayModuleSpecs(currentModuleSpec);
+            } else {
+                document.getElementById('manualSpecEditor').classList.add('hidden');
+                document.getElementById('moduleSpecDisplay').classList.add('hidden');
+            }
+        }
+
+        // Add module to configuration
+        function addModuleToConfiguration() {
+            if (!currentModuleSpec) {
+                showStatusMessage('No module specifications available', 'error');
+                return;
+            }
+
+            const rackNo = document.getElementById('rack_no').value;
+            const slotNo = document.getElementById('slot_no').value;
+            const startAddress = document.getElementById('start_address').value;
+            const descriptionPrefix = document.getElementById('description_prefix').value;
+
+            const moduleConfig = {
+                ...currentModuleSpec,
+                rack_no: rackNo,
+                slot_no: slotNo,
+                start_address: startAddress,
+                description_prefix: descriptionPrefix,
+                id: Date.now()
+            };
+
+            configuredModules.push(moduleConfig);
+            updateModulesList();
+            clearForm();
+            
+            const total = (currentModuleSpec.digital_inputs || 0) + (currentModuleSpec.digital_outputs || 0) + 
+                         (currentModuleSpec.analog_inputs || 0) + (currentModuleSpec.analog_outputs || 0);
+            
+            showStatusMessage(`✅ Module ${currentModuleSpec.company} ${currentModuleSpec.model} added with ${total} I/O points`, 'success');
+        }
+
+        // Update modules list display
+        function updateModulesList() {
+            const container = document.getElementById('modulesListContent');
+            
+            if (configuredModules.length === 0) {
+                document.getElementById('modulesList').classList.add('hidden');
+                return;
+            }
+
+            document.getElementById('modulesList').classList.remove('hidden');
+            
+            container.innerHTML = '';
+            
+            configuredModules.forEach((module, index) => {
+                const moduleItem = document.createElement('div');
+                moduleItem.className = 'module-item';
+                
+                const total = (module.digital_inputs || 0) + (module.digital_outputs || 0) + 
+                             (module.analog_inputs || 0) + (module.analog_outputs || 0);
+                
+                moduleItem.innerHTML = `
+                    <div class="module-info">
+                        <div class="module-name">${module.company} ${module.model}</div>
+                        <div class="module-details">
+                            Rack ${module.rack_no}, Slot ${module.slot_no} | 
+                            ${module.description_prefix ? 'Prefix: ' + module.description_prefix + ' | ' : ''}
+                            Start Address: ${module.start_address}
+                        </div>
+                    </div>
+                    <div class="module-stats">
+                        <span><strong>DI:</strong> ${module.digital_inputs || 0}</span>
+                        <span><strong>DO:</strong> ${module.digital_outputs || 0}</span>
+                        <span><strong>AI:</strong> ${module.analog_inputs || 0}</span>
+                        <span><strong>AO:</strong> ${module.analog_outputs || 0}</span>
+                        <span><strong>Total:</strong> ${total}</span>
+                    </div>
+                    <div class="module-actions">
+                        <button class="btn btn-secondary btn-small" onclick="removeModule(${index})">
+                            <i class="fa fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                
+                container.appendChild(moduleItem);
+            });
+        }
+
+        // Remove module from configuration
+        function removeModule(index) {
+            if (confirm('Are you sure you want to remove this module?')) {
+                configuredModules.splice(index, 1);
+                updateModulesList();
+                showStatusMessage('Module removed from configuration', 'info');
+            }
+        }
+
+        // Clear all modules
+        function clearAllModules() {
+            if (configuredModules.length === 0) {
+                showStatusMessage('No modules to clear', 'info');
+                return;
+            }
+            
+            if (confirm('Are you sure you want to clear all configured modules?')) {
+                configuredModules = [];
+                updateModulesList();
+                document.getElementById('ioTablesSection').classList.add('hidden');
+                showStatusMessage('All modules cleared', 'info');
+            }
+        }
+
+        // Generate I/O tables
+        async function generateIOTables() {
+            if (configuredModules.length === 0) {
+                showStatusMessage('Please add at least one module before generating tables', 'warning');
+                return;
+            }
+
+            try {
+                showStatusMessage('📊 Generating I/O testing tables...', 'info');
+
+                const response = await fetch('/io-builder/api/generate-io-table', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({ 
+                        modules: configuredModules 
+                    })
+                });
+
+                const data = await response.json();
+                console.log('Generate tables response:', data);
+
+                if (data.success) {
+                    displayIOTables(data.tables, data.summary);
+                    showStatusMessage(`✅ Generated ${data.summary.total_points} I/O testing points successfully!`, 'success');
+                } else {
+                    showStatusMessage('❌ Error generating tables: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Generation error:', error);
+                showStatusMessage('❌ Network error during table generation. Please try again.', 'error');
+            }
+        }
+
+        // Display generated I/O tables
+        function displayIOTables(tables, summary) {
+            const container = document.getElementById('ioTablesContent');
+            let html = '';
+
+            // Summary
+            html += `
+                <div class="status-message status-success">
+                    <i class="fa fa-check-circle"></i>
+                    Successfully generated ${summary.total_points} total I/O testing points from ${summary.modules_processed} modules
+                </div>
+            `;
+
+            // Digital Input Table
+            if (tables.digital_inputs && tables.digital_inputs.length > 0) {
+                html += createIOTable('Digital Input Testing', tables.digital_inputs, [
+                    'S.No', 'Rack', 'Slot', 'Signal Tag', 'Description', 'Expected State', 'Test Result', 'Verified By', 'Comments'
+                ]);
+            }
+
+            // Digital Output Table
+            if (tables.digital_outputs && tables.digital_outputs.length > 0) {
+                html += createIOTable('Digital Output Testing', tables.digital_outputs, [
+                    'S.No', 'Rack', 'Slot', 'Signal Tag', 'Description', 'Command State', 'Test Result', 'Verified By', 'Comments'
+                ]);
+            }
+
+            // Analog Input Table
+            if (tables.analog_inputs && tables.analog_inputs.length > 0) {
+                html += createIOTable('Analog Input Testing', tables.analog_inputs, [
+                    'S.No', 'Rack', 'Slot', 'Signal Tag', 'Description', 'Range', 'Test Values', 'Test Result', 'Verified By', 'Comments'
+                ]);
+            }
+
+            // Analog Output Table
+            if (tables.analog_outputs && tables.analog_outputs.length > 0) {
+                html += createIOTable('Analog Output Testing', tables.analog_outputs, [
+                    'S.No', 'Rack', 'Slot', 'Signal Tag', 'Description', 'Range', 'Command Values', 'Test Result', 'Verified By', 'Comments'
+                ]);
+            }
+
+            container.innerHTML = html;
+            document.getElementById('ioTablesSection').classList.remove('hidden');
+        }
+
+        // Create I/O table HTML
+        function createIOTable(title, data, headers) {
+            let html = `
+                <div class="table-container">
+                    <div class="table-header">
+                        <span><i class="fa fa-table"></i> ${title}</span>
+                        <span>${data.length} Points</span>
+                    </div>
+                    <table class="io-table">
+                        <thead>
+                            <tr>
+            `;
+
+            headers.forEach(header => {
+                html += `<th>${header}</th>`;
+            });
+
+            html += `
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            data.forEach(item => {
+                html += '<tr>';
+                html += `<td><strong>${item.sno}</strong></td>`;
+                html += `<td>${item.rack_no}</td>`;
+                html += `<td>${item.module_position || item.slot_no}</td>`;
+                html += `<td class="signal-tag">${item.signal_tag}</td>`;
+                html += `<td>${item.signal_description}</td>`;
+                
+                // Add appropriate columns based on table type
+                if (title.includes('Digital Input')) {
+                    html += `<td>${item.expected_state}</td>`;
+                } else if (title.includes('Digital Output')) {
+                    html += `<td>${item.command_state}</td>`;
+                } else if (title.includes('Analog')) {
+                    html += `<td>${item.signal_range}</td>`;
+                    if (title.includes('Input')) {
+                        html += `<td>${item.test_value_low}, ${item.test_value_mid}, ${item.test_value_high}</td>`;
+                    } else {
+                        html += `<td>${item.command_value_low}, ${item.command_value_mid}, ${item.command_value_high}</td>`;
+                    }
+                }
+                
+                html += `<td><input type="text" placeholder="PASS/FAIL" style="width: 80px; border: 1px solid #ddd; padding: 4px; border-radius: 4px;"></td>`;
+                html += `<td><input type="text" placeholder="Initials" style="width: 60px; border: 1px solid #ddd; padding: 4px; border-radius: 4px;"></td>`;
+                html += `<td><input type="text" placeholder="Comments" style="width: 150px; border: 1px solid #ddd; padding: 4px; border-radius: 4px;"></td>`;
+                html += '</tr>';
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            return html;
+        }
+
+        // Clear form
+        function clearForm() {
+            document.getElementById('vendor').value = '';
+            document.getElementById('model').value = '';
+            document.getElementById('description_prefix').value = '';
+            document.getElementById('moduleSpecDisplay').classList.add('hidden');
+            document.getElementById('manualSpecEditor').classList.add('hidden');
+            currentModuleSpec = null;
+            
+            // Clear status messages
+            document.getElementById('statusMessages').innerHTML = '';
+        }
+
+        // Show status message
+        function showStatusMessage(message, type = 'info') {
+            const container = document.getElementById('statusMessages');
+            
+            const messageEl = document.createElement('div');
+            messageEl.className = `status-message status-${type}`;
+            
+            let icon = 'fa-info-circle';
+            if (type === 'success') icon = 'fa-check-circle';
+            else if (type === 'warning') icon = 'fa-exclamation-triangle';
+            else if (type === 'error') icon = 'fa-times-circle';
+            
+            messageEl.innerHTML = `<i class="fa ${icon}"></i> ${message}`;
+            
+            container.innerHTML = '';
+            container.appendChild(messageEl);
+            
+            // Auto-hide after 10 seconds for non-error messages
+            if (type !== 'error') {
+                setTimeout(() => {
+                    if (messageEl.parentNode) {
+                        messageEl.style.opacity = '0';
+                        setTimeout(() => {
+                            if (messageEl.parentNode) {
+                                messageEl.parentNode.removeChild(messageEl);
+                            }
+                        }, 300);
+                    }
+                }, 10000);
+            }
+        }
+
+        // Get CSRF token
+        function getCSRFToken() {
+            const metaToken = document.querySelector('meta[name=csrf-token]');
+            if (metaToken) {
+                return metaToken.getAttribute('content');
+            }
+            
+            const hiddenToken = document.querySelector('input[name=csrf_token]');
+            if (hiddenToken) {
+                return hiddenToken.value;
+            }
+            
+            console.warn('CSRF token not found');
+            return '';
+        }
+
+        // Test function for debugging
+        async function testModuleLookup(company, model) {
+            try {
+                const response = await fetch(`/io-builder/api/test-lookup/${company}/${model}`);
+                const data = await response.json();
+                console.log('Test lookup result:', data);
+                return data;
+            } catch (error) {
+                console.error('Test lookup error:', error);
+                return null;
+            }
+        }
+
+        // Auto-test DA501 on page load for debugging
+        window.addEventListener('load', function() {
+            console.log('Page loaded - testing DA501 lookup...');
+            testModuleLookup('ABB', 'DA501').then(result => {
+                if (result) {
+                    console.log('DA501 test result:', result);
+                }
+            });
+        });
+    </script>
+{% endblock %}
+

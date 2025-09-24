@@ -1,0 +1,53 @@
+# Testing environment configuration
+debug: false
+environment: "testing"
+testing: true
+
+# Database (in-memory for testing)
+database:
+  uri: "sqlite:///:memory:"
+  pool_size: 1
+
+# Security (disabled for testing)
+security:
+  csrf_enabled: false
+  rate_limiting:
+    enabled: false
+
+# Session (minimal for testing)
+session:
+  cookie_secure: false
+  timeout: 300  # 5 minutes
+
+# Logging (minimal for testing)
+logging:
+  level: "ERROR"
+  handlers:
+    - "console"
+
+# Features (minimal for testing)
+features:
+  email_notifications: false
+  pdf_export: false
+  api_enabled: true
+  metrics_enabled: false
+  backup_enabled: false
+  audit_logging: false
+
+# API (no limits for testing)
+api:
+  rate_limiting:
+    anonymous: "10000 per hour"
+    authenticated: "10000 per hour"
+
+# Monitoring (disabled for testing)
+monitoring:
+  enabled: false
+
+# Backup (disabled for testing)
+backup:
+  enabled: false
+
+# Cache (disabled for testing)
+cache:
+  enabled: false

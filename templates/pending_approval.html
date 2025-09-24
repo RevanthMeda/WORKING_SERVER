@@ -1,0 +1,87 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pending Approval - Cully SAT Report Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot-assistant.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="logo-header">
+            <img src="{{ url_for('static', filename='cully.png') }}" alt="Company Logo"/>
+        </div>
+        
+        <div class="pending-card">
+            <div class="pending-icon">
+                <i class="fa fa-clock"></i>
+            </div>
+            
+            <h1>Your account is awaiting approval</h1>
+            <p class="pending-message">
+                Thanks for signing up. You'll receive an email when your account is approved.
+            </p>
+            <p class="pending-details">
+                An administrator will review your request and assign the appropriate role to your account.
+                This usually takes 1-2 business days.
+            </p>
+            
+            <div class="pending-actions">
+                <a href="{{ url_for('auth.welcome') }}" class="btn-secondary">
+                    <i class="fa fa-home"></i> Back to Welcome
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .pending-card {
+            max-width: 500px;
+            margin: 50px auto;
+            background: var(--card-bg);
+            padding: 60px 40px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+        
+        .pending-icon {
+            font-size: 4rem;
+            color: #FF9800;
+            margin-bottom: 30px;
+        }
+        
+        .pending-card h1 {
+            color: var(--text-primary);
+            margin-bottom: 20px;
+        }
+        
+        .pending-message {
+            font-size: 18px;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        
+        .pending-details {
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+        
+        .pending-actions .btn-secondary {
+            padding: 12px 25px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+
+    {% include 'partials/chatbot_widget.html' %}
+    <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
+</body>
+</html>

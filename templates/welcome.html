@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cully Report Generator - Water Management & Conservation</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/welcome-cully.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot-assistant.css') }}">
+</head>
+<body>
+    <!-- CULLY STYLE HEADER -->
+    <header class="cully-header">
+        <nav class="header-nav">
+            <div class="header-logo-container">
+                <img src="https://www.cully.ie/wp-content/themes/cullyautomation/assets/images/logo-25-white.svg" alt="Cully Automation" class="header-logo">
+            </div>
+            <div class="mobile-menu-toggle" onclick="toggleMobileMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="#services" class="nav-item" onclick="scrollToSection('services')">Report Types</a></li>
+                <li><a href="#features" class="nav-item" onclick="scrollToSection('stats-section')">Features</a></li>
+                <li><a href="#documentation" class="nav-item" onclick="scrollToSection('access-section')">Documentation</a></li>
+                <li><a href="#support" class="nav-item" onclick="scrollToSection('footer')">Support</a></li>
+            </ul>
+            <a href="{{ url_for('auth.login') }}" class="contact-btn">Access Portal</a>
+        </nav>
+    </header>
+
+    <!-- CULLY STYLE HERO SECTION -->
+    <section class="hero-section">
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+            <div class="hero-badge">PROFESSIONAL REPORTING PLATFORM</div>
+            <h1 class="hero-title">CULLY REPORT GENERATOR</h1>
+            <h2 class="hero-subtitle-main">STREAMLINED DOCUMENTATION FOR WATER PROFESSIONALS</h2>
+            <p class="hero-subtitle">
+                Generate comprehensive SAT reports, commissioning documentation, site surveys, and technical reports with automated workflows. 
+                Built on over 20 years of expertise in Ireland's water sector with digital approval systems, 
+                version control, and professional formatting for water treatment and automation projects.
+            </p>
+            <div class="hero-features">
+                <div class="feature-item">
+                    <i class="fas fa-file-alt"></i>
+                    <span>SAT Reports</span>
+                </div>
+                <div class="feature-item">
+                    <i class="fas fa-clipboard-check"></i>
+                    <span>Site Surveys</span>
+                </div>
+                <div class="feature-item">
+                    <i class="fas fa-cogs"></i>
+                    <span>Commissioning Docs</span>
+                </div>
+                <div class="feature-item">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Technical Analysis</span>
+                </div>
+            </div>
+            <a href="{{ url_for('auth.register') }}" class="hero-cta">
+                <span>Start Creating Reports</span>
+                <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+    </section>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="alerts-container">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- CULLY STATISTICS SECTION -->
+    <section class="stats-section" id="stats-section">
+        <div class="stats-container">
+            <div class="stats-header">
+                <div class="stats-badge">EXPERTS IN IRELAND'S WATER SECTOR</div>
+                <h2 class="stats-title">Our experience, knowledge, and know-how</h2>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fas fa-tools"></i>
+                    </div>
+                    <div class="stat-number">{{ cully_stats.instruments }}</div>
+                    <div class="stat-label">Instruments in the field</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-number">{{ cully_stats.engineers }}</div>
+                    <div class="stat-label">Service engineers on the road</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fas fa-calendar"></i>
+                    </div>
+                    <div class="stat-number">{{ cully_stats.experience }}</div>
+                    <div class="stat-label">Years of combined engineering experience</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fas fa-industry"></i>
+                    </div>
+                    <div class="stat-number">{{ cully_stats.plants }}</div>
+                    <div class="stat-label">Automated Water plants nation wide</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CULLY SERVICES SECTION -->
+    <section class="services-section" id="services">
+        <div class="section-container">
+            <div class="services-header">
+                <div class="services-badge">REPORT GENERATION FEATURES</div>
+                <h2 class="services-title">Professional Documentation Made Simple</h2>
+            </div>
+            <div class="services-grid">
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-file-contract"></i>
+                    </div>
+                    <h3>SAT Report Generator</h3>
+                    <p>Comprehensive Site Acceptance Testing documentation with automated data validation, image embedding, and professional formatting for water treatment systems.</p>
+                    <a href="{{ url_for('auth.register') }}" class="service-link">
+                        Create SAT Reports <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-map-marked-alt"></i>
+                    </div>
+                    <h3>Site Survey Documentation</h3>
+                    <p>Detailed site survey forms for SCADA migration, network assessments, and infrastructure evaluation with photo documentation and compliance tracking.</p>
+                    <a href="{{ url_for('auth.register') }}" class="service-link">
+                        Survey Documentation <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-clipboard-list"></i>
+                    </div>
+                    <h3>Commissioning Reports</h3>
+                    <p>Factory Acceptance Testing (FAT), Hardware Design Specification (HDS), and Functional Design Specification (FDS) reports with approval workflows.</p>
+                    <a href="{{ url_for('auth.register') }}" class="service-link">
+                        Commissioning Docs <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-users-cog"></i>
+                    </div>
+                    <h3>Digital Approval Workflow</h3>
+                    <p>Multi-level approval system with email notifications, revision tracking, and digital signatures for engineers, automation managers, and project managers.</p>
+                    <a href="{{ url_for('auth.register') }}" class="service-link">
+                        Workflow Management <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-download"></i>
+                    </div>
+                    <h3>Professional Output</h3>
+                    <p>Generate polished PDF reports with Cully branding, automated formatting, embedded images, and comprehensive technical documentation standards.</p>
+                    <a href="{{ url_for('auth.register') }}" class="service-link">
+                        Export Reports <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-database"></i>
+                    </div>
+                    <h3>Document Management</h3>
+                    <p>Centralized repository for all reports with version control, search functionality, collaboration tools, and secure access for authorized personnel.</p>
+                    <a href="{{ url_for('auth.register') }}" class="service-link">
+                        Document Library <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ACCESS PORTAL SECTION -->
+    <section class="access-section section-light" id="access-section">
+        <div class="section-container">
+            <div class="access-content">
+                <div class="access-header">
+                    <h2>Access Your Report Generation Dashboard</h2>
+                    <p>Join water industry professionals streamlining technical documentation with our secure platform</p>
+                </div>
+                <div class="access-buttons">
+                    <a href="{{ url_for('auth.login') }}" class="btn-cully btn-primary">
+                        <i class="fas fa-sign-in-alt"></i>
+                        <span>Access Report Portal</span>
+                    </a>
+                    <a href="{{ url_for('auth.register') }}" class="btn-cully btn-secondary">
+                        <i class="fas fa-user-plus"></i>
+                        <span>Request Access</span>
+                    </a>
+                </div>
+                <div class="access-note">
+                    <i class="fas fa-info-circle"></i>
+                    <p>New registrations require administrator approval. Engineers, Automation Managers, and Project Managers welcome. You'll receive email confirmation within 24 hours.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="cully-footer" id="footer">
+        <div class="section-container">
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <img src="{{ url_for('static', filename='cully.png') }}" alt="Cully Automation" class="footer-logo-img">
+                </div>
+                <div class="footer-text">
+                    <p>Providing water & wastewater solutions for over 20 years. Trust in our expertise and industry knowledge for your project needs.</p>
+                </div>
+                <div class="developer-credit">
+                    <p style="color: var(--cully-gray); font-size: 0.9rem; margin: 1rem 0;">
+                        Developed by <span style="color: var(--cully-navy); font-weight: 600;"><a href="https://www.linkedin.com/in/revanth-meda-1ab294226/" target="_blank" style="color: var(--cully-navy); text-decoration: none;">Revanth Meda</a></span> for 
+                        <span style="color: var(--cully-navy); font-weight: 600;"><a href="https://www.cully.ie/" target="_blank" style="color: var(--cully-navy); text-decoration: none;">CULLY LTD</a></span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Smooth Scrolling JavaScript -->
+    <script>
+        function scrollToSection(sectionId) {
+            const element = document.getElementById(sectionId);
+            if (element) {
+                element.scrollIntoView({ 
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+                // Close mobile menu if open
+                closeMobileMenu();
+            }
+        }
+        
+        function toggleMobileMenu() {
+            const navMenu = document.getElementById('navMenu');
+            const toggle = document.querySelector('.mobile-menu-toggle');
+            
+            navMenu.classList.toggle('mobile-active');
+            toggle.classList.toggle('active');
+        }
+        
+        function closeMobileMenu() {
+            const navMenu = document.getElementById('navMenu');
+            const toggle = document.querySelector('.mobile-menu-toggle');
+            
+            navMenu.classList.remove('mobile-active');
+            toggle.classList.remove('active');
+        }
+        
+        // Add click event listeners for mobile menu
+        document.addEventListener('DOMContentLoaded', function() {
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const href = this.getAttribute('href');
+                    if (href.startsWith('#')) {
+                        const sectionId = href.substring(1);
+                        scrollToSection(sectionId);
+                    }
+                });
+            });
+            
+            // Close mobile menu when clicking outside
+            document.addEventListener('click', function(e) {
+                const navMenu = document.getElementById('navMenu');
+                const toggle = document.querySelector('.mobile-menu-toggle');
+                
+                if (!navMenu.contains(e.target) && !toggle.contains(e.target)) {
+                    closeMobileMenu();
+                }
+            });
+        });
+    </script>
+
+
+    {% include 'partials/chatbot_widget.html' %}
+    <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
+</body>
+</html>

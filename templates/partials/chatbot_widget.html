@@ -1,0 +1,83 @@
+<div id="cully-assistant-root"
+     class="cully-assistant"
+     data-assistant-start="{{ url_for('bot.bot_start') }}"
+     data-assistant-message="{{ url_for('bot.bot_message') }}"
+     data-assistant-reset="{{ url_for('bot.bot_reset') }}"
+     data-assistant-upload="{{ url_for('bot.bot_upload') }}"
+     data-assistant-document="{{ url_for('bot.bot_document', submission_id='__REPORT_ID__') }}"
+     aria-live="polite">
+    <button type="button" class="assistant-launcher" aria-expanded="false" aria-controls="cully-assistant-panel">
+        <span class="assistant-avatar" aria-hidden="true">
+            <span class="assistant-glow"></span>
+            <span class="assistant-icon"><i class="fas fa-robot"></i></span>
+        </span>
+        <span class="assistant-pulse" aria-hidden="true"></span>
+    </button>
+    <div class="assistant-panel" id="cully-assistant-panel" role="dialog" aria-modal="false" hidden>
+        <header class="assistant-header">
+            <div class="assistant-title">
+                <span class="assistant-status-dot" role="presentation"></span>
+                <div>
+                    <h2>Cully Copilot</h2>
+                    <p class="assistant-status">SAT and FAT workflow co-pilot</p>
+                </div>
+            </div>
+            <div class="assistant-actions">
+                <button type="button" class="assistant-action" data-assistant-attachments title="Manage uploads">
+                    <i class="fas fa-paperclip"></i>
+                </button>
+                <button type="button" class="assistant-action" data-assistant-reset title="Reset conversation">
+                    <i class="fas fa-rotate"></i>
+                </button>
+                <button type="button" class="assistant-action" data-assistant-close title="Close assistant">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+        </header>
+        <div class="assistant-body">
+            <div class="assistant-messages" data-assistant-messages>
+                <div class="assistant-message assistant-message--bot">
+                    <div class="assistant-message-avatar">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="assistant-message-content">
+                        <h3>Hi there!</h3>
+                        <p>I'm your industrial automation assistant, ready to orchestrate SAT, FAT, survey, and design report workflows.</p>
+                        <p>Ask for a report, drop field evidence, or say "summary" to see captured versus pending information.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="assistant-file-wrapper" data-assistant-dropzone hidden>
+                <div class="assistant-file-drop">
+                    <input type="file" id="assistant-file-input" class="assistant-file-input" multiple accept=".xlsx,.xls,.csv,image/*">
+                    <label for="assistant-file-input" class="assistant-file-label">
+                        <span class="assistant-file-icon"><i class="fas fa-cloud-arrow-up"></i></span>
+                        <span>
+                            Drop spreadsheets or images here<br>
+                            <small>I'll read values, spot duplicates, and place visuals where they belong.</small>
+                        </span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <footer class="assistant-footer">
+            <form class="assistant-form" data-assistant-form>
+                <textarea class="assistant-input" rows="2" placeholder="Ask me to generate a report, fetch context, or fill missing fields..." required></textarea>
+                <div class="assistant-form-actions">
+                    <button type="button" class="assistant-form-button" data-assistant-research title="Enrich with live research">
+                        <i class="fas fa-globe"></i>
+                    </button>
+                    <button type="submit" class="assistant-form-button assistant-form-button--primary" title="Send">
+                        <span class="assistant-send-loader" aria-hidden="true"></span>
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </form>
+            <div class="assistant-hints" data-assistant-hints>
+                <button type="button" data-assistant-hint="Guide me through a new SAT report">Start SAT workflow</button>
+                <button type="button" data-assistant-hint="Give me a progress summary for my current report">Progress snapshot</button>
+                <button type="button" data-assistant-hint="Review uploaded evidence and flag duplicates">Review evidence</button>
+            </div>
+        </footer>
+    </div>
+</div>

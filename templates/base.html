@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>{% block title %}Cully Report Generator{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/welcome-cully.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot-assistant.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--cully-bg-light);
+            color: var(--cully-dark);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            margin: 0;
+            padding: 0;
+        }
+
+        .dashboard-container {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+        
+        .page-content {
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .page-header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem 0;
+        }
+        
+        .page-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--cully-dark);
+            margin-bottom: 1rem;
+        }
+        
+        .page-subtitle {
+            font-size: 1.2rem;
+            color: var(--cully-gray);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .cully-header {
+            background: rgba(90, 127, 163, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 20px rgba(90, 127, 163, 0.15);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header-logo-container {
+            display: flex;
+            align-items: center;
+        }
+
+        .header-logo {
+            height: 40px;
+        }
+        
+        .header-user-info {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            color: var(--cully-white);
+        }
+
+        .header-user-info span {
+            font-weight: 600;
+        }
+
+        .header-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.18);
+            color: var(--cully-white);
+            transition: var(--transition-smooth);
+        }
+        .header-icon:hover {
+            background: rgba(255, 255, 255, 0.28);
+            color: var(--cully-light-blue);
+        }
+
+        .header-user-info a {
+            color: var(--cully-white);
+            text-decoration: none;
+            font-weight: 500;
+            transition: var(--transition-smooth);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header-user-info a:hover {
+            color: var(--cully-light-blue);
+        }
+
+        /* Footer */
+        .cully-footer {
+            background: var(--cully-white);
+            padding: 2rem;
+            margin-top: 4rem;
+            border-top: 1px solid var(--cully-light-gray);
+            text-align: center;
+        }
+        .developer-credit p {
+            color: var(--cully-gray);
+            font-size: 0.9rem;
+            margin: 0;
+        }
+        .developer-credit a {
+            color: var(--cully-navy);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .developer-credit a:hover {
+            text-decoration: underline;
+        }
+
+        /* Alerts */
+        .alerts-container {
+            margin-bottom: 2rem;
+        }
+        .alert {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .alert-success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border-left: 4px solid #10b981;
+        }
+        .alert-danger {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border-left: 4px solid #ef4444;
+        }
+        .alert-info {
+            background-color: #e0f2fe;
+            color: #0369a1;
+            border-left: 4px solid #0ea5e9;
+        }
+
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body class="layout-shell">
+    <header class="cully-header">
+        <nav class="header-nav">
+            <div class="header-logo-container">
+                <a href="{{ url_for('index') }}">
+                    <img src="https://www.cully.ie/wp-content/themes/cullyautomation/assets/images/logo-25-white.svg" alt="Cully Automation" class="header-logo">
+                </a>
+            </div>
+            <div class="header-user-info">
+                {% if current_user.is_authenticated %}
+                    <span>Welcome, {{ current_user.full_name }}</span>
+                    <a href="{{ url_for('notifications.notification_center') }}" class="header-icon" title="Notifications" aria-label="Notifications"><i class="fas fa-bell"></i></a>
+                    <a href="{{ url_for('auth.change_password') }}" title="Settings"><i class="fas fa-cog"></i> Settings</a>
+                    <a href="{{ url_for('auth.logout') }}" title="Logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                {% else %}
+                    <a href="{{ url_for('auth.login') }}">Login</a>
+                    <a href="{{ url_for('auth.register') }}">Register</a>
+                {% endif %}
+            </div>
+        </nav>
+    </header>
+
+    <div class="dashboard-container">
+        <div class="page-content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="alerts-container">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category or 'info' }}">
+                                <i class="fas fa-info-circle"></i>
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <footer class="cully-footer">
+        <div class="developer-credit">
+            <p>
+                Developed by <a href="https://www.linkedin.com/in/revanth-meda-1ab294226/" target="_blank">Revanth Meda</a> for 
+                <a href="https://www.cully.ie/" target="_blank">CULLY LTD</a>
+            </p>
+        </div>
+    </footer>
+
+    {% if not current_user.is_authenticated %}
+    <script>
+        // Redirect if not authenticated, except for auth pages
+        if (!window.location.pathname.startsWith('/auth')) {
+            window.location.replace("{{ url_for('auth.welcome') }}");
+        }
+    </script>
+    {% endif %}
+    
+    {% include 'partials/chatbot_widget.html' %}
+    <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

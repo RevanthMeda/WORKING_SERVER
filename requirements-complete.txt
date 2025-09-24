@@ -1,0 +1,101 @@
+# Core Flask dependencies
+flask==2.2.3
+flask-login
+flask-sqlalchemy
+flask-wtf==1.1.1
+flask-session
+flask-migrate
+flask-restx
+werkzeug==2.2.3
+
+# Database
+psycopg2-binary
+sqlalchemy
+alembic
+
+# Document processing
+python-docx
+docxtpl==0.16.7
+
+# Image processing
+pillow>=10.4.0
+
+# HTTP requests and web scraping
+requests
+beautifulsoup4
+lxml
+
+# Utilities
+python-dotenv==1.0.0
+itsdangerous
+
+# Production server
+gunicorn
+greenlet
+
+# Windows compatibility (conditional)
+pywin32>=307; sys_platform == 'win32'
+
+# Security and session management
+cryptography
+PyJWT
+pyotp
+qrcode[pil]
+
+# Task scheduling
+schedule
+
+# System monitoring
+psutil
+
+# Configuration management
+pyyaml
+watchdog
+marshmallow
+
+# Secrets management
+hvac
+
+# Caching and performance
+redis>=4.0.0
+celery>=5.2.0
+
+# CLI utilities
+click
+
+# Monitoring and observability
+prometheus-client
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-instrumentation-flask
+opentelemetry-instrumentation-sqlalchemy
+opentelemetry-instrumentation-requests
+opentelemetry-instrumentation-redis
+opentelemetry-exporter-jaeger-thrift
+
+# Testing dependencies (optional but recommended)
+pytest>=6.0.0
+pytest-cov>=2.10.0
+pytest-mock>=3.6.0
+pytest-xdist>=2.2.0
+pytest-html>=3.1.0
+pytest-asyncio>=0.18.0
+factory-boy>=3.2.0
+faker>=13.0.0
+coverage>=6.0.0
+reportlab>=3.6.0
+selenium>=4.0.0
+locust>=2.0.0
+
+# Additional utilities that might be needed
+python-dateutil
+pytz
+humanize
+tornado
+Mako
+billiard
+kombu
+vine
+click-didyoumeant
+click-repl
+click-plugins

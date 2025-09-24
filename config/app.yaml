@@ -1,0 +1,126 @@
+# Default application configuration
+app_name: "SAT Report Generator"
+port: 5000
+debug: false
+environment: "development"
+secret_key: "change-this-in-production-sat-2025-secure-key"
+
+# Database configuration
+database:
+  uri: "sqlite:///instance/database.db"
+  pool_size: 10
+  pool_timeout: 30
+  pool_recycle: 3600
+  track_modifications: false
+
+# Email configuration
+email:
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 587
+  use_tls: true
+  username: ""
+  password: ""
+  default_sender: ""
+
+# File upload settings
+uploads:
+  max_file_size: 16777216  # 16MB
+  allowed_extensions:
+    - "png"
+    - "jpg"
+    - "jpeg"
+    - "gif"
+    - "pdf"
+    - "docx"
+  upload_path: "static/uploads"
+  signatures_path: "static/signatures"
+
+# Session configuration
+session:
+  timeout: 1800  # 30 minutes
+  cookie_secure: false
+  cookie_httponly: true
+  cookie_samesite: "Lax"
+  permanent_lifetime: 1800
+
+# Security settings
+security:
+  csrf_enabled: true
+  csrf_time_limit: 86400  # 24 hours
+  allowed_domains: []
+  block_ip_access: false
+  rate_limiting:
+    enabled: true
+    default_limit: "1000 per hour"
+
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]"
+  file: "logs/app.log"
+  max_bytes: 10485760  # 10MB
+  backup_count: 5
+  handlers:
+    - "file"
+    - "console"
+
+# Feature flags
+features:
+  email_notifications: true
+  pdf_export: false
+  api_enabled: true
+  metrics_enabled: true
+  backup_enabled: true
+  audit_logging: true
+
+# Default approvers
+approvers:
+  - stage: 1
+    title: "Automation Manager"
+    email: "tm@cullyautomation.com"
+  - stage: 2
+    title: "Project Manager"
+    email: "pm@cullyautomation.com"
+
+# Template settings
+templates:
+  sat_template: "templates/SAT_Template.docx"
+  output_directory: "outputs"
+
+# API configuration
+api:
+  version: "v1"
+  rate_limiting:
+    anonymous: "100 per hour"
+    authenticated: "1000 per hour"
+    api_key: "5000 per hour"
+  documentation:
+    enabled: true
+    title: "SAT Report Generator API"
+    description: "RESTful API for SAT Report Generator"
+
+# Monitoring and metrics
+monitoring:
+  enabled: true
+  metrics_endpoint: "/metrics"
+  health_endpoint: "/health"
+  prometheus:
+    enabled: false
+    port: 9090
+
+# Backup configuration
+backup:
+  enabled: true
+  directory: "backups"
+  retention_days: 30
+  max_backups: 50
+  compression: true
+  schedule: "daily"  # daily, weekly, hourly
+  time: "02:00"
+
+# Cache configuration
+cache:
+  enabled: true
+  type: "memory"  # memory, redis
+  default_timeout: 300  # 5 minutes
+  max_entries: 1000

@@ -1,0 +1,126 @@
+========================================
+SAT REPORT GENERATOR - DEPLOYMENT GUIDE
+========================================
+
+Server Details:
+- IP: 172.16.18.21
+- Domain: automation-reports.mobilehmi.org
+- Port: 80 (production)
+
+IMPORTANT: This application is configured for DOMAIN-ONLY ACCESS
+- ✅ automation-reports.mobilehmi.org → WORKS
+- ❌ 172.16.18.21 → BLOCKED (403 Forbidden)
+
+========================================
+DEPLOYMENT STEPS
+========================================
+
+1. COPY FILES TO SERVER
+   - Copy all files to: E:\report generator\SERVER\
+   - Ensure all Python files, templates, and static folders are included
+
+2. INSTALL DEPENDENCIES
+   Run in command prompt:
+   > pip install -r requirements.txt
+
+3. SET UP ENVIRONMENT (Choose ONE option):
+
+   OPTION A - Use deploy.py (Recommended):
+   > python deploy.py
+
+   OPTION B - Use batch file (Windows):
+   > start_production.bat
+
+   OPTION C - Manual environment setup:
+   > set FLASK_ENV=production
+   > set PORT=80
+   > set ALLOWED_DOMAINS=automation-reports.mobilehmi.org
+   > set SERVER_IP=172.16.18.21
+   > set BLOCK_IP_ACCESS=True
+   > python app.py
+
+4. ADMINISTRATOR PRIVILEGES
+   Port 80 requires administrator access:
+   - Right-click Command Prompt → "Run as Administrator"
+   - OR use alternative port (see Alternative Setup below)
+
+========================================
+TROUBLESHOOTING
+========================================
+
+ISSUE: "Permission denied" on port 80
+SOLUTION: Run as Administrator OR use alternative port setup
+
+ISSUE: 500 Internal Server Error
+SOLUTION: Check console logs for specific error details
+
+ISSUE: Domain not working
+SOLUTION: Verify DNS is pointing to 172.16.18.21
+
+========================================
+ALTERNATIVE SETUP (If Port 80 Issues)
+========================================
+
+If you can't use port 80 directly:
+
+1. Set PORT=8080:
+   > set PORT=8080
+   > python deploy.py
+
+2. Configure IIS or Apache to forward:
+   - Incoming port 80 → Forward to localhost:8080
+   - This allows domain access on port 80 while app runs on 8080
+
+========================================
+SECURITY FEATURES ENABLED
+========================================
+
+✅ Domain-only access enforcement
+✅ IP address blocking
+✅ CSRF protection
+✅ Security headers
+✅ Production logging
+✅ Session security
+
+========================================
+TESTING DEPLOYMENT
+========================================
+
+After starting the server:
+
+1. Test domain access:
+   http://automation-reports.mobilehmi.org
+   → Should show login page
+
+2. Test IP blocking:
+   http://172.16.18.21
+   → Should show "403 Forbidden"
+
+3. Health check:
+   http://automation-reports.mobilehmi.org/health
+   → Should show {"status": "healthy"}
+
+========================================
+CONFIGURATION FILES
+========================================
+
+Key files for deployment:
+- deploy.py          → Main production launcher
+- start_production.bat → Windows batch launcher  
+- app.py             → Main application
+- config.py          → Configuration settings
+- middleware.py      → Security middleware
+- requirements.txt   → Python dependencies
+
+========================================
+SUPPORT
+========================================
+
+If you encounter issues:
+1. Check the console output for error messages
+2. Verify all environment variables are set
+3. Confirm administrator privileges for port 80
+4. Test with alternative port if needed
+
+The application is ready for production deployment with
+enterprise-grade security and domain-only access control.

@@ -1,0 +1,114 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Error - SAT Report Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}">
+    <style>
+        .error-container {
+            max-width: 600px;
+            margin: 100px auto;
+            padding: 30px;
+            text-align: center;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .error-icon {
+            font-size: 60px;
+            color: #e74c3c;
+            margin-bottom: 20px;
+        }
+        .error-title {
+            font-size: 24px;
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        .error-message {
+            color: #7f8c8d;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+        .btn-secondary {
+            background-color: #95a5a6;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #7f8c8d;
+        }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot-assistant.css') }}">
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-icon">🔒</div>
+        <h1 class="error-title">Security Token Expired</h1>
+        <p class="error-message">
+            Your security token has expired for safety reasons. This usually happens when:
+            <br>• You've been inactive for too long
+            <br>• You opened the form in multiple tabs
+            <br>• Your session has timed out
+        </p>
+        
+        <div class="action-buttons">
+            <button onclick="window.location.reload()" class="btn btn-primary">
+                🔄 Refresh Page
+            </button>
+            <a href="{{ url_for('main.index') }}" class="btn btn-secondary">
+                🏠 Return Home
+            </a>
+        </div>
+        
+        <p style="margin-top: 30px; font-size: 14px; color: #bdc3c7;">
+            If this problem persists, please contact support.
+        </p>
+    </div>
+
+    <script>
+        // Auto-refresh after 2 seconds - no confirmation needed
+        console.log('🔄 CSRF token expired - auto-refreshing in 2 seconds...');
+        
+        setTimeout(function() {
+            console.log('🔄 Refreshing page to fix CSRF token...');
+            window.location.reload();
+        }, 2000);
+        
+        // Also show the old confirmation dialog as backup
+        setTimeout(function() {
+            if (!document.hidden) {  // Only show if page is visible
+                const shouldRefresh = confirm('Auto-refresh the page to fix the security token?');
+                if (shouldRefresh) {
+                    window.location.reload();
+                }
+            }
+        }, 1000);
+    </script>
+
+    {% include 'partials/chatbot_widget.html' %}
+    <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
+</body>
+</html>

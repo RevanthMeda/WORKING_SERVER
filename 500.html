@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Server Error - SAT Report Generator</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            padding: 50px;
+            background-color: #f8f9fa;
+        }
+        .error { 
+            color: #dc3545; 
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        .message {
+            color: #6c757d;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+        .back-link { 
+            color: #008B8B; 
+            text-decoration: none;
+            font-size: 16px;
+            background: #e9ecef;
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="error">500</h1>
+    <p class="message">Internal Server Error</p>
+    <p>The Flask backend service may not be running.</p>
+    <p>Please ensure: python app.py is running on port 8000</p>
+    <a href="/" class="back-link">Return to SAT Report Generator</a>
+</body>
+</html>

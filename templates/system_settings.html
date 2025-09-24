@@ -1,0 +1,577 @@
+{% extends 'base.html' %}
+
+{% block title %}System Settings - {{ super() }}{% endblock %}
+
+{% block head %}
+<style>
+    :root {
+        --settings-accent: var(--cully-blue);
+        --settings-accent-dark: var(--cully-navy);
+        --settings-surface: var(--cully-white);
+    }
+
+    .settings-layout {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xl);
+    }
+
+    .settings-grid {
+        display: grid;
+        gap: var(--space-lg);
+    }
+
+    .settings-card {
+        background: var(--cully-white);
+        border-radius: 20px;
+        box-shadow: var(--shadow-sm);
+        border: 1px solid rgba(90, 127, 163, 0.08);
+    }
+
+    .settings-card__header {
+        padding: var(--space-md) var(--space-lg);
+        border-bottom: 1px solid var(--cully-light-gray);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .settings-card__title {
+        margin: 0;
+        font-size: 1.2rem;
+        color: var(--cully-dark);
+    }
+
+    .settings-card__body {
+        padding: var(--space-lg);
+        display: grid;
+        gap: var(--space-lg);
+    }
+
+    .setting-section {
+        background: rgba(123, 165, 199, 0.08);
+        border-radius: 16px;
+        padding: var(--space-lg);
+        display: grid;
+        gap: var(--space-sm);
+    }
+
+    .setting-section h3 {
+        margin: 0;
+        font-size: 1.1rem;
+        color: var(--cully-dark);
+    }
+
+    .setting-section p {
+        margin: 0;
+        color: var(--cully-gray);
+    }
+
+    .setting-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-sm);
+        margin-top: var(--space-sm);
+    }
+
+    .setting-actions .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-xs);
+        border-radius: 12px;
+        padding: 0.6rem 1.1rem;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: var(--transition-smooth);
+    }
+
+    .setting-actions .btn-primary {
+        background: linear-gradient(135deg, var(--cully-light-blue), var(--cully-blue));
+        color: var(--cully-white);
+    }
+
+    .setting-actions .btn-secondary {
+        background: rgba(123, 165, 199, 0.15);
+        color: var(--cully-blue);
+    }
+
+    .setting-actions .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .toggle-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--space-md);
+        padding: var(--space-md);
+        border-radius: 16px;
+        background: var(--cully-white);
+        box-shadow: inset 0 0 0 1px rgba(90, 127, 163, 0.08);
+    }
+
+    .toggle-info {
+        display: grid;
+        gap: var(--space-xs);
+    }
+
+    .toggle-info h4 {
+        margin: 0;
+        font-size: 1rem;
+        color: var(--cully-dark);
+    }
+
+    .toggle-info span {
+        color: var(--cully-gray);
+        font-size: 0.9rem;
+    }
+
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 56px;
+        height: 30px;
+    }
+
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #cbd5f5;
+        border-radius: 999px;
+        transition: var(--transition-smooth);
+    }
+
+    .toggle-slider::before {
+        position: absolute;
+        content: '';
+        height: 24px;
+        width: 24px;
+        left: 3px;
+        bottom: 3px;
+        background-color: var(--cully-white);
+        border-radius: 50%;
+        transition: var(--transition-smooth);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+        background: linear-gradient(135deg, var(--cully-light-blue), var(--cully-blue));
+    }
+
+    .toggle-switch input:checked + .toggle-slider::before {
+        transform: translateX(26px);
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-xs);
+        padding: 0.35rem 0.8rem;
+        border-radius: 999px;
+        background: rgba(123, 165, 199, 0.15);
+        color: var(--cully-blue);
+        font-weight: 600;
+        font-size: 0.8rem;
+    }
+
+    .help-text {
+        font-size: 0.85rem;
+        color: var(--cully-gray);
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: var(--space-md);
+    }
+
+    .stats-item {
+        background: rgba(123, 165, 199, 0.12);
+        border-radius: 16px;
+        padding: var(--space-md);
+        color: var(--cully-dark);
+    }
+
+    .log-list {
+        display: grid;
+        gap: var(--space-sm);
+    }
+
+    .log-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--cully-white);
+        border-radius: 12px;
+        padding: var(--space-sm) var(--space-md);
+        box-shadow: inset 0 0 0 1px rgba(90, 127, 163, 0.08);
+    }
+
+    .log-item span {
+        color: var(--cully-gray);
+        font-size: 0.85rem;
+    }
+
+    @media (max-width: 1024px) {
+        .settings-grid {
+            gap: var(--space-md);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="page-hero__content">
+        <div>
+            <h1 class="page-hero__title"><i class="fas fa-cogs"></i> System Settings</h1>
+            <p class="page-hero__subtitle">Configure security, automation, and integration defaults across the platform.</p>
+        </div>
+        <div class="page-hero__actions">
+            <a class="button-primary" href="{{ url_for('dashboard.admin_reports') }}"><i class="fas fa-chart-line"></i> View reports</a>
+        </div>
+    </div>
+</section>
+
+<nav class="module-nav">
+    <div class="module-nav__links">
+        <a class="module-nav__link" href="{{ url_for('dashboard.admin') }}"><i class="fas fa-home"></i> Admin dashboard</a>
+        <a class="module-nav__link" href="{{ url_for('dashboard.user_management') }}"><i class="fas fa-users"></i> User management</a>
+        <a class="module-nav__link" href="{{ url_for('dashboard.admin_reports') }}"><i class="fas fa-file-alt"></i> All reports</a>
+        <a class="module-nav__link module-nav__link--active" href="{{ url_for('dashboard.system_settings') }}"><i class="fas fa-sliders-h"></i> System settings</a>
+    </div>
+    <div class="module-nav__meta">
+        <i class="fas fa-shield-alt"></i> Managed access, automation defaults, and integrations
+    </div>
+</nav>
+
+<div class="settings-layout">
+<!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">
+                                <i class="fa fa-{% if category == 'success' %}check-circle{% elif category == 'error' %}exclamation-triangle{% else %}info-circle{% endif %}"></i>
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <!-- Main Content Area -->
+            <div class="dashboard-main">
+                <div class="settings-grid">
+                    <!-- Company Logo Settings -->
+                    <div class="dashboard-widget">
+                        <div class="widget-header">
+                            <h3 class="widget-title">
+                                <i class="fa fa-image"></i>
+                                Company Logo
+                            </h3>
+                        </div>
+                        <div class="widget-content">
+                            <div class="logo-preview">
+                                <img src="{{ url_for('static', filename=company_logo.replace('static/', '')) }}" 
+                                     alt="Company Logo" class="current-logo">
+                                <div class="logo-info">
+                                    <strong>Current Logo</strong>
+                                    <p>{{ company_logo }}</p>
+                                </div>
+                            </div>
+
+                            <div class="logo-actions">
+                                <button class="btn-secondary" disabled title="Feature coming soon">
+                                    <i class="fa fa-upload"></i> Update Logo
+                                </button>
+                                <small class="help-text">Logo update functionality will be available in a future release</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Storage Settings -->
+                    <div class="dashboard-widget">
+                        <div class="widget-header">
+                            <h3 class="widget-title">
+                                <i class="fa fa-folder"></i>
+                                Default Storage Location
+                            </h3>
+                        </div>
+                        <div class="widget-content">
+                            <form method="POST" action="{{ url_for('dashboard.update_settings') }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+
+                                <div class="form-group">
+                                    <label for="storage_location">Storage Path <span class="required">*</span></label>
+                                    <input type="text" 
+                                           id="storage_location" 
+                                           name="storage_location" 
+                                           value="{{ storage_location }}" 
+                                           placeholder="/outputs/" 
+                                           required>
+                                    <small class="help-text">Specify the directory path where reports will be saved</small>
+                                </div>
+
+                                <div class="form-actions">
+                                    <button type="submit" class="btn-primary">
+                                        <i class="fa fa-save"></i> Save Settings
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Theme Settings -->
+                    <div class="dashboard-widget">
+                        <div class="widget-header">
+                            <h3 class="widget-title">
+                                <i class="fa fa-palette"></i>
+                                Theme Settings
+                            </h3>
+                        </div>
+                        <div class="widget-content">
+                            <div class="theme-note">
+                                <i class="fa fa-info-circle"></i>
+                                <div>
+                                    <strong>Theme Consistency</strong>
+                                    <p>The application maintains consistent colors, fonts, and spacing across all pages. Theme customization will be available in future updates.</p>
+                                </div>
+                            </div>
+
+                            <div class="theme-preview">
+                                <div class="color-swatch primary"></div>
+                                <div class="color-swatch secondary"></div>
+                                <div class="color-swatch accent"></div>
+                                <span>Current Color Scheme</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- System Information -->
+                    <div class="dashboard-widget">
+                        <div class="widget-header">
+                            <h3 class="widget-title">
+                                <i class="fa fa-info-circle"></i>
+                                System Information
+                            </h3>
+                        </div>
+                        <div class="widget-content">
+                            <div class="system-info">
+                                <div class="info-row">
+                                    <span class="info-label">Application Version:</span>
+                                    <span class="info-value">1.0.0 (Phase 1b)</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Database Status:</span>
+                                    <span class="info-value">
+                                        <span class="status-badge status-connected">
+                                            <i class="fa fa-circle" style="font-size: 8px; margin-right: 4px;"></i> Connected
+                                        </span>
+                                    </span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Last Updated:</span>
+                                    <span class="info-value">{{ "2025-01-18 10:00" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cully Statistics Management -->
+                    <div class="dashboard-widget">
+                        <div class="widget-header">
+                            <h3 class="widget-title">
+                                <i class="fa fa-chart-line"></i>
+                                Cully Statistics Sync
+                            </h3>
+                        </div>
+                        <div class="widget-content">
+                            <div class="system-info">
+                                <div class="info-row">
+                                    <span class="info-label">Auto-Sync Status:</span>
+                                    <span class="info-value">
+                                        <span class="status-badge status-connected">
+                                            <i class="fa fa-circle" style="font-size: 8px; margin-right: 4px;"></i> Active
+                                        </span>
+                                    </span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Current Statistics:</span>
+                                    <div class="cully-stats-preview" id="cullyStatsPreview">
+                                        <div class="stats-grid-mini">
+                                            <div class="stat-mini">
+                                                <strong id="statsInstruments">22k</strong>
+                                                <span>Instruments</span>
+                                            </div>
+                                            <div class="stat-mini">
+                                                <strong id="statsEngineers">46</strong>
+                                                <span>Engineers</span>
+                                            </div>
+                                            <div class="stat-mini">
+                                                <strong id="statsExperience">600+</strong>
+                                                <span>Years Exp.</span>
+                                            </div>
+                                            <div class="stat-mini">
+                                                <strong id="statsPlants">250</strong>
+                                                <span>Water Plants</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Last Sync:</span>
+                                    <span class="info-value" id="lastSyncTime">Loading...</span>
+                                </div>
+                            </div>
+                            
+                            <div class="form-actions" style="margin-top: 20px;">
+                                <form method="POST" action="{{ url_for('dashboard.refresh_cully_stats') }}" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+                                    <button type="submit" class="btn-primary" id="refreshStatsBtn">
+                                        <i class="fa fa-sync-alt"></i> Refresh Statistics Now
+                                    </button>
+                                </form>
+                                <p class="help-text">Statistics automatically sync every 6 hours. Use this button to force an immediate update.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+        // Common dashboard functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-refresh database status with error handling
+            function updateDatabaseStatus() {
+                fetch('/dashboard/db-status')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Update all database status indicators
+                        const statusElements = document.querySelectorAll('.status-badge');
+                        statusElements.forEach(element => {
+                            const textContent = element.textContent || '';
+                            if (textContent.includes('Connected') || textContent.includes('Disconnected') || textContent.includes('Not Connected')) {
+                                if (data.connected) {
+                                    element.className = 'status-badge status-connected';
+                                    element.innerHTML = '<i class="fa fa-circle" style="font-size: 8px; margin-right: 4px;"></i> Connected';
+                                } else {
+                                    element.className = 'status-badge status-disconnected';
+                                    element.innerHTML = '<i class="fa fa-circle" style="font-size: 8px; margin-right: 4px;"></i> Disconnected';
+                                }
+                            }
+                        });
+                    })
+                    .catch(error => {
+                        console.warn('Database status check failed:', error.message);
+                        // Update status to show disconnected on error
+                        const statusElements = document.querySelectorAll('.status-badge');
+                        statusElements.forEach(element => {
+                            const textContent = element.textContent || '';
+                            if (textContent.includes('Connected') || textContent.includes('Disconnected') || textContent.includes('Not Connected')) {
+                                element.className = 'status-badge status-disconnected';
+                                element.innerHTML = '<i class="fa fa-circle" style="font-size: 8px; margin-right: 4px;"></i> Disconnected';
+                            }
+                        });
+                    });
+            }
+
+            // Initial status check and setup interval
+            updateDatabaseStatus();
+            setInterval(updateDatabaseStatus, 30000); // Refresh every 30 seconds
+
+            // Load Cully statistics
+            function loadCullyStats() {
+                fetch('/dashboard/api/cully-stats')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('statsInstruments').textContent = data.stats.instruments;
+                            document.getElementById('statsEngineers').textContent = data.stats.engineers;
+                            document.getElementById('statsExperience').textContent = data.stats.experience;
+                            document.getElementById('statsPlants').textContent = data.stats.plants;
+                            
+                            if (data.stats.last_updated) {
+                                document.getElementById('lastSyncTime').textContent = new Date(data.stats.last_updated).toLocaleString();
+                            } else {
+                                document.getElementById('lastSyncTime').textContent = 'Never';
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.warn('Failed to load Cully stats:', error);
+                        document.getElementById('lastSyncTime').textContent = 'Error loading';
+                    });
+            }
+
+            // Load stats on page load
+            loadCullyStats();
+
+            // Handle refresh button
+            const refreshBtn = document.getElementById('refreshStatsBtn');
+            if (refreshBtn) {
+                refreshBtn.closest('form').addEventListener('submit', function(e) {
+                    refreshBtn.classList.add('loading');
+                    refreshBtn.querySelector('.fa-sync-alt').style.animation = 'spin 1s linear infinite';
+                });
+            }
+
+            // Common notification function
+            window.showNotification = function(message, type) {
+                const notification = document.createElement('div');
+                notification.className = `notification notification-${type}`;
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    padding: 15px 20px;
+                    border-radius: 4px;
+                    color: white;
+                    font-weight: 500;
+                    z-index: 10000;
+                    max-width: 400px;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                `;
+                
+                if (type === 'success') {
+                    notification.style.backgroundColor = '#10b981';
+                } else if (type === 'error') {
+                    notification.style.backgroundColor = '#ef4444';
+                } else if (type === 'warning') {
+                    notification.style.backgroundColor = '#f59e0b';
+                } else {
+                    notification.style.backgroundColor = '#3b82f6';
+                }
+                
+                notification.textContent = message;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.remove();
+                }, 5000);
+            };
+        });
+    </script>
+{% endblock %}

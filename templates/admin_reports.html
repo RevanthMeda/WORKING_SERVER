@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>System Reports - Cully Report Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --admin-primary: #4DD0E1;
+            --admin-primary-dark: #26C6DA;
+            --admin-primary-light: #80DEEA;
+            --admin-success: #10b981;
+            --admin-warning: #f59e0b;
+            --admin-danger: #ef4444;
+            --admin-neutral: #6b7280;
+            --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            --card-shadow-hover: 0 8px 30px rgba(0, 0, 0, 0.12);
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            color: #1f2937;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .admin-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Header Section */
+        .admin-header {
+            background: linear-gradient(135deg, #4DD0E1 0%, #26C6DA 100%);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 32px;
+            box-shadow: var(--card-shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .admin-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 200px;
+            height: 200px;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2"/><circle cx="50" cy="50" r="20" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1"/></svg>');
+            opacity: 0.3;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header-info h1 {
+            color: white;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-info p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.1rem;
+            margin: 0;
+        }
+
+        .header-logo {
+            height: 80px;
+            filter: brightness(0) invert(1) drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+        }
+
+        /* Navigation */
+        .dashboard-nav {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: white;
+            padding: 12px 24px;
+            border-radius: 16px;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 32px;
+            border: 1px solid #e2e8f0;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 10px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .nav-link:hover {
+            background: #e2e8f0;
+            color: var(--admin-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(77, 208, 225, 0.25);
+            border-color: var(--admin-primary-light);
+        }
+
+        .nav-link.active {
+            background: linear-gradient(135deg, var(--admin-primary), var(--admin-primary-dark));
+            color: white;
+            box-shadow: 0 4px 15px rgba(77, 208, 225, 0.4);
+            border-color: var(--admin-primary);
+        }
+
+        .nav-link i {
+            font-size: 16px;
+            width: 20px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .nav-link.logout {
+            background: #fee2e2 !important;
+            color: #dc2626 !important;
+            border: 2px solid #fca5a5 !important;
+        }
+
+        .nav-link.logout:hover {
+            background: #fecaca !important;
+            color: #b91c1c !important;
+            border-color: #f87171 !important;
+        }
+
+        /* Flash Messages */
+        .flash-messages {
+            margin-bottom: 24px;
+        }
+
+        .alert {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            border-radius: 12px;
+            color: #065f46;
+            font-weight: 500;
+            border: 1px solid #059669;
+        }
+
+        .alert.alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border-color: #059669;
+        }
+
+        .alert.alert-error {
+            background: #fee2e2;
+            color: #dc2626;
+            border-color: #fca5a5;
+        }
+
+        .alert.alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border-color: #93c5fc;
+        }
+
+        .alert i {
+            font-size: 18px;
+        }
+
+        /* Dashboard Widgets */
+        .widgets-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .dashboard-widget {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: var(--card-shadow);
+            transition: all 0.3s ease;
+        }
+
+        .dashboard-widget:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--card-shadow-hover);
+        }
+
+        .widget-header {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .widget-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .widget-content {
+            padding: 24px;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--card-shadow);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--card-shadow-hover);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--admin-primary);
+        }
+
+        .stat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--admin-primary), var(--admin-primary-light));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0;
+        }
+
+        .stat-label {
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 500;
+            margin: 4px 0 0 0;
+        }
+
+        /* Status badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-completed {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #059669;
+        }
+
+        .status-pending {
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #f59e0b;
+        }
+
+        .status-draft {
+            background: #f3f4f6;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Reports table styles */
+        .reports-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+        }
+
+        .reports-table th {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            color: #374151;
+            padding: 16px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .reports-table td {
+            padding: 16px 12px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+
+        .reports-table tr:hover {
+            background: #f8fafc;
+        }
+
+        .report-details {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .report-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--admin-primary), var(--admin-primary-dark));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .report-info {
+            min-width: 0;
+        }
+
+        .report-title {
+            font-weight: 600;
+            color: #1f2937;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+
+        .report-subtitle {
+            color: #6b7280;
+            font-size: 13px;
+        }
+
+        .date-text {
+            color: #6b7280;
+            font-size: 13px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 32px 16px;
+            color: #64748b;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            color: #cbd5e1;
+            margin-bottom: 16px;
+        }
+
+        .empty-state h4 {
+            color: #374151;
+            font-size: 18px;
+            margin: 0 0 8px 0;
+        }
+
+        .empty-state p {
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .developer-footer {
+            text-align: center;
+            padding: 20px;
+            margin-top: auto;
+            background-color: #f1f5f9;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        /* Action buttons */
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: flex-start;
+        }
+
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            background: none;
+            outline: none;
+        }
+
+        .btn-view {
+            background: #f3f4f6;
+            color: #6b7280;
+            border: 1px solid #e5e7eb;
+        }
+
+        .btn-view:hover {
+            background: #e5e7eb;
+            color: #374151;
+            transform: translateY(-1px);
+        }
+
+        .btn-edit {
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-edit:hover {
+            background-color: #138496;
+        }
+
+        .btn-download {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #3b82f6;
+        }
+
+        .btn-download:hover {
+            background: #3b82f6;
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+
+        .btn-delete {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .btn-delete:hover {
+            background-color: #c82333;
+        }
+
+        .btn-revoke {
+            background-color: #ffc107;
+            color: #212529;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .btn-revoke:hover {
+            background-color: #e0a800;
+        }
+
+        /* Delete confirmation modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            color: #dc2626;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+            color: #374151;
+            line-height: 1.5;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .modal-btn-cancel {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .modal-btn-cancel:hover {
+            background: #e5e7eb;
+        }
+
+        .modal-btn-confirm {
+            background: #ef4444;
+            color: white;
+        }
+
+        .modal-btn-confirm:hover {
+            background: #dc2626;
+        }
+
+        /* Revoke Modal */
+        .revoke-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .revoke-modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .revoke-modal-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            color: var(--admin-warning);
+        }
+
+        .revoke-modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .revoke-modal-body textarea {
+            width: calc(100% - 20px);
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            min-height: 80px;
+            resize: vertical;
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        .revoke-modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .revoke-modal-btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .revoke-modal-btn-cancel {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .revoke-modal-btn-cancel:hover {
+            background: #e5e7eb;
+        }
+
+        .revoke-modal-btn-confirm {
+            background: var(--admin-warning);
+            color: white;
+        }
+
+        .revoke-modal-btn-confirm:hover {
+            background: #d97706;
+        }
+
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .admin-container {
+                padding: 16px;
+            }
+
+            .header-content {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+
+            .header-info h1 {
+                font-size: 2rem;
+                justify-content: center;
+            }
+
+            .dashboard-nav {
+                padding: 4px 8px;
+                flex-wrap: wrap;
+                gap: 4px;
+                justify-content: center;
+            }
+
+            .nav-links {
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 4px;
+            }
+
+            .nav-link {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .widgets-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .dashboard-nav {
+                padding: 2px 4px;
+                min-height: 40px;
+            }
+
+            .nav-link {
+                padding: 4px 8px;
+                font-size: 10px;
+            }
+
+            .nav-link i {
+                font-size: 12px;
+            }
+
+            .developer-footer {
+                padding: 12px;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot-assistant.css') }}">
+</head>
+<body class="dashboard-layout">
+    <div class="admin-container">
+        <!-- Header -->
+        <div class="admin-header">
+            <div class="header-content">
+                <div class="header-info">
+                    <h1><i class="fa fa-file-alt"></i> System Reports</h1>
+                    <p>View and analyze all reports across the platform</p>
+                </div>
+                <img src="{{ url_for('static', filename='cully.png') }}" alt="Cully Logo" class="header-logo">
+            </div>
+        </div>
+
+        <div class="dashboard-content">
+            <!-- Unified Navigation -->
+            <div class="dashboard-nav">
+                <div class="nav-links">
+                    <a href="{{ url_for('dashboard.admin') }}" class="nav-link {% if request.endpoint == 'dashboard.admin' %}active{% endif %}" id="nav-dashboard">
+                        <i class="fa fa-home"></i> Dashboard
+                    </a>
+                    <a href="{{ url_for('dashboard.user_management') }}" class="nav-link {% if request.endpoint == 'dashboard.user_management' %}active{% endif %}" id="nav-users">
+                        <i class="fa fa-users"></i> User Management
+                    </a>
+                    <a href="{{ url_for('dashboard.admin_reports') }}" class="nav-link {% if request.endpoint == 'dashboard.admin_reports' %}active{% endif %}" id="nav-reports">
+                        <i class="fa fa-file-alt"></i> All Reports
+                    </a>
+                    <a href="{{ url_for('dashboard.system_settings') }}" class="nav-link {% if request.endpoint == 'dashboard.system_settings' %}active{% endif %}" id="nav-settings">
+                        <i class="fa fa-cog"></i> System Settings
+                    </a>
+                    <a href="{{ url_for('main.sat_form') }}" class="nav-link {% if request.endpoint == 'main.sat_form' %}active{% endif %}" id="nav-create">
+                        <i class="fa fa-plus"></i> Create Report
+                    </a>
+                    <a href="{{ url_for('auth.logout') }}" class="nav-link logout" id="nav-logout">
+                        <i class="fa fa-sign-out-alt"></i> Logout
+                    </a>
+                </div>
+            </div>
+
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">
+                                <i class="fa fa-{% if category == 'success' %}check-circle{% elif category == 'error' %}exclamation-triangle{% else %}info-circle{% endif %}"></i>
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <!-- Main Content Area -->
+            <div class="dashboard-main">
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon">
+                                <i class="fa fa-file-alt"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value">{{ reports|length }}</div>
+                        <p class="stat-label">Total Reports</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon">
+                                <i class="fa fa-clock"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value">
+                            {% set pending_count = 0 %}
+                            {% for report in reports %}
+                                {% if report.status in ['Pending Review', 'Pending', 'pending', 'partially_approved'] %}
+                                    {% set pending_count = pending_count + 1 %}
+                                {% endif %}
+                            {% endfor %}
+                            {{ pending_count }}
+                        </div>
+                        <p class="stat-label">Pending Review</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon">
+                                <i class="fa fa-check-circle"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value">
+                            {% set approved_count = 0 %}
+                            {% for report in reports %}
+                                {% if report.status == 'Approved' or report.status == 'approved' %}
+                                    {% set approved_count = approved_count + 1 %}
+                                {% endif %}
+                            {% endfor %}
+                            {{ approved_count }}
+                        </div>
+                        <p class="stat-label">Approved Reports</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon">
+                                <i class="fa fa-calendar"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value">
+                            {% set this_month_count = 0 %}
+                            {% for report in reports %}
+                                {% if report.created_date and report.created_date >= this_month_start %}
+                                    {% set this_month_count = this_month_count + 1 %}
+                                {% endif %}
+                            {% endfor %}
+                            {{ this_month_count }}
+                        </div>
+                        <p class="stat-label">This Month</p>
+                    </div>
+                </div>
+
+                <!-- Reports Grid -->
+                <div class="widgets-grid">
+                    <!-- All Reports Widget -->
+                    <div class="dashboard-widget">
+                        <div class="widget-header">
+                            <h3 class="widget-title">
+                                <i class="fa fa-file-alt"></i>
+                                All System Reports
+                            </h3>
+                        </div>
+                        <div class="widget-content">
+                            {% if reports %}
+                            <!-- Reports Table -->
+                            <div class="table-responsive">
+                                <table class="reports-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Report Details</th>
+                                            <th>Created By</th>
+                                            <th>Status</th>
+                                            <th>Created Date</th>
+                                            <th>Project Info</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for report in reports %}
+                                        <tr class="report-row">
+                                            <td>
+                                                <div class="report-details">
+                                                    <div class="report-icon">
+                                                        <i class="fa fa-file-alt"></i>
+                                                    </div>
+                                                    <div class="report-info">
+                                                        <div class="report-title">{{ report.project_name or 'Untitled Report' }}</div>
+                                                        <div class="report-subtitle">SAT Report #{{ report.id }}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="date-text">{{ report.created_by or 'Unknown' }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="status-badge {% if report.status == 'Approved' %}status-completed{% elif report.status == 'Pending Review' or report.status == 'Pending' %}status-pending{% else %}status-draft{% endif %}">
+                                                    <div class="status-indicator" style="background: {% if report.status == 'Approved' %}#059669{% elif report.status == 'Pending Review' or report.status == 'Pending' %}#f59e0b{% else %}#6b7280{% endif %};"></div>
+                                                    {{ report.status or 'Draft' }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="date-text">{{ report.created_date.strftime('%b %d, %Y') if report.created_date else 'N/A' }}</span>
+                                            </td>
+                                            <td>
+                                                <div class="report-subtitle">
+                                                    {% if report.client_name %}{{ report.client_name }}{% endif %}
+                                                    {% if report.location %} - {{ report.location }}{% endif %}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <a href="/status/{{ report.id }}"
+                                                       class="action-btn btn-view" title="View Report">
+                                                        <i class="fa fa-eye"></i>
+                                                    </a>
+                                                    <a href="/edit/{{ report.id }}"
+                                                       class="action-btn btn-edit" title="Edit Report">
+                                                        <i class="fa fa-edit"></i>
+                                                    </a>
+                                                    <button onclick="revokeApproval('{{ report.id }}')"
+                                                            class="action-btn btn-revoke" title="Revoke Approval">
+                                                        <i class="fa fa-undo"></i>
+                                                    </button>
+                                                    <button onclick="deleteReport('{{ report.id }}', '{{ report.project_name or 'Untitled Report' }}')"
+                                                            class="action-btn btn-delete" title="Delete Report">
+                                                        <i class="fa fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <!-- Empty State -->
+                            <div class="empty-state" style="text-align: center; padding: 60px 20px; color: #666;">
+                                <i class="fa fa-file-alt" style="font-size: 48px; margin-bottom: 20px; color: #ccc;"></i>
+                                <h3 style="margin-bottom: 10px;">No Reports Found</h3>
+                                <p style="margin-bottom: 20px;">No reports are available in the system. Reports will appear here once they are created.</p>
+                                <div style="font-size: 12px; color: #999; margin-bottom: 20px;">
+                                    <p>Debug Info:</p>
+                                    <p>Reports array length: {{ reports|length }}</p>
+                                    <p>Reports variable type: {{ reports.__class__.__name__ }}</p>
+                                    <p>Template received reports variable: {{ reports is defined }}</p>
+                                </div>
+                                <a href="{{ url_for('reports.new') }}" class="btn-primary">
+                                    <i class="fa fa-plus"></i> Create First Report
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Developer Credit Footer -->
+        <div class="developer-footer">
+            <p style="margin: 0; font-size: 0.85rem; color: #64748b;">
+                Developed by <strong style="color: var(--admin-primary);">Revanth Meda</strong> for Cully Automation
+            </p>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <i class="fa fa-exclamation-triangle"></i>
+                <h3>Confirm Delete</h3>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this report?</p>
+                <p><strong id="reportToDelete"></strong></p>
+                <p style="color: #dc2626; font-size: 14px; margin-top: 12px;">
+                    <i class="fa fa-warning"></i> This action cannot be undone.
+                </p>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+                <button class="modal-btn modal-btn-confirm" onclick="confirmDelete()">Delete Report</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Revoke Approval Modal -->
+    <div id="revokeModal" class="revoke-modal">
+        <div class="revoke-modal-content">
+            <div class="revoke-modal-header">
+                <i class="fa fa-exclamation-triangle"></i>
+                <h3>Revoke Approval</h3>
+            </div>
+            <div class="revoke-modal-body">
+                <p>Please provide a reason for revoking the approval:</p>
+                <textarea id="revokeComment" placeholder="Enter reason here..."></textarea>
+            </div>
+            <div class="revoke-modal-actions">
+                <button class="revoke-modal-btn revoke-modal-btn-cancel" onclick="closeRevokeModal()">Cancel</button>
+                <button class="revoke-modal-btn revoke-modal-btn-confirm" onclick="confirmRevoke()">Revoke Approval</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unified JavaScript -->
+    <script>
+        let reportToDelete = null;
+        let reportToRevoke = null;
+
+        function deleteReport(reportId, reportName) {
+            reportToDelete = reportId;
+            document.getElementById('reportToDelete').textContent = reportName;
+            document.getElementById('deleteModal').style.display = 'block';
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+            reportToDelete = null;
+        }
+
+        function confirmDelete() {
+            if (reportToDelete) {
+                fetch(`/dashboard/delete-report/${reportToDelete}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification('Report deleted successfully', 'success');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    } else {
+                        showNotification(data.message || 'Failed to delete report', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification('Failed to delete report', 'error');
+                })
+                .finally(() => {
+                    closeDeleteModal();
+                });
+            }
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('deleteModal');
+            if (event.target === modal) {
+                closeDeleteModal();
+            }
+            const revokeModal = document.getElementById('revokeModal');
+            if (event.target === revokeModal) {
+                closeRevokeModal();
+            }
+        }
+
+        function revokeApproval(reportId) {
+            reportToRevoke = reportId;
+            document.getElementById('revokeModal').style.display = 'block';
+            document.getElementById('revokeComment').value = '';
+        }
+
+        function closeRevokeModal() {
+            document.getElementById('revokeModal').style.display = 'none';
+            reportToRevoke = null;
+        }
+
+        function confirmRevoke() {
+            const comment = document.getElementById('revokeComment').value.trim();
+            if (!comment) {
+                alert('Please provide a reason for revoking the approval.');
+                return;
+            }
+
+            if (reportToRevoke) {
+                fetch(`/dashboard/revoke-approval/${reportToRevoke}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                    },
+                    body: JSON.stringify({
+                        comment: comment
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification('Approval revoked successfully', 'success');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    } else {
+                        showNotification(data.message || 'Failed to revoke approval', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification('Failed to revoke approval', 'error');
+                })
+                .finally(() => {
+                    closeRevokeModal();
+                });
+            }
+        }
+
+        // Common dashboard functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-refresh database status with error handling
+            function updateDatabaseStatus() {
+                fetch('/dashboard/db-status')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Update all database status indicators
+                        const statusElements = document.querySelectorAll('.status-badge');
+                        statusElements.forEach(element => {
+                            const textContent = element.textContent.trim();
+                            if (textContent.includes('Connected') || textContent.includes('Disconnected') || textContent.includes('Not Connected')) {
+                                const statusIndicator = element.querySelector('.status-indicator');
+                                if (data.connected) {
+                                    element.className = 'status-badge status-completed'; // Using completed for connected
+                                    if (statusIndicator) statusIndicator.style.background = '#059669'; // Green for connected
+                                    element.innerHTML = '<i class="fa fa-circle status-indicator" style="background: #059669;"></i> Connected';
+                                } else {
+                                    element.className = 'status-badge status-pending'; // Using pending for disconnected
+                                    if (statusIndicator) statusIndicator.style.background = '#f59e0b'; // Orange for disconnected
+                                    element.innerHTML = '<i class="fa fa-circle status-indicator" style="background: #f59e0b;"></i> Disconnected';
+                                }
+                            }
+                        });
+                    })
+                    .catch(error => {
+                        console.warn('Database status check failed:', error.message);
+                        // Update status to show disconnected on error
+                        const statusElements = document.querySelectorAll('.status-badge');
+                        statusElements.forEach(element => {
+                            const textContent = element.textContent.trim();
+                            if (textContent.includes('Connected') || textContent.includes('Disconnected') || textContent.includes('Not Connected')) {
+                                const statusIndicator = element.querySelector('.status-indicator');
+                                element.className = 'status-badge status-pending'; // Using pending for disconnected
+                                if (statusIndicator) statusIndicator.style.background = '#f59e0b'; // Orange for disconnected
+                                element.innerHTML = '<i class="fa fa-circle status-indicator" style="background: #f59e0b;"></i> Disconnected';
+                            }
+                        });
+                    });
+            }
+
+            // Initial status check and setup interval
+            updateDatabaseStatus();
+            setInterval(updateDatabaseStatus, 30000); // Refresh every 30 seconds
+
+            // Common notification function
+            window.showNotification = function(message, type) {
+                const notification = document.createElement('div');
+                notification.className = `notification notification-${type}`;
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    padding: 15px 20px;
+                    border-radius: 4px;
+                    color: white;
+                    font-weight: 500;
+                    z-index: 10000;
+                    max-width: 400px;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                `;
+
+                if (type === 'success') {
+                    notification.style.backgroundColor = '#10b981';
+                } else if (type === 'error') {
+                    notification.style.backgroundColor = '#ef4444';
+                } else if (type === 'warning') {
+                    notification.style.backgroundColor = '#f59e0b';
+                } else {
+                    notification.style.backgroundColor = '#3b82f6';
+                }
+
+                notification.textContent = message;
+                document.body.appendChild(notification);
+
+                setTimeout(() => {
+                    notification.remove();
+                }, 5000);
+            };
+        });
+    </script>
+
+    {% include 'partials/chatbot_widget.html' %}
+    <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+[tool.pylance]
+# Pylance configuration to reduce noise from type checking
+reportMissingTypeStubs = "none"
+reportUnknownVariableType = "none"
+reportUnknownMemberType = "none"
+reportUnknownParameterType = "none"
+reportUnknownArgumentType = "none"
+reportOptionalMemberAccess = "warning"
+reportAttributeAccessIssue = "warning"
+reportUntypedFunctionDecorator = "none"
+reportUnusedImport = "warning"
+reportUnusedVariable = "warning"
+reportUnusedFunction = "warning"
+reportDuplicateImport = "error"
+reportArgumentType = "error"
+reportMissingParameterType = "none"
+reportPrivateUsage = "none"
+reportPossiblyUnboundVariable = "error"
+
+[tool.pyright]
+# Pyright configuration
+include = ["**/*.py"]
+exclude = [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.*",
+    "venv",
+    "env"
+]
+defineConstant = { DEBUG = true }
+stubPath = "typings"
+venvPath = "."
+venv = "venv"
+
+pythonVersion = "3.9"
+pythonPlatform = "Windows"
+
+# Type checking mode
+typeCheckingMode = "basic"
+
+# Disable specific checks that are too noisy
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportImportCycles = false
+reportUnusedImport = "warning"
+reportUnusedClass = "warning"
+reportUnusedFunction = "warning"
+reportUnusedVariable = "warning"
+reportDuplicateImport = true
+reportOptionalSubscript = "warning"
+reportOptionalMemberAccess = "warning"
+reportOptionalCall = "warning"
+reportOptionalIterable = "warning"
+reportOptionalContextManager = "warning"
+reportOptionalOperand = "warning"
+reportTypedDictNotRequiredAccess = false
+reportPrivateUsage = "warning"
+reportConstantRedefinition = "warning"
+reportIncompatibleMethodOverride = "warning"
+reportIncompatibleVariableOverride = "warning"
+reportUntypedFunctionDecorator = false
+reportUntypedClassDecorator = false
+reportUntypedBaseClass = false
+reportUntypedNamedTuple = false
+reportCallInDefaultInitializer = false
+reportUnnecessaryIsInstance = false
+reportUnnecessaryCast = false
+reportAssertAlwaysTrue = false
+reportSelfClsParameterName = false
+reportImplicitStringConcatenation = false
+reportUndefinedVariable = "error"
+reportUnboundVariable = "error"
+
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sat-report-generator"
+version = "2.0.0"
+description = "SAT Report Generator with AI Assistant"
+authors = [
+    {name = "SAT Team", email = "sat@company.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "flask>=2.0.0",
+    "flask-login>=0.6.0",
+    "flask-wtf>=1.0.0",
+    "flask-session>=0.4.0",
+    "sqlalchemy>=1.4.0",
+    "werkzeug>=2.0.0",
+    "requests>=2.25.0",
+    "python-docx>=0.8.11",
+    "openpyxl>=3.0.9",
+    "redis>=4.0.0",
+    "celery>=5.2.0",
+    "cryptography>=3.4.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov>=2.0",
+    "black>=21.0",
+    "flake8>=3.9",
+    "mypy>=0.910",
+    "pylint>=2.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/company/sat-report-generator"
+Repository = "https://github.com/company/sat-report-generator.git"
+Documentation = "https://sat-docs.company.com"

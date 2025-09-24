@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+
+{% block title %}Log In - {{ super() }}{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/water-excellence.css') }}">
+    <style>
+        :root {
+            --cully-navy: #5a7fa3;
+            --cully-blue: #7ba5c7;
+            --cully-light-blue: #9ec5e5;
+            --cully-dark: #2c3e50;
+            --cully-gray: #8fa3b5;
+            --cully-light-gray: #e8f2f7;
+            --cully-white: #ffffff;
+            --cully-shadow: 0 4px 12px rgba(90, 127, 163, 0.15);
+            --transition: all 0.3s ease;
+        }
+
+        .login-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 70vh;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: var(--cully-white);
+            border-radius: 16px;
+            box-shadow: var(--cully-shadow);
+            max-width: 480px;
+            width: 100%;
+            padding: 40px;
+            text-align: center;
+            border: 1px solid rgba(90, 127, 163, 0.1);
+        }
+
+        .login-header {
+            margin-bottom: 32px;
+        }
+
+        .login-header img {
+            height: 72px;
+            margin-bottom: 20px;
+        }
+
+        .login-header h1 {
+            color: var(--cully-dark);
+            font-size: 2.2rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            line-height: 1.2;
+        }
+
+        .login-header .subtitle {
+            color: var(--cully-gray);
+            font-size: 1.05rem;
+            margin: 0;
+        }
+
+        .auth-form {
+            margin: 28px 0;
+        }
+
+        .form-group {
+            position: relative;
+            margin-bottom: 24px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            color: var(--cully-dark);
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+
+        .form-group .required {
+            color: var(--cully-navy);
+            margin-left: 2px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-wrapper i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--cully-gray);
+            z-index: 1;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 16px 16px 16px 48px;
+            border: 2px solid var(--cully-light-gray);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: var(--transition);
+            background: var(--cully-white);
+            color: var(--cully-dark);
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            border-color: var(--cully-blue);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(123, 165, 199, 0.2);
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            background: transparent;
+            color: var(--cully-gray);
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .field-error {
+            color: #b91c1c;
+            font-size: 0.85rem;
+            margin-top: 6px;
+            display: none;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--cully-navy), var(--cully-blue));
+            color: var(--cully-white);
+            border: none;
+            font-weight: 600;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: var(--transition);
+        }
+
+        .login-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(90, 127, 163, 0.2);
+        }
+
+        .login-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .auth-links {
+            margin-top: 24px;
+            color: var(--cully-gray);
+        }
+
+        .auth-links a {
+            color: var(--cully-navy);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .auth-links a:hover {
+            text-decoration: underline;
+        }
+
+        .dev-notice {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 12px;
+            background: #fef9c3;
+            color: #92400e;
+            text-align: left;
+        }
+
+        .dev-notice h4 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 8px;
+        }
+
+        .loading {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0); }
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 640px) {
+            .login-card {
+                padding: 28px;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <img src="https://www.cully.ie/wp-content/themes/cullyautomation/assets/images/logo-25-blue.svg" alt="Cully Automation">
+            <h1>Welcome Back</h1>
+            <p class="subtitle">Sign in to manage reports, dashboards, and collaborative workflows.</p>
+        </div>
+
+        <form id="loginForm" class="auth-form" method="post" action="{{ url_for('auth.login') }}">
+            {{ form.hidden_tag() if form else '' }}
+            <div class="form-group">
+                <label for="email">Email Address <span class="required">*</span></label>
+                <div class="input-wrapper">
+                    <i class="fas fa-envelope" aria-hidden="true"></i>
+                    <input type="email" id="email" name="email" placeholder="you@cully.ie" required autocomplete="username">
+                </div>
+                <div id="email-error" class="field-error" role="alert"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password <span class="required">*</span></label>
+                <div class="input-wrapper">
+                    <i class="fas fa-lock" aria-hidden="true"></i>
+                    <input type="password" id="password" name="password" required autocomplete="current-password">
+                    <button type="button" class="password-toggle" onclick="togglePassword()" aria-label="Show password">
+                        <i class="fas fa-eye" id="toggleIcon"></i>
+                    </button>
+                </div>
+                <div id="password-error" class="field-error" role="alert"></div>
+            </div>
+
+            <button type="submit" class="login-btn" id="loginButton">
+                <i class="fas fa-sign-in-alt" aria-hidden="true"></i>
+                <span>Sign In</span>
+            </button>
+        </form>
+
+        <div class="auth-links">
+            <p>Don't have an account? <a href="{{ url_for('auth.register') }}">Create Account</a></p>
+            <p>Forgot your password? <a href="{{ url_for('auth.forgot_password') }}">Reset Password</a></p>
+            <p><a href="{{ url_for('auth.welcome') }}">? Back to Welcome</a></p>
+        </div>
+
+        {% if config.DEBUG %}
+        <div class="dev-notice">
+            <h4><i class="fas fa-flask" aria-hidden="true"></i> Development Mode</h4>
+            <p><strong>Demo Account:</strong> admin@cully.ie</p>
+            <p><strong>Password:</strong> admin123</p>
+            <p><em>This information is only visible in development mode.</em></p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script>
+        function togglePassword() {
+            const passwordField = document.getElementById('password');
+            const toggleIcon = document.getElementById('toggleIcon');
+            const toggleButton = document.querySelector('.password-toggle');
+
+            if (passwordField.type === 'password') {
+                passwordField.type = 'text';
+                toggleIcon.classList.replace('fa-eye', 'fa-eye-slash');
+                toggleButton.setAttribute('aria-label', 'Hide password');
+            } else {
+                passwordField.type = 'password';
+                toggleIcon.classList.replace('fa-eye-slash', 'fa-eye');
+                toggleButton.setAttribute('aria-label', 'Show password');
+            }
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            const loginButton = document.getElementById('loginButton');
+            const email = document.getElementById('email');
+            const password = document.getElementById('password');
+
+            clearErrors();
+
+            let hasErrors = false;
+
+            if (!email.value.trim()) {
+                showError('email-error', 'Email address is required');
+                hasErrors = true;
+            } else if (!isValidEmail(email.value.trim())) {
+                showError('email-error', 'Please enter a valid email address');
+                hasErrors = true;
+            }
+
+            if (!password.value.trim()) {
+                showError('password-error', 'Password is required');
+                hasErrors = true;
+            }
+
+            if (hasErrors) {
+                e.preventDefault();
+                return false;
+            }
+
+            loginButton.disabled = true;
+            loginButton.innerHTML = '<i class="fa fa-spinner loading" aria-hidden="true"></i> <span>Signing In...</span>';
+        });
+
+        function isValidEmail(email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailRegex.test(email);
+        }
+
+        function showError(elementId, message) {
+            const errorElement = document.getElementById(elementId);
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+        }
+
+        function clearErrors() {
+            document.querySelectorAll('.field-error').forEach(element => {
+                element.textContent = '';
+                element.style.display = 'none';
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const emailField = document.getElementById('email');
+            if (emailField) {
+                emailField.focus();
+            }
+        });
+    </script>
+{% endblock %}

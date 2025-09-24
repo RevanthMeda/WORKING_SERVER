@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAT Report Wizard - Cully Report Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .modern-dashboard {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #4DD0E1 0%, #26C6DA 100%);
+            min-height: 100vh;
+        }
+
+        .modern-nav {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .brand-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+        }
+
+        .brand-text {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #4DD0E1 0%, #26C6DA 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4DD0E1 0%, #26C6DA 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .user-details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: #1a202c;
+        }
+
+        .user-role {
+            font-size: 12px;
+            color: #718096;
+        }
+
+        .logout-button {
+            padding: 8px 12px;
+            background: #e53e3e;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .logout-button:hover {
+            background: #c53030;
+        }
+
+        .dashboard-layout {
+            display: flex;
+            min-height: calc(100vh - 72px);
+        }
+
+        .modern-sidebar {
+            width: 280px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 24px;
+        }
+
+        .sidebar-header h3 {
+            color: #1a202c;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        .sidebar-nav .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            color: #4a5568;
+            text-decoration: none;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+
+        .sidebar-nav .nav-item:hover,
+        .sidebar-nav .nav-item.active {
+            background: linear-gradient(135deg, #4DD0E1 0%, #26C6DA 100%);
+            color: white;
+        }
+
+        .main-dashboard {
+            flex: 1;
+            padding: 32px;
+            overflow-y: auto;
+        }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 24px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .breadcrumb a {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+        }
+
+        .breadcrumb-current {
+            color: white;
+            font-weight: 500;
+        }
+
+        .dashboard-header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 32px;
+            text-align: center;
+        }
+
+        .dashboard-header h1 {
+            color: white;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .dashboard-header p {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 16px;
+        }
+
+        .form-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        .form-step {
+            display: none;
+            padding: 40px;
+        }
+
+        .form-step.active {
+            display: block;
+        }
+
+        .step-content h2 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }
+
+        .step-content p {
+            color: #718096;
+            margin-bottom: 32px;
+            font-size: 16px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.2s;
+            background: white;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #4DD0E1;
+            box-shadow: 0 0 0 4px rgba(77, 208, 225, 0.1);
+        }
+
+        .step-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 40px;
+            padding-top: 32px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 32px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4DD0E1 0%, #26C6DA 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(77, 208, 225, 0.3);
+        }
+
+        .btn-secondary {
+            background: #f7fafc;
+            color: #2d3748;
+            border: 2px solid #e2e8f0;
+        }
+
+        .btn-secondary:hover {
+            background: #edf2f7;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #4CAF50 0%, #38a169 100%);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(72, 187, 120, 0.3);
+        }
+
+        .modern-alert {
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert-success {
+            background: rgba(72, 187, 120, 0.1);
+            color: #22543d;
+            border: 1px solid rgba(72, 187, 120, 0.2);
+        }
+
+        .alert-error {
+            background: rgba(229, 62, 62, 0.1);
+            color: #742a2a;
+            border: 1px solid rgba(229, 62, 62, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-layout {
+                flex-direction: column;
+            }
+
+            .modern-sidebar {
+                width: 100%;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .step-actions {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot-assistant.css') }}">
+</head>
+<body>
+    <div class="modern-dashboard">
+        <!-- Top Navigation -->
+        <nav class="modern-nav">
+            <div class="nav-brand">
+                <img src="{{ url_for('static', filename='cully.png') }}" alt="Cully Logo" class="brand-logo">
+                <span class="brand-text">Cully Report Generator</span>
+            </div>
+            <div class="nav-actions">
+                <div class="user-profile">
+                    <div class="user-avatar">
+                        <i class="fas fa-hard-hat"></i>
+                    </div>
+                    <div class="user-details">
+                        <span class="user-name">{{ current_user.full_name }}</span>
+                        <span class="user-role">{{ current_user.role }}</span>
+                    </div>
+                    <a href="{{ url_for('auth.logout') }}" class="logout-button" title="Logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="dashboard-layout">
+            <!-- Sidebar -->
+            <aside class="modern-sidebar">
+                <div class="sidebar-header">
+                    <h3>My Workspace</h3>
+                </div>
+                <nav class="sidebar-nav">
+                    <a href="{{ url_for('dashboard.engineer') }}" class="nav-item">
+                        <i class="fas fa-home"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="{{ url_for('reports.new') }}" class="nav-item">
+                        <i class="fas fa-plus-circle"></i>
+                        <span>Create Report</span>
+                    </a>
+                    <a href="#" class="nav-item active">
+                        <i class="fas fa-check-circle"></i>
+                        <span>SAT Wizard</span>
+                    </a>
+                </nav>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="main-dashboard">
+                <!-- Breadcrumb -->
+                <nav class="breadcrumb">
+                    <a href="{{ url_for('dashboard.engineer') }}">Dashboard</a>
+                    <span class="breadcrumb-separator">→</span>
+                    <a href="{{ url_for('reports.new') }}">Choose Report Type</a>
+                    <span class="breadcrumb-separator">→</span>
+                    <span class="breadcrumb-current">SAT Wizard</span>
+                </nav>
+
+                <div class="dashboard-header">
+                    <div class="header-content">
+                        <h1>System Acceptance Testing (SAT) Report</h1>
+                        <p>Create a comprehensive SAT report with digital signatures and approval workflow</p>
+                    </div>
+                </div>
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="alerts-container">
+                            {% for category, message in messages %}
+                                <div class="modern-alert alert-{{ category }}">
+                                    <i class="fas fa-{% if category == 'success' %}check-circle{% elif category == 'error' %}exclamation-triangle{% elif category == 'warning' %}exclamation-circle{% else %}info-circle{% endif %}"></i>
+                                    <span>{{ message }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endwith %}
+
+                <!-- Form Container -->
+                <div class="form-container">
+                    <form method="POST" action="{{ url_for('main.sat_form') }}" enctype="multipart/form-data" id="satForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                        <!-- Step 1: Project Information -->
+                        <div class="form-step active" data-step="1">
+                            <div class="step-content">
+                                <h2>Project Information</h2>
+                                <p>Enter the basic project details for your SAT report</p>
+
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="document_title">Document Title</label>
+                                        <input type="text" id="document_title" name="document_title" required>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="project_reference">Project Reference</label>
+                                        <input type="text" id="project_reference" name="project_reference" required>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="client_name">Client Name</label>
+                                        <input type="text" id="client_name" name="client_name" required>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="date">Date</label>
+                                        <input type="date" id="date" name="date" required>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="prepared_by">Prepared By</label>
+                                        <input type="text" id="prepared_by" name="prepared_by" value="{{ current_user.full_name }}" required>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="revision">Revision</label>
+                                        <input type="text" id="revision" name="revision" placeholder="e.g., Rev 1.0">
+                                    </div>
+                                </div>
+
+                                <div class="step-actions">
+                                    <div></div>
+                                    <button type="button" class="btn btn-primary next-step">
+                                        <span>Continue</span>
+                                        <i class="fas fa-arrow-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Requirements -->
+                        <div class="form-step" data-step="2">
+                            <div class="step-content">
+                                <h2>System Requirements</h2>
+                                <p>Define the acceptance criteria and requirements</p>
+
+                                <div class="form-group">
+                                    <label for="purpose">Purpose</label>
+                                    <textarea id="purpose" name="purpose" rows="4" placeholder="Describe the purpose of the SAT" required></textarea>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="scope">Scope</label>
+                                    <textarea id="scope" name="scope" rows="6" placeholder="Define the scope of testing" required></textarea>
+                                </div>
+
+                                <div class="step-actions">
+                                    <button type="button" class="btn btn-secondary prev-step">
+                                        <i class="fas fa-arrow-left"></i>
+                                        <span>Back</span>
+                                    </button>
+                                    <button type="button" class="btn btn-primary next-step">
+                                        <span>Continue</span>
+                                        <i class="fas fa-arrow-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 3: Approvers -->
+                        <div class="form-step" data-step="3">
+                            <div class="step-content">
+                                <h2>Approval Workflow</h2>
+                                <p>Set up the approval workflow for your report</p>
+
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="approver_1_email">Technical Manager Email</label>
+                                        <input type="email" id="approver_1_email" name="approver_1_email" required>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="approver_2_email">Project Manager Email</label>
+                                        <input type="email" id="approver_2_email" name="approver_2_email">
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="approver_3_email">Client Approver Email</label>
+                                        <input type="email" id="approver_3_email" name="approver_3_email">
+                                    </div>
+                                </div>
+
+                                <div class="step-actions">
+                                    <button type="button" class="btn btn-secondary prev-step">
+                                        <i class="fas fa-arrow-left"></i>
+                                        <span>Back</span>
+                                    </button>
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-file-alt"></i>
+                                        <span>Generate SAT Report</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // Wizard functionality
+        let currentStep = 1;
+        const totalSteps = 3;
+
+        function showStep(step) {
+            // Hide all steps
+            document.querySelectorAll('.form-step').forEach(el => el.classList.remove('active'));
+
+            // Show current step
+            document.querySelector(`[data-step="${step}"]`).classList.add('active');
+
+            currentStep = step;
+        }
+
+        function validateStep(step) {
+            const stepElement = document.querySelector(`.form-step[data-step="${step}"]`);
+            const requiredFields = stepElement.querySelectorAll('[required]');
+
+            for (let field of requiredFields) {
+                if (!field.value.trim()) {
+                    field.focus();
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // Event listeners
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.next-step')) {
+                if (validateStep(currentStep)) {
+                    if (currentStep < totalSteps) {
+                        showStep(currentStep + 1);
+                    }
+                }
+            }
+
+            if (e.target.closest('.prev-step')) {
+                if (currentStep > 1) {
+                    showStep(currentStep - 1);
+                }
+            }
+        });
+
+        // Form submission
+        document.getElementById('satForm').addEventListener('submit', function(e) {
+            if (!validateStep(currentStep)) {
+                e.preventDefault();
+                return false;
+            }
+
+            // Show loading state
+            const submitBtn = document.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Loading Full Form...</span>';
+            submitBtn.disabled = true;
+        });
+
+        // Initialize
+        showStep(1);
+    </script>
+
+    {% include 'partials/chatbot_widget.html' %}
+    <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+# Development environment configuration
+debug: true
+environment: "development"
+
+# Database
+database:
+  uri: "sqlite:///instance/dev.db"
+  pool_size: 5
+
+# Logging
+logging:
+  level: "DEBUG"
+  handlers:
+    - "console"
+    - "file"
+
+# Security (relaxed for development)
+security:
+  csrf_enabled: false
+  rate_limiting:
+    enabled: false
+
+# Session
+session:
+  cookie_secure: false
+  timeout: 3600  # 1 hour for development
+
+# Features
+features:
+  email_notifications: false  # Disable emails in dev
+  pdf_export: true
+  api_enabled: true
+  metrics_enabled: true
+
+# API
+api:
+  rate_limiting:
+    anonymous: "1000 per hour"
+    authenticated: "10000 per hour"
+
+# Monitoring
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: false
+
+# Backup (less frequent in dev)
+backup:
+  enabled: false
+  schedule: "weekly"

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Registration Submitted - {{ super() }}{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}">
+    <style>
+        .confirmation-wrapper {
+            min-height: 60vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: clamp(24px, 4vw, 48px);
+        }
+
+        .confirmation-card {
+            max-width: 560px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 18px;
+            padding: clamp(32px, 4vw, 48px);
+            text-align: center;
+            border: 1px solid rgba(90, 127, 163, 0.12);
+            box-shadow: 0 12px 32px rgba(90, 127, 163, 0.12);
+        }
+
+        .confirmation-card h1 {
+            font-size: clamp(2.1rem, 3.5vw, 2.5rem);
+            color: #2c3e50;
+            margin-bottom: 16px;
+        }
+
+        .confirmation-card p {
+            color: #64748b;
+            margin-bottom: 18px;
+            line-height: 1.6;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 999px;
+            background: #dcfce7;
+            color: #166534;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        .cta-group {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .btn-primary,
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 22px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #5a7fa3, #7ba5c7);
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(90, 127, 163, 0.18);
+        }
+
+        .btn-secondary {
+            border: 1px solid rgba(90, 127, 163, 0.3);
+            color: #2c3e50;
+            background: #f8fafc;
+        }
+
+        .btn-secondary:hover {
+            border-color: #7ba5c7;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="confirmation-wrapper">
+    <div class="confirmation-card">
+        <span class="status-pill"><i class="fa fa-check-circle"></i> Registration Submitted</span>
+        <h1>Thanks for registering!</h1>
+        <p>Your request has been sent to the Cully team. You'll receive an email once your account has been reviewed.</p>
+        <p>Need help? Reach out to <a href="mailto:support@cully.ie">support@cully.ie</a>.</p>
+        <div class="cta-group">
+            <a href="{{ url_for('auth.login') }}" class="btn-primary"><i class="fa fa-right-to-bracket"></i> Log In</a>
+            <a href="{{ url_for('auth.welcome') }}" class="btn-secondary"><i class="fa fa-home"></i> Back to Welcome</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

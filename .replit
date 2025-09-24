@@ -1,0 +1,88 @@
+modules = ["web", "nodejs-20", "python-3.11"]
+run = "python app.py"
+
+[nix]
+channel = "stable-25_05"
+packages = ["cargo", "freetype", "lcms2", "libiconv", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "libyaml", "openjpeg", "openssl", "pkg-config", "rustc", "sqlite-interactive", "tcl", "tk", "xcodebuild", "zlib"]
+
+[deployment]
+run = ["gunicorn", "--bind", "0.0.0.0:80", "--workers", "4", "--timeout", "120", "--keep-alive", "60", "--max-requests", "1000", "--max-requests-jitter", "100", "production_start:app"]
+deploymentTarget = "vm"
+build = ["pip", "install", "-r", "requirements.txt"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Run Flask App"
+author = 43227527
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python -c \"import os; os.system('pkill -f python')\" 2>/dev/null || true"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python app.py"
+
+[[workflows.workflow]]
+name = "Restart and Run"
+author = 46377391
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python -c \"import os; os.system('pkill -f python')\" 2>/dev/null || true"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "sleep 2"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python app.py"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "SAT Report Generator"
+
+[[workflows.workflow]]
+name = "SAT Report Generator"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python wsgi.py"
+waitForPort = 5000
+
+[[ports]]
+localPort = 80
+externalPort = 3000
+
+[[ports]]
+localPort = 443
+externalPort = 3001
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 33891
+externalPort = 3002
+
+[[ports]]
+localPort = 46397
+externalPort = 3003
+
+[agent]
+expertMode = true

@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}Create Account - {{ super() }}{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}">
+    <style>
+        :root {
+            --cully-navy: #5a7fa3;
+            --cully-blue: #7ba5c7;
+            --cully-light-blue: #9ec5e5;
+            --cully-dark: #2c3e50;
+            --cully-gray: #8fa3b5;
+            --cully-light-gray: #e8f2f7;
+            --cully-white: #ffffff;
+            --cully-shadow: 0 4px 12px rgba(90, 127, 163, 0.15);
+            --transition: all 0.3s ease;
+        }
+
+        .register-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 70vh;
+            padding: clamp(24px, 4vw, 48px);
+        }
+
+        .register-card {
+            background: var(--cully-white);
+            border-radius: 16px;
+            box-shadow: var(--cully-shadow);
+            max-width: 520px;
+            width: 100%;
+            padding: clamp(32px, 4vw, 48px);
+            text-align: center;
+            border: 1px solid rgba(90, 127, 163, 0.1);
+        }
+
+        .register-header {
+            margin-bottom: clamp(32px, 4vw, 48px);
+        }
+
+        .register-header img {
+            height: clamp(60px, 8vw, 80px);
+            margin-bottom: clamp(18px, 2vw, 24px);
+        }
+
+        .register-header h1 {
+            color: var(--cully-dark);
+            font-size: clamp(2rem, 4vw, 2.5rem);
+            font-weight: 600;
+            margin-bottom: 12px;
+            line-height: 1.2;
+        }
+
+        .register-header .subtitle {
+            color: var(--cully-gray);
+            font-size: 1.05rem;
+            margin: 0;
+        }
+
+        .auth-form {
+            margin: 32px 0;
+            text-align: left;
+            display: grid;
+            gap: 22px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--cully-dark);
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .required {
+            color: var(--cully-navy);
+            margin-left: 4px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 16px 18px;
+            font-size: 1rem;
+            border: 2px solid var(--cully-light-gray);
+            border-radius: 8px;
+            background: var(--cully-white);
+            color: var(--cully-dark);
+            transition: var(--transition);
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--cully-navy);
+            box-shadow: 0 0 0 3px rgba(90, 127, 163, 0.1);
+        }
+
+        .password-wrapper {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            background: transparent;
+            color: var(--cully-gray);
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 16px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--cully-navy), var(--cully-blue));
+            color: var(--cully-white);
+            border: none;
+            font-weight: 600;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: var(--transition);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(90, 127, 163, 0.2);
+        }
+
+        .auth-links {
+            margin-top: 28px;
+            color: var(--cully-gray);
+        }
+
+        .auth-links a {
+            color: var(--cully-navy);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .auth-links a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 640px) {
+            .register-card {
+                padding: 28px 20px;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="register-container">
+    <div class="register-card">
+        <div class="register-header">
+            <img src="{{ url_for('static', filename='cully.png') }}" alt="Cully Report Generator Logo">
+            <h1>Create Account</h1>
+            <p class="subtitle">Register for access to the Cully Report Generator Platform</p>
+        </div>
+
+        <form method="POST" class="auth-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div class="form-group">
+                <label for="full_name">Full Name <span class="required">*</span></label>
+                <input type="text" id="full_name" name="full_name" required placeholder="Enter your full name">
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email Address <span class="required">*</span></label>
+                <input type="email" id="email" name="email" required placeholder="Enter your email address">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password <span class="required">*</span></label>
+                <div class="password-wrapper">
+                    <input type="password" id="password" name="password" required placeholder="Create a secure password">
+                    <button type="button" class="password-toggle" onclick="togglePasswordVisibility()" aria-label="Show password">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="requested_role">Requested Role <span class="required">*</span></label>
+                <select id="requested_role" name="requested_role" required>
+                    <option value="">Select your role</option>
+                    <option value="Engineer">Engineer</option>
+                    <option value="AM">Automation Manager</option>
+                    <option value="PM">Project Manager</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn-primary">
+                <i class="fa fa-user-plus"></i>
+                <span>Register</span>
+            </button>
+        </form>
+
+        <div class="auth-links">
+            <p>Already have an account? <a href="{{ url_for('auth.login') }}">Log In</a></p>
+            <p><a href="{{ url_for('auth.welcome') }}">? Back to Welcome</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script>
+        function togglePasswordVisibility() {
+            const passwordField = document.getElementById('password');
+            const toggleIcon = document.querySelector('.password-toggle i');
+
+            const showing = passwordField.type === 'text';
+            passwordField.type = showing ? 'password' : 'text';
+            toggleIcon.classList.toggle('fa-eye', showing);
+            toggleIcon.classList.toggle('fa-eye-slash', !showing);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const fullName = document.getElementById('full_name');
+            if (fullName) {
+                fullName.focus();
+            }
+        });
+    </script>
+{% endblock %}

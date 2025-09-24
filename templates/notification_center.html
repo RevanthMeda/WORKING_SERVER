@@ -1,0 +1,324 @@
+{% extends 'base.html' %}
+
+{% block title %}Notification Center - {{ super() }}{% endblock %}
+
+{% block head %}
+<style>
+    .notification-page {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xl);
+    }
+
+    .notification-metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: var(--space-sm);
+        max-width: 420px;
+    }
+
+    .notification-metric {
+        background: rgba(255, 255, 255, 0.22);
+        border-radius: 16px;
+        padding: var(--space-md);
+        color: var(--cully-white);
+        display: grid;
+        gap: 0.3rem;
+    }
+
+    .notification-metric span {
+        font-size: 0.85rem;
+        opacity: 0.85;
+    }
+
+    .notification-metric strong {
+        font-size: 1.4rem;
+        font-weight: 700;
+    }
+
+    .notification-layout {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xl);
+    }
+
+    .notification-actions-bar {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: var(--space-md);
+        align-items: center;
+    }
+
+    .notification-feed {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-md);
+    }
+
+    .notification-card {
+        border-left: 4px solid transparent;
+        transition: var(--transition-smooth);
+    }
+
+    .notification-card.unread {
+        border-left-color: var(--cully-blue);
+        background: rgba(123, 165, 199, 0.12);
+    }
+
+    .notification-card__meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--space-md);
+        font-size: 0.85rem;
+        color: var(--cully-gray);
+    }
+
+    .notification-card__title {
+        margin: var(--space-sm) 0;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--cully-dark);
+    }
+
+    .notification-card__body {
+        color: var(--cully-dark);
+        margin-bottom: var(--space-sm);
+    }
+
+    .notification-card__actions {
+        display: flex;
+        gap: var(--space-sm);
+        flex-wrap: wrap;
+    }
+
+    .notification-card__actions .btn-inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        border: none;
+        background: transparent;
+        color: var(--cully-blue);
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0;
+    }
+
+    .notification-card__actions .btn-inline:hover {
+        color: var(--cully-navy);
+    }
+
+    .filter-chip-group {
+        display: flex;
+        gap: var(--space-sm);
+        flex-wrap: wrap;
+    }
+
+    .action-secondary {
+        background: rgba(123, 165, 199, 0.15);
+        color: var(--cully-blue);
+        border-radius: 12px;
+        padding: 0.55rem 1rem;
+        display: inline-flex;
+        gap: 0.4rem;
+        align-items: center;
+        border: none;
+        cursor: pointer;
+        font-weight: 600;
+    }
+
+    .action-secondary:hover {
+        background: rgba(123, 165, 199, 0.25);
+    }
+
+    @media (max-width: 768px) {
+        .notification-metrics {
+            max-width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set total_notifications = notifications|length %}
+{% set unread_notifications = notifications|selectattr('read', 'equalto', False)|list|length %}
+{% set alert_notifications = notifications|selectattr('type', 'equalto', 'alert')|list|length %}
+{% set reminder_notifications = notifications|selectattr('type', 'equalto', 'reminder')|list|length %}
+
+<section class="page-hero">
+    <div class="page-hero__content">
+        <div>
+            <h1 class="page-hero__title"><i class="fas fa-bell"></i> Notification Center</h1>
+            <p class="page-hero__subtitle">Stay updated with report activity, approvals, and system alerts for your automation projects.</p>
+        </div>
+        <div class="notification-metrics">
+            <div class="notification-metric">
+                <span>Total notifications</span>
+                <strong>{{ total_notifications }}</strong>
+            </div>
+            <div class="notification-metric">
+                <span>Unread</span>
+                <strong>{{ unread_notifications }}</strong>
+            </div>
+            <div class="notification-metric">
+                <span>Alerts</span>
+                <strong>{{ alert_notifications }}</strong>
+            </div>
+            <div class="notification-metric">
+                <span>Reminders</span>
+                <strong>{{ reminder_notifications }}</strong>
+            </div>
+        </div>
+    </div>
+</section>
+
+<nav class="module-nav">
+    <div class="module-nav__links filter-chip-group" id="notification-filter-group">
+        <button class="filter-chip is-active" data-filter="all">All</button>
+        <button class="filter-chip" data-filter="unread">Unread</button>
+        <button class="filter-chip" data-filter="alert">Alerts</button>
+        <button class="filter-chip" data-filter="reminder">Reminders</button>
+        <button class="filter-chip" data-filter="system">System</button>
+    </div>
+    <button id="mark-all-read-btn" class="action-secondary">
+        <i class="fas fa-check-double"></i>
+        Mark all as read
+    </button>
+</nav>
+
+<div class="notification-page">
+    <div class="card-surface">
+        <div class="notification-actions-bar">
+            <div>
+                <h2 class="module-card__title">Recent activity</h2>
+                <p class="module-card__meta">Showing the latest 50 notifications</p>
+            </div>
+        </div>
+
+        <div class="notification-feed" id="notification-feed">
+            {% if notifications %}
+                {% for notification in notifications %}
+                    <article class="module-card notification-card {% if not notification.read %}unread{% endif %}" data-type="{{ notification.type }}" data-read="{{ notification.read|lower }}" data-id="{{ notification.id }}">
+                        <div class="notification-card__meta">
+                            <span class="status-chip {% if notification.type == 'alert' %}status-chip--danger{% elif notification.type == 'reminder' %}status-chip--warning{% else %}status-chip--pending{% endif %}">
+                                <i class="fas {% if notification.type == 'alert' %}fa-exclamation-triangle{% elif notification.type == 'reminder' %}fa-clock{% else %}fa-info-circle{% endif %}"></i>
+                                {{ notification.type.replace('_', ' ')|title }}
+                            </span>
+                            <small class="notification-date">{{ notification.created_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+                        </div>
+                        <h3 class="notification-card__title">{{ notification.title }}</h3>
+                        <p class="notification-card__body">{{ notification.message }}</p>
+                        <div class="notification-card__actions">
+                            {% if notification.action_url %}
+                                <a class="button-primary" style="padding: 0.55rem 1rem;" href="{{ notification.action_url }}">
+                                    <i class="fas fa-arrow-right"></i> View details
+                                </a>
+                            {% endif %}
+                            {% if not notification.read %}
+                                <button class="btn-inline mark-read-btn" data-id="{{ notification.id }}">
+                                    <i class="fas fa-check"></i> Mark as read
+                                </button>
+                            {% endif %}
+                        </div>
+                    </article>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-bell-slash"></i>
+                    <h3>No notifications yet</h3>
+                    <p>When your reports move through creation and approval, updates will appear here.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const filterButtons = Array.from(document.querySelectorAll('#notification-filter-group .filter-chip'));
+        const notifications = Array.from(document.querySelectorAll('.notification-card'));
+
+        function applyFilter(filter) {
+            notifications.forEach(card => {
+                const type = card.dataset.type;
+                const isRead = card.dataset.read === 'true';
+                let show = false;
+                if (filter === 'all') {
+                    show = true;
+                } else if (filter === 'unread') {
+                    show = !isRead;
+                } else {
+                    show = type === filter;
+                }
+                card.style.display = show ? 'flex' : 'none';
+            });
+        }
+
+        filterButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterButtons.forEach(b => b.classList.remove('is-active'));
+                btn.classList.add('is-active');
+                applyFilter(btn.dataset.filter);
+            });
+        });
+
+        applyFilter('all');
+
+        document.querySelectorAll('.mark-read-btn').forEach(btn => {
+            btn.addEventListener('click', async event => {
+                const { id } = event.currentTarget.dataset;
+                try {
+                    const response = await fetch(`/notifications/api/notifications/${id}/mark-read`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        }
+                    });
+                    if (response.ok) {
+                        const card = document.querySelector(`[data-id="${id}"]`);
+                        if (card) {
+                            card.classList.remove('unread');
+                            card.dataset.read = 'true';
+                            event.currentTarget.remove();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to mark notification as read', error);
+                }
+            });
+        });
+
+        const markAllBtn = document.getElementById('mark-all-read-btn');
+        if (markAllBtn) {
+            markAllBtn.addEventListener('click', async () => {
+                try {
+                    const response = await fetch('/notifications/api/notifications/mark-all-read', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        }
+                    });
+                    if (response.ok) {
+                        notifications.forEach(card => {
+                            card.classList.remove('unread');
+                            card.dataset.read = 'true';
+                            const btn = card.querySelector('.mark-read-btn');
+                            if (btn) {
+                                btn.remove();
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.error('Failed to mark all as read', error);
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

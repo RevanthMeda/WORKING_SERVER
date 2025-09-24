@@ -1,0 +1,165 @@
+# CDN Configuration for Static Asset Delivery
+
+# CDN Provider Settings
+cdn:
+  # Enable/disable CDN integration
+  enabled: false
+  
+  # CDN Provider (cloudfront, cloudflare, generic)
+  provider: "cloudfront"
+  
+  # CDN Base URL (e.g., https://d1234567890.cloudfront.net)
+  base_url: ""
+  
+  # Auto-versioning for cache busting
+  auto_version: true
+  
+  # AWS CloudFront specific settings
+  cloudfront:
+    distribution_id: ""
+    s3_bucket: ""
+    aws_region: "us-east-1"
+  
+  # Cache Control Rules
+  cache_control:
+    # CSS and JavaScript files - long cache with immutable
+    "*.css": "public, max-age=31536000, immutable"
+    "*.js": "public, max-age=31536000, immutable"
+    
+    # Images - long cache
+    "*.jpg": "public, max-age=86400"
+    "*.jpeg": "public, max-age=86400"
+    "*.png": "public, max-age=86400"
+    "*.gif": "public, max-age=86400"
+    "*.svg": "public, max-age=86400"
+    "*.webp": "public, max-age=86400"
+    
+    # Fonts - very long cache
+    "*.woff": "public, max-age=31536000, immutable"
+    "*.woff2": "public, max-age=31536000, immutable"
+    "*.ttf": "public, max-age=31536000, immutable"
+    "*.eot": "public, max-age=31536000, immutable"
+    
+    # Documents and PDFs - medium cache
+    "*.pdf": "public, max-age=3600"
+    "*.doc": "public, max-age=3600"
+    "*.docx": "public, max-age=3600"
+    
+    # HTML files - short cache
+    "*.html": "public, max-age=300"
+    
+    # JSON and XML - short cache
+    "*.json": "public, max-age=300"
+    "*.xml": "public, max-age=300"
+
+# Asset Optimization Settings
+assets:
+  # Compression settings
+  compression:
+    enabled: true
+    # File types to compress
+    types:
+      - "text/css"
+      - "application/javascript"
+      - "text/html"
+      - "application/json"
+      - "text/xml"
+      - "application/xml"
+      - "text/plain"
+  
+  # Minification settings
+  minification:
+    enabled: true
+    css: true
+    js: true
+    html: false
+  
+  # Image optimization
+  images:
+    # Convert images to WebP when possible
+    webp_conversion: true
+    # Quality settings (1-100)
+    jpeg_quality: 85
+    webp_quality: 80
+    # Maximum dimensions
+    max_width: 2048
+    max_height: 2048
+
+# Performance Settings
+performance:
+  # Preload critical assets
+  preload:
+    enabled: true
+    # Critical CSS and JS files to preload
+    assets:
+      - "css/main.css"
+      - "js/app.js"
+  
+  # Resource hints
+  resource_hints:
+    # DNS prefetch for external domains
+    dns_prefetch:
+      - "fonts.googleapis.com"
+      - "fonts.gstatic.com"
+      - "cdnjs.cloudflare.com"
+    
+    # Preconnect to critical origins
+    preconnect:
+      - "fonts.googleapis.com"
+      - "fonts.gstatic.com"
+
+# Development Settings
+development:
+  # Disable CDN in development
+  force_local: true
+  
+  # Asset versioning in development
+  versioning: false
+  
+  # Debug mode for CDN operations
+  debug: true
+
+# Production Settings
+production:
+  # Enable all optimizations
+  enable_all_optimizations: true
+  
+  # Strict cache control
+  strict_caching: true
+  
+  # Monitor CDN performance
+  monitoring:
+    enabled: true
+    # Alert thresholds
+    error_rate_threshold: 5.0  # Percentage
+    response_time_threshold: 2000  # Milliseconds
+
+# Environment-specific overrides
+environments:
+  development:
+    cdn:
+      enabled: false
+    assets:
+      minification:
+        enabled: false
+    development:
+      force_local: true
+      debug: true
+  
+  staging:
+    cdn:
+      enabled: true
+      base_url: "https://staging-cdn.example.com"
+    performance:
+      preload:
+        enabled: true
+  
+  production:
+    cdn:
+      enabled: true
+      base_url: "https://cdn.example.com"
+    production:
+      enable_all_optimizations: true
+      strict_caching: true
+      monitoring:
+        enabled: true

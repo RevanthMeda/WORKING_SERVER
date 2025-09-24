@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block title %}Create Report - {{ super() }}{% endblock %}
+
+{% block head %}
+    <style>
+        .report-types-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .report-category {
+            background: var(--cully-white);
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: var(--cully-shadow);
+            transition: var(--transition-smooth);
+            border: 1px solid rgba(30, 58, 138, 0.1);
+        }
+        
+        .report-category:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--cully-shadow-lg);
+        }
+        
+        .category-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .category-badge {
+            background: var(--cully-navy);
+            color: var(--cully-white);
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 1rem;
+            display: inline-block;
+        }
+        
+        .category-title {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--cully-dark);
+            margin-bottom: 1rem;
+        }
+        
+        .category-description {
+            color: var(--cully-gray);
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+        
+        .report-card {
+            background: var(--cully-white);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(30, 58, 138, 0.1);
+            transition: var(--transition-smooth);
+        }
+        
+        .report-card:hover {
+            border-color: var(--cully-blue);
+            background: rgba(123, 165, 199, 0.05);
+        }
+        
+        .report-card.featured {
+            border-color: var(--cully-navy);
+            background: linear-gradient(135deg, rgba(90, 127, 163, 0.05) 0%, rgba(123, 165, 199, 0.05) 100%);
+        }
+        
+        .report-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .report-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--cully-navy) 0%, var(--cully-blue) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--cully-white);
+            font-size: 1.2rem;
+        }
+        
+        .report-info {
+            flex: 1;
+        }
+        
+        .report-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--cully-dark);
+            margin-bottom: 0.25rem;
+        }
+        
+        .report-status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .status-available {
+            background: rgba(34, 197, 94, 0.1);
+            color: #16a34a;
+        }
+        
+        .status-coming-soon {
+            background: rgba(156, 163, 175, 0.1);
+            color: #6b7280;
+        }
+        
+        .report-description {
+            color: var(--cully-gray);
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+        
+        .report-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, var(--cully-navy) 0%, var(--cully-blue) 100%);
+            color: var(--cully-white);
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: var(--transition-smooth);
+            border: none;
+            cursor: pointer;
+        }
+        
+        .report-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(90, 127, 163, 0.2);
+            color: var(--cully-white);
+        }
+        
+        .report-action:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .back-to-dashboard {
+            text-align: center;
+            margin-top: 2rem;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--cully-navy);
+            text-decoration: none;
+            font-weight: 600;
+            transition: var(--transition-smooth);
+        }
+        
+        .back-link:hover {
+            color: var(--cully-blue);
+            text-decoration: underline;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="page-hero__content">
+        <div>
+            <h1 class="page-hero__title"><i class="fas fa-plus-circle"></i> Create Report</h1>
+            <p class="page-hero__subtitle">Select a report type to begin creating a new document. All reports follow Cully's professional documentation standards.</p>
+        </div>
+    </div>
+</section>
+
+<nav class="module-nav">
+    <div class="module-nav__links">
+        <a class="module-nav__link" href="{{ url_for('dashboard.engineer') }}"><i class="fas fa-home"></i> Dashboard</a>
+        <a class="module-nav__link" href="{{ url_for('io_builder.index') }}"><i class="fas fa-sitemap"></i> I/O builder</a>
+    </div>
+    <div class="module-nav__meta">
+        <i class="fas fa-pen-square"></i> Choose a template to get started quickly
+    </div>
+</nav>
+
+<div class="report-types-grid">
+    <div class="report-category">
+        <div class="category-header">
+            <div class="category-badge">Available Now</div>
+            <h2 class="category-title">Active Report Types</h2>
+            <p class="category-description">Create professional documentation with our automated report generation system.</p>
+        </div>
+        
+        <div class="report-card featured">
+            <div class="report-header">
+                <div class="report-icon">
+                    <i class="fas fa-vial"></i>
+                </div>
+                <div class="report-info">
+                    <h3 class="report-title">System Acceptance Testing (SAT)</h3>
+                    <span class="report-status status-available">Available</span>
+                </div>
+            </div>
+            <p class="report-description">Comprehensive testing documentation for system acceptance and validation procedures with automated data validation and professional formatting.</p>
+            <a href="{{ url_for('reports.new_sat_full') }}" class="report-action">
+                <i class="fas fa-plus"></i>
+                Create SAT Report
+            </a>
+        </div>
+        
+        <div class="report-card">
+            <div class="report-header">
+                <div class="report-icon">
+                    <i class="fas fa-map-marker-alt"></i>
+                </div>
+                <div class="report-info">
+                    <h3 class="report-title">Site Survey Form</h3>
+                    <span class="report-status status-available">Available</span>
+                </div>
+            </div>
+            <p class="report-description">Comprehensive site assessment and survey form for infrastructure evaluation and documentation with photo integration.</p>
+            <a href="{{ url_for('reports.new_site_survey') }}" class="report-action">
+                <i class="fas fa-clipboard-list"></i>
+                Start Site Survey
+            </a>
+        </div>
+    </div>
+    
+    <div class="report-category">
+        <div class="category-header">
+            <div class="category-badge">Coming Soon</div>
+            <h2 class="category-title">Future Report Types</h2>
+            <p class="category-description">Additional documentation types currently in development.</p>
+        </div>
+        
+        <div class="report-card">
+            <div class="report-header">
+                <div class="report-icon">
+                    <i class="fas fa-cogs"></i>
+                </div>
+                <div class="report-info">
+                    <h3 class="report-title">Functional Design Specification (FDS)</h3>
+                    <span class="report-status status-coming-soon">Coming Soon</span>
+                </div>
+            </div>
+            <p class="report-description">Detailed functional requirements and design specifications for system components with approval workflows.</p>
+            <button class="report-action" disabled>
+                <i class="fas fa-clock"></i>
+                Coming Soon
+            </button>
+        </div>
+        
+        <div class="report-card">
+            <div class="report-header">
+                <div class="report-icon">
+                    <i class="fas fa-microchip"></i>
+                </div>
+                <div class="report-info">
+                    <h3 class="report-title">Hardware Design Specification (HDS)</h3>
+                    <span class="report-status status-coming-soon">Coming Soon</span>
+                </div>
+            </div>
+            <p class="report-description">Comprehensive hardware design documentation and specifications with version control.</p>
+            <button class="report-action" disabled>
+                <i class="fas fa-clock"></i>
+                Coming Soon
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="back-to-dashboard">
+    <a href="{{ url_for('dashboard.engineer') }}" class="back-link">
+        <i class="fas fa-arrow-left"></i>
+        Back to Dashboard
+    </a>
+</div>
+{% endblock %}

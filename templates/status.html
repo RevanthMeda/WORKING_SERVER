@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SAT Report Status - {{ document_title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}"/>
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+  />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    /* Use the same styling as dashboard */
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, var(--cully-primary-light) 0%, var(--cully-secondary-light) 50%, var(--cully-primary-light) 100%);
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+    
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: var(--border-radius);
+      font-weight: 600;
+      font-size: 0.875rem;
+      text-align: center;
+      margin-bottom: 12px;
+      border: 2px solid transparent;
+      transition: var(--transition);
+    }
+    .status-pending {
+      background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+      color: #856404;
+      border-color: #ffeaa7;
+    }
+    .status-approved {
+      background: linear-gradient(135deg, #d4edda 0%, #55a3ff 30%, var(--cully-primary) 100%);
+      color: white;
+      border-color: var(--cully-primary);
+    }
+    .status-rejected {
+      background: linear-gradient(135deg, #f8d7da 0%, #e74c3c 100%);
+      color: white;
+      border-color: #e74c3c;
+    }
+    .status-partially-approved {
+      background: linear-gradient(135deg, #d1ecf1 0%, var(--cully-secondary) 100%);
+      color: white;
+      border-color: var(--cully-secondary);
+    }
+    .status-incomplete {
+      background: linear-gradient(135deg, #f8d7da 0%, #e74c3c 100%);
+      color: white;
+      border-color: #e74c3c;
+    }
+    .progress-tracker {
+      margin: 24px 0;
+    }
+    .progress-step {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 16px;
+      margin-bottom: 24px;
+    }
+    .step-content {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.9) 100%);
+      border: 2px solid rgba(77, 208, 225, 0.15);
+      border-radius: var(--border-radius-lg);
+      box-shadow: 0 8px 32px rgba(77, 208, 225, 0.1);
+      backdrop-filter: blur(10px);
+      padding: 20px;
+      width: 100%;
+      position: relative;
+      transition: var(--transition);
+    }
+    .step-content:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(77, 208, 225, 0.15);
+    }
+    .step-content:before {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: -12px;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 12px solid transparent;
+      border-right: 12px solid transparent;
+      border-bottom: 12px solid rgba(248, 250, 252, 0.9);
+    }
+    .step-number {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--cully-primary) 0%, var(--cully-secondary) 100%);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      margin-bottom: 12px;
+      box-shadow: 0 6px 20px rgba(77, 208, 225, 0.3);
+      border: 3px solid white;
+    }
+    .step-title {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 1.1rem;
+    }
+    .step-status {
+      margin-top: 8px;
+    }
+    .document-info {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.9) 100%);
+      border: 2px solid rgba(77, 208, 225, 0.15);
+      border-radius: var(--border-radius-lg);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px rgba(77, 208, 225, 0.1);
+      backdrop-filter: blur(10px);
+      transition: var(--transition);
+    }
+    .document-info:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(77, 208, 225, 0.15);
+    }
+    .document-info h3 {
+      color: var(--cully-primary);
+      font-weight: 700;
+      font-size: 1.25rem;
+      margin-bottom: 16px;
+    }
+    .document-info p {
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    .document-info strong {
+      color: var(--text-primary);
+    }
+    .actions-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 24px;
+      align-items: center;
+    }
+    .actions-container .btn-primary, 
+    .actions-container .btn-secondary {
+      padding: 12px 20px;
+      font-weight: 600;
+      transition: var(--transition);
+    }
+    .actions-container .btn-primary {
+      background: linear-gradient(135deg, var(--cully-primary) 0%, var(--cully-secondary) 100%);
+      box-shadow: 0 6px 20px rgba(77, 208, 225, 0.3);
+    }
+    .actions-container .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(77, 208, 225, 0.4);
+    }
+    .actions-container .btn-secondary {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 250, 252, 0.9) 100%);
+      color: var(--text-primary);
+      border: 2px solid rgba(77, 208, 225, 0.2);
+    }
+    .actions-container .btn-secondary:hover {
+      background: linear-gradient(135deg, var(--cully-primary-light) 0%, var(--cully-secondary-light) 100%);
+      color: white;
+      transform: translateY(-2px);
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    
+    .logo-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    
+    .logo-header img {
+      height: 80px;
+      filter: drop-shadow(0 4px 8px rgba(77, 208, 225, 0.2));
+    }
+    
+    h1 {
+      text-align: center;
+      color: white;
+      font-weight: 700;
+      font-size: 2.5rem;
+      margin-bottom: 32px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .card {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.9) 100%);
+      border: 2px solid rgba(77, 208, 225, 0.15);
+      border-radius: var(--border-radius-lg);
+      box-shadow: 0 8px 32px rgba(77, 208, 225, 0.1);
+      backdrop-filter: blur(10px);
+      overflow: hidden;
+      transition: var(--transition);
+    }
+    
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(77, 208, 225, 0.15);
+    }
+    
+    .card-header {
+      background: linear-gradient(135deg, var(--cully-primary) 0%, var(--cully-secondary) 100%);
+      color: white;
+      padding: 20px 24px;
+      font-weight: 700;
+      font-size: 1.25rem;
+    }
+    
+    .card-body {
+      padding: 24px;
+    }
+  </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot-assistant.css') }}">
+</head>
+<body>
+  <div class="container">
+    <div class="logo-header">
+      <img src="{{ url_for('static', filename='cully.png') }}" alt="Company Logo"/>
+    </div>
+
+    <h1>SAT Report Status</h1>
+
+    <div class="document-info">
+      <h3>{{ document_title }}</h3>
+      <p><strong>Project Reference:</strong> {{ project_reference or 'N/A' }}</p>
+      <p><strong>Client:</strong> {{ client_name or 'N/A' }}</p>
+      <p><strong>Prepared By:</strong> {{ prepared_by or 'N/A' }}</p>
+      <p><strong>Submitted:</strong> {{ created_at.split(' ')[0] if created_at and ' ' in created_at else (created_at or 'N/A') }}</p>
+      <p><strong>Last Updated:</strong> {{ updated_at.split(' ')[0] if updated_at and ' ' in updated_at else (updated_at or 'N/A') }}</p>
+      <p><strong>Submission ID:</strong> {{ submission_id }}</p>
+
+      <div class="status-badge status-{{ overall_status }}">
+        {% if overall_status == 'pending' %}
+          <i class="fa fa-clock"></i> Pending Approval
+        {% elif overall_status == 'partially_approved' %}
+          <i class="fa fa-check-circle"></i> Partially Approved
+        {% elif overall_status == 'approved' %}
+          <i class="fa fa-check-circle"></i> Fully Approved
+        {% elif overall_status == 'rejected' %}
+          <i class="fa fa-times-circle"></i> Rejected
+        {% elif overall_status == 'incomplete' %}
+          <i class="fa fa-exclamation-triangle"></i> Incomplete
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Approval Progress</div>
+      <div class="card-body">
+        <div class="progress-tracker">
+          {% for approval in approvals %}
+          <div class="progress-step">
+            <div class="step-number">{{ approval.stage }}</div>
+            <div class="step-title">{{ approval.title }}</div>
+            <div class="step-content">
+              <p><strong>Approver:</strong> {{ approval.approver_email }}</p>
+              <p><strong>Status:</strong> 
+                <span class="status-badge status-{{ approval.status }}">
+                  {% if approval.status == 'pending' %}
+                    <i class="fa fa-clock"></i> Pending
+                  {% elif approval.status == 'approved' %}
+                    <i class="fa fa-check-circle"></i> Approved
+                  {% elif approval.status == 'rejected' %}
+                    <i class="fa fa-times-circle"></i> Rejected
+                  {% elif approval.status == 'incomplete' %}
+                    <i class="fa fa-exclamation-triangle"></i> Incomplete
+                  {% endif %}
+                </span>
+              </p>
+              {% if approval.timestamp %}
+              <p><strong>Date:</strong> {{ approval.timestamp.strftime('%Y-%m-%d') if approval.timestamp.__class__.__name__ == 'datetime' else (approval.timestamp.split('T')[0] if 'T' in approval.timestamp else approval.timestamp) }}</p>
+              {% endif %}
+              {% if approval.approver_name %}
+              <p><strong>Approved By:</strong> {{ approval.approver_name }}</p>
+              {% endif %}
+              {% if approval.comment %}
+              <p><strong>Comments:</strong> {{ approval.comment }}</p>
+              {% endif %}
+              {% if approval.signature %}
+              <p><strong>Signature:</strong></p>
+              <img src="{{ url_for('static', filename='signatures/' + approval.signature) }}" alt="Signature" style="max-width: 200px; max-height: 100px; border: 1px solid #ccc; border-radius: 4px;">
+              {% else %}
+              <p><strong>Signature:</strong> <span style="color: #6c757d; font-style: italic;">No signature provided</span></p>
+              {% endif %}
+
+              <!-- Add approval interface if current user can approve this stage -->
+              {% if approval.status == 'pending' and current_user.email == approval.approver_email %}
+              <div class="approval-actions" style="margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid var(--cully-primary);">
+                <h4 style="color: var(--cully-primary); margin-bottom: 16px;">
+                  <i class="fa fa-pen-to-square"></i> Your Approval Required
+                </h4>
+                
+                <form id="approvalForm{{ approval.stage }}" method="post" action="/approve/{{ submission_id }}/{{ approval.stage }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+                  
+                  <div class="form-group" style="margin-bottom: 15px;">
+                    <label for="approver_name{{ approval.stage }}" style="display: block; margin-bottom: 5px; font-weight: 600;">Your Name:</label>
+                    <input type="text" id="approver_name{{ approval.stage }}" name="approver_name" class="form-control" value="{{ current_user.full_name }}" required style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                  </div>
+
+                  <div class="form-group" style="margin-bottom: 15px;">
+                    <label for="approval_comment{{ approval.stage }}" style="display: block; margin-bottom: 5px; font-weight: 600;">Comments:</label>
+                    <textarea id="approval_comment{{ approval.stage }}" name="approval_comment" class="form-control" rows="3" placeholder="Add your comments (optional)" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"></textarea>
+                  </div>
+
+                  <div class="form-group" style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 10px; font-weight: 600;">Digital Signature:</label>
+                    <div style="border: 2px solid #ddd; border-radius: 8px; background: white;">
+                      <canvas id="signatureCanvas{{ approval.stage }}" width="400" height="150" style="display: block; cursor: crosshair; border-radius: 6px;"></canvas>
+                    </div>
+                    <div style="margin-top: 8px; display: flex; gap: 10px;">
+                      <button type="button" onclick="clearSignature({{ approval.stage }})" style="background: #6c757d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                        <i class="fa fa-eraser"></i> Clear
+                      </button>
+                      <small style="color: #666; line-height: 2;">Draw your signature above</small>
+                    </div>
+                    <input type="hidden" id="signature_data{{ approval.stage }}" name="signature_data" />
+                  </div>
+
+                  <div style="display: flex; gap: 12px; margin-top: 20px;">
+                    <button type="button" onclick="submitApproval({{ approval.stage }}, 'approved')" style="background: var(--cully-primary); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                      <i class="fa fa-check"></i> Approve
+                    </button>
+                    <button type="button" onclick="submitApproval({{ approval.stage }}, 'rejected')" style="background: #dc3545; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                      <i class="fa fa-times"></i> Reject
+                    </button>
+                  </div>
+                </form>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="actions-container">
+      {% if not locked and can_edit %}
+      <a href="{{ url_for('main.edit_submission', submission_id=submission_id) }}" class="btn-secondary">
+        <i class="fa fa-edit"></i> Edit Submission
+      </a>
+      {% elif locked and current_user.role == 'Admin' %}
+      <button onclick="revokeApproval('{{ submission_id }}')" class="btn-warning">
+        <i class="fa fa-undo"></i> Revoke Approval
+      </button>
+      {% endif %}
+
+      <a href="{{ url_for('status.download_report', submission_id=submission_id) }}" class="btn-primary">
+        <i class="fa fa-download"></i> Download DOCX
+      </a>
+
+      {% if has_pdf %}
+      <a href="{{ url_for('status.download_pdf', submission_id=submission_id) }}" class="btn-secondary">
+        <i class="fa fa-file-pdf"></i> Download PDF
+      </a>
+      {% endif %}
+
+      <a href="{{ url_for('main.index') }}" class="btn-secondary">
+        <i class="fa fa-plus"></i> New Submission
+      </a>
+    </div>
+  </div>
+
+  <!-- Revoke Approval Modal -->
+  <div id="revokeModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <i class="fa fa-undo"></i>
+        <h3>Revoke Approval</h3>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to revoke the approval for this report?</p>
+        <div class="form-group">
+          <label for="revokeComment">Reason for revocation (required):</label>
+          <textarea id="revokeComment" class="form-control" rows="3" 
+                    placeholder="Please provide a reason for revoking the approval..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button onclick="closeRevokeModal()" class="btn-secondary">Cancel</button>
+        <button onclick="confirmRevoke()" class="btn-primary">Revoke Approval</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let reportToRevoke = null;
+
+    function revokeApproval(reportId) {
+      reportToRevoke = reportId;
+      document.getElementById('revokeModal').style.display = 'block';
+      document.getElementById('revokeComment').value = '';
+    }
+
+    function closeRevokeModal() {
+      document.getElementById('revokeModal').style.display = 'none';
+      reportToRevoke = null;
+    }
+
+    function confirmRevoke() {
+      const comment = document.getElementById('revokeComment').value.trim();
+      if (!comment) {
+        alert('Please provide a reason for revoking the approval.');
+        return;
+      }
+
+      if (reportToRevoke) {
+        fetch(`/dashboard/revoke-approval/${reportToRevoke}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            comment: comment
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            location.reload();
+          } else {
+            alert('Error revoking approval: ' + data.message);
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          alert('Error revoking approval');
+        });
+      }
+      closeRevokeModal();
+    }
+
+    // Close modals when clicking outside
+    window.onclick = function(event) {
+      const revokeModal = document.getElementById('revokeModal');
+      if (event.target === revokeModal) {
+        closeRevokeModal();
+      }
+    }
+
+    // Signature pad functionality
+    const signaturePads = {};
+
+    function initSignaturePad(stage) {
+      const canvas = document.getElementById(`signatureCanvas${stage}`);
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+      let isDrawing = false;
+      let lastX = 0;
+      let lastY = 0;
+
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+
+      function draw(e) {
+        if (!isDrawing) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+
+        lastX = x;
+        lastY = y;
+      }
+
+      canvas.addEventListener('mousedown', (e) => {
+        isDrawing = true;
+        const rect = canvas.getBoundingClientRect();
+        lastX = e.clientX - rect.left;
+        lastY = e.clientY - rect.top;
+      });
+
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', () => isDrawing = false);
+      canvas.addEventListener('mouseout', () => isDrawing = false);
+
+      // Touch support for mobile
+      canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        lastX = touch.clientX - rect.left;
+        lastY = touch.clientY - rect.top;
+        isDrawing = true;
+      });
+
+      canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (!isDrawing) return;
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
+
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+
+        lastX = x;
+        lastY = y;
+      });
+
+      canvas.addEventListener('touchend', () => isDrawing = false);
+
+      signaturePads[stage] = { canvas, ctx };
+    }
+
+    function clearSignature(stage) {
+      const pad = signaturePads[stage];
+      if (pad) {
+        pad.ctx.clearRect(0, 0, pad.canvas.width, pad.canvas.height);
+        document.getElementById(`signature_data${stage}`).value = '';
+      }
+    }
+
+    function submitApproval(stage, action) {
+      const canvas = document.getElementById(`signatureCanvas${stage}`);
+      const form = document.getElementById(`approvalForm${stage}`);
+      
+      if (!canvas || !form) {
+        alert('Error: Missing form elements');
+        return;
+      }
+
+      // Check if signature is provided (for approval only)
+      if (action === 'approved') {
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const hasSignature = imageData.data.some(channel => channel !== 0);
+        
+        if (!hasSignature) {
+          alert('Please provide your signature before approving.');
+          return;
+        }
+
+        // Convert canvas to base64
+        const signatureData = canvas.toDataURL('image/png');
+        document.getElementById(`signature_data${stage}`).value = signatureData;
+      }
+
+      // Submit the form
+      form.submit();
+    }
+
+    // Initialize signature pads when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      // Find all signature canvases and initialize them
+      const canvases = document.querySelectorAll('[id^="signatureCanvas"]');
+      canvases.forEach(canvas => {
+        const stage = canvas.id.replace('signatureCanvas', '');
+        initSignaturePad(parseInt(stage));
+      });
+    });
+  </script>
+
+  <style>
+    .modal {
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+    }
+
+    .modal-content {
+      background-color: white;
+      margin: 15% auto;
+      padding: 0;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    .modal-header {
+      background-color: var(--primary);
+      color: white;
+      padding: 15px 20px;
+      border-radius: 8px 8px 0 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .modal-body {
+      padding: 20px;
+    }
+
+    .modal-footer {
+      padding: 15px 20px;
+      border-top: 1px solid #eee;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .btn-warning {
+      background-color: #ffc107;
+      color: #212529;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .btn-warning:hover {
+      background-color: #e0a800;
+    }
+  </style>
+
+    {% include 'partials/chatbot_widget.html' %}
+    <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
+</body>
+</html>

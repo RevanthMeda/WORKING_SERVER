@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - {{ super() }}{% endblock %}
+
+{% block head %}
+<style>
+    .page-header {
+        text-align: left;
+        padding: 1rem 0 2rem;
+        border-bottom: 1px solid var(--cully-light-gray);
+        margin-bottom: 2.5rem;
+    }
+
+    .page-title {
+        font-size: 2.25rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .page-subtitle {
+        text-align: left;
+        max-width: 760px;
+        font-size: 1.05rem;
+        color: var(--cully-gray);
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 1.75rem;
+        margin-bottom: 2.5rem;
+    }
+
+    .stat-card {
+        background: var(--cully-white);
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: var(--cully-shadow);
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        transition: var(--transition-smooth);
+    }
+
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--cully-shadow-lg);
+    }
+
+    .stat-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.4rem;
+        color: var(--cully-white);
+        flex-shrink: 0;
+    }
+
+    .stat-icon.stat-users { background: linear-gradient(135deg, #60a5fa 0%, #2563eb 100%); }
+    .stat-icon.stat-active { background: linear-gradient(135deg, #34d399 0%, #059669 100%); }
+    .stat-icon.stat-pending { background: linear-gradient(135deg, #facc15 0%, #ea580c 100%); }
+    .stat-icon.stat-reports { background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); }
+    .stat-icon.stat-db { background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%); }
+
+    .stat-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .stat-info .value {
+        font-size: 2.6rem;
+        font-weight: 700;
+        color: var(--cully-dark);
+        line-height: 1;
+    }
+
+    .stat-info .label {
+        font-size: 0.95rem;
+        color: var(--cully-gray);
+        font-weight: 600;
+    }
+
+    .status-pill {
+        font-weight: 600;
+        padding: 0.4rem 0.85rem;
+        border-radius: 999px;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+    }
+
+    .status-pill.connected {
+        background: rgba(134, 239, 172, 0.18);
+        color: #047857;
+    }
+
+    .status-pill.disconnected {
+        background: rgba(248, 113, 113, 0.18);
+        color: #b91c1c;
+    }
+
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0 0 1.25rem;
+        color: var(--cully-dark);
+    }
+
+    .action-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2.5rem;
+    }
+
+    .action-card {
+        background: var(--cully-white);
+        border-radius: 16px;
+        padding: 1.75rem;
+        box-shadow: var(--cully-shadow);
+        transition: var(--transition-smooth);
+        text-decoration: none;
+        color: var(--cully-dark);
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .action-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--cully-shadow-lg);
+        color: var(--cully-navy);
+    }
+
+    .action-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .action-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: rgba(123, 165, 199, 0.12);
+        color: var(--cully-navy);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .action-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0;
+    }
+
+    .action-description {
+        color: var(--cully-gray);
+        line-height: 1.55;
+        margin: 0;
+        flex-grow: 1;
+    }
+
+    .action-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+        color: var(--cully-navy);
+    }
+
+    .widget-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .widget-card {
+        background: var(--cully-white);
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: var(--cully-shadow);
+    }
+
+    .widget-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 1.5rem;
+    }
+
+    .widget-title {
+        font-size: 1.4rem;
+        font-weight: 600;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .widget-title i {
+        color: var(--cully-navy);
+    }
+
+    .widget-action {
+        font-weight: 600;
+        color: var(--cully-navy);
+        text-decoration: none;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    th, td {
+        padding: 0.75rem 0.5rem;
+        text-align: left;
+    }
+
+    th {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--cully-gray);
+        border-bottom: 1px solid var(--cully-light-gray);
+    }
+
+    tr + tr {
+        border-top: 1px solid var(--cully-light-gray);
+    }
+
+    .empty-state {
+        color: var(--cully-gray);
+        font-style: italic;
+    }
+
+    .system-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .info-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .info-label {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--cully-gray);
+    }
+
+    .info-value {
+        font-weight: 600;
+        color: var(--cully-dark);
+    }
+
+    @media (max-width: 600px) {
+        .page-header {
+            text-align: center;
+        }
+
+        .page-subtitle {
+            text-align: center;
+            margin: 0 auto;
+        }
+
+        .stat-card {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .stat-icon {
+            margin-bottom: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Admin Dashboard</h1>
+    <p class="page-subtitle">
+        Welcome back, {{ current_user.full_name if current_user and current_user.full_name else 'Admin' }}.
+        Monitor platform health, manage users, and keep the reporting workflow on track.
+    </p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <i class="fas fa-users stat-icon stat-users"></i>
+        <div class="stat-info">
+            <div class="value">{{ total_users if total_users is defined else 0 }}</div>
+            <div class="label">Total Users</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <i class="fas fa-user-check stat-icon stat-active"></i>
+        <div class="stat-info">
+            <div class="value">{{ users | selectattr('status', 'equalto', 'Active') | list | length }}</div>
+            <div class="label">Active Accounts</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <i class="fas fa-user-clock stat-icon stat-pending"></i>
+        <div class="stat-info">
+            <div class="value">{{ pending_users if pending_users is defined else 0 }}</div>
+            <div class="label">Pending Approvals</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <i class="fas fa-file-alt stat-icon stat-reports"></i>
+        <div class="stat-info">
+            <div class="value">{{ total_reports if total_reports is defined else 0 }}</div>
+            <div class="label">Total Reports</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <i class="fas fa-database stat-icon stat-db"></i>
+        <div class="stat-info">
+            <div class="label">Database Status</div>
+            <div class="value" style="font-size:1.4rem;">
+                <span class="status-pill {{ 'connected' if db_status else 'disconnected' }}">
+                    {{ 'Connected' if db_status else 'Disconnected' }}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="section-title">Quick Actions</div>
+<div class="action-grid">
+    <a href="{{ url_for('dashboard.user_management') }}" class="action-card">
+        <div class="action-header">
+            <div class="action-icon"><i class="fas fa-user-gear"></i></div>
+            <h3 class="action-title">Manage Users</h3>
+        </div>
+        <p class="action-description">Approve new registrations, assign roles, and update account status.</p>
+        <span class="action-link">Open User Management <i class="fas fa-arrow-right"></i></span>
+    </a>
+    <a href="{{ url_for('dashboard.automation_manager') }}" class="action-card">
+        <div class="action-header">
+            <div class="action-icon"><i class="fas fa-clipboard-check"></i></div>
+            <h3 class="action-title">Monitor Approvals</h3>
+        </div>
+        <p class="action-description">Review the automation queue and support project managers with escalations.</p>
+        <span class="action-link">View Workflow <i class="fas fa-arrow-right"></i></span>
+    </a>
+    <a href="{{ url_for('dashboard.pm') }}" class="action-card">
+        <div class="action-header">
+            <div class="action-icon"><i class="fas fa-diagram-project"></i></div>
+            <h3 class="action-title">Project Oversight</h3>
+        </div>
+        <p class="action-description">Keep an eye on project manager progress and outstanding deliverables.</p>
+        <span class="action-link">Visit PM Dashboard <i class="fas fa-arrow-right"></i></span>
+    </a>
+    <a href="{{ url_for('notifications.notification_center') }}" class="action-card">
+        <div class="action-header">
+            <div class="action-icon"><i class="fas fa-bell"></i></div>
+            <h3 class="action-title">Notifications</h3>
+        </div>
+        <p class="action-description">Review platform alerts, user events, and integration updates.</p>
+        <span class="action-link">Open Center <i class="fas fa-arrow-right"></i></span>
+    </a>
+</div>
+
+<div class="widget-grid">
+    <div class="widget-card">
+        <div class="widget-header">
+            <h3 class="widget-title"><i class="fas fa-user-plus"></i> Pending User Approvals</h3>
+            <a href="{{ url_for('dashboard.user_management') }}" class="widget-action">View All</a>
+        </div>
+        {% if pending_users_list and pending_users_list|length > 0 %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Requested</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in pending_users_list %}
+                    <tr>
+                        <td>{{ user.full_name or 'Unnamed User' }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>{{ user.created_date.strftime('%d %b %Y') if user.created_date else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="empty-state">No users awaiting approval.</p>
+        {% endif %}
+    </div>
+
+    <div class="widget-card">
+        <div class="widget-header">
+            <h3 class="widget-title"><i class="fas fa-file-alt"></i> Recent Reports</h3>
+            <a href="{{ url_for('dashboard.pm') }}" class="widget-action">Go to Reports</a>
+        </div>
+        {% if recent_reports and recent_reports|length > 0 %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Status</th>
+                        <th>Updated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for report in recent_reports %}
+                    <tr>
+                        <td>{{ report.document_title or 'Untitled Report' }}</td>
+                        <td>{{ report.status | replace('_', ' ') | title }}</td>
+                        <td>{{ report.updated_at.strftime('%d %b %Y') if report.updated_at else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="empty-state">No recent reports to display.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="widget-card" style="margin-top: 2rem;">
+    <div class="widget-header">
+        <h3 class="widget-title"><i class="fas fa-sliders-h"></i> Platform Configuration</h3>
+    </div>
+    <div class="system-info">
+        <div class="info-row">
+            <span class="info-label">Storage Location</span>
+            <span class="info-value">{{ storage_location }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Company Branding</span>
+            <span class="info-value">{{ company_logo }}</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

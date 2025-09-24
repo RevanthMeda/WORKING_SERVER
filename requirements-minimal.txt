@@ -1,0 +1,62 @@
+# Minimal requirements to run the application
+# Core Flask dependencies
+flask==2.2.3
+flask-login
+flask-sqlalchemy
+flask-wtf==1.1.1
+werkzeug==2.2.3
+
+# Database
+psycopg2-binary
+sqlalchemy
+
+# Document processing
+python-docx
+docxtpl==0.16.7
+
+# Image processing
+pillow>=10.4.0
+
+# HTTP requests
+requests
+beautifulsoup4
+lxml
+
+# Utilities
+python-dotenv==1.0.0
+itsdangerous
+
+# Production server
+gunicorn
+greenlet
+
+# Windows compatibility
+pywin32>=307; sys_platform == 'win32'
+
+# Security and session management
+cryptography
+flask-session
+
+# Database migrations
+flask-migrate
+alembic
+
+# Task scheduling
+schedule
+
+# System monitoring
+psutil
+
+# Configuration management
+pyyaml
+watchdog
+marshmallow
+
+# Secrets management
+hvac
+
+# Caching (without cluster support to avoid conflicts)
+redis>=4.0.0
+
+# Background tasks (without flower for now)
+celery>=5.2.0

@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>Template Manager - Cully Report Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --admin-primary: #4DD0E1;
+            --admin-primary-dark: #26C6DA;
+            --admin-primary-light: #80DEEA;
+            --admin-success: #10b981;
+            --admin-warning: #f59e0b;
+            --admin-danger: #ef4444;
+            --admin-neutral: #6b7280;
+            --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            --card-shadow-hover: 0 8px 30px rgba(0, 0, 0, 0.12);
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            color: #1f2937;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .dashboard-header {
+            background: linear-gradient(135deg, var(--admin-primary) 0%, var(--admin-primary-dark) 100%);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 32px;
+            box-shadow: var(--card-shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header-info h1 {
+            color: white;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-info p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.1rem;
+            margin: 0;
+        }
+
+        .nav-bar {
+            background: white;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 32px;
+            box-shadow: var(--card-shadow);
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .nav-item {
+            padding: 10px 20px;
+            border-radius: 8px;
+            color: #6b7280;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-item:hover {
+            background: #f3f4f6;
+            color: var(--admin-primary);
+        }
+
+        .nav-item.active {
+            background: var(--admin-primary);
+            color: white;
+        }
+
+        /* Template Grid */
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .template-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--card-shadow);
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .template-card:hover {
+            box-shadow: var(--card-shadow-hover);
+            transform: translateY(-4px);
+            border-color: var(--admin-primary-light);
+        }
+
+        .template-card.active {
+            border-color: var(--admin-primary);
+            background: linear-gradient(135deg, #ffffff 0%, #f0fdfa 100%);
+        }
+
+        .template-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 16px;
+        }
+
+        .template-type {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .template-type.sat {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .template-type.fds {
+            background: #fce7f3;
+            color: #9333ea;
+        }
+
+        .template-type.hds {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .template-type.fat {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .template-type.commissioning {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .template-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 12px 0 8px 0;
+        }
+
+        .template-description {
+            color: #6b7280;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .template-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 0.875rem;
+            color: #9ca3af;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .template-meta span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .template-actions {
+            display: flex;
+            gap: 8px;
+            padding-top: 16px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--admin-primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--admin-primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #4b5563;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .btn-success {
+            background: var(--admin-success);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--admin-danger);
+            color: white;
+        }
+
+        /* Upload Section */
+        .upload-section {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 32px;
+        }
+
+        .upload-zone {
+            border: 2px dashed #d1d5db;
+            border-radius: 12px;
+            padding: 48px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--admin-primary);
+            background: #f0fdfa;
+        }
+
+        .upload-zone.dragover {
+            border-color: var(--admin-primary);
+            background: #e0f2fe;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: var(--admin-primary);
+            margin-bottom: 16px;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: var(--card-shadow);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .stat-icon.primary {
+            background: #e0f2fe;
+            color: var(--admin-primary);
+        }
+
+        .stat-icon.success {
+            background: #dcfce7;
+            color: var(--admin-success);
+        }
+
+        .stat-icon.warning {
+            background: #fef3c7;
+            color: var(--admin-warning);
+        }
+
+        .stat-info h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0;
+            color: #1f2937;
+        }
+
+        .stat-info p {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin: 4px 0 0 0;
+        }
+
+        /* Version Badge */
+        .version-badge {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* Usage Indicator */
+        .usage-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .usage-bar {
+            flex: 1;
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .usage-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--admin-primary) 0%, var(--admin-primary-dark) 100%);
+            transition: width 0.3s ease;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #6b7280;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .close-btn:hover {
+            color: var(--admin-danger);
+        }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot-assistant.css') }}">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <div class="dashboard-header">
+            <div class="header-content">
+                <div class="header-info">
+                    <h1>
+                        <i class="fas fa-file-alt"></i>
+                        Template Manager
+                    </h1>
+                    <p>Manage and organize your report templates</p>
+                </div>
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Cully Logo" class="header-logo">
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="nav-bar">
+            <a href="{{ url_for('dashboard.home') }}" class="nav-item">
+                <i class="fas fa-home"></i> Dashboard
+            </a>
+            <a href="#" class="nav-item active">
+                <i class="fas fa-file-alt"></i> Templates
+            </a>
+            <a href="{{ url_for('dashboard.admin') }}" class="nav-item">
+                <i class="fas fa-cog"></i> Settings
+            </a>
+        </nav>
+
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon primary">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="total-templates">{{ templates|length }}</h3>
+                    <p>Total Templates</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon success">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="active-templates">{{ templates|selectattr('is_active')|list|length }}</h3>
+                    <p>Active Templates</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon warning">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="total-usage">{{ templates|sum(attribute='usage_count') }}</h3>
+                    <p>Total Usage</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="upload-section">
+            <h2 style="margin-top: 0; margin-bottom: 20px; color: #1f2937;">
+                <i class="fas fa-upload"></i> Upload New Template
+            </h2>
+            <div class="upload-zone" id="uploadZone">
+                <div class="upload-icon">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <h3 style="margin: 0 0 8px 0; color: #374151;">Drag & Drop Template File</h3>
+                <p style="color: #6b7280; margin: 0 0 16px 0;">or click to browse</p>
+                <input type="file" id="templateFile" style="display: none;" accept=".docx">
+                <button class="btn btn-primary">
+                    <i class="fas fa-folder-open"></i> Browse Files
+                </button>
+            </div>
+        </div>
+
+        <!-- Templates Grid -->
+        <h2 style="margin-bottom: 24px; color: #1f2937;">
+            <i class="fas fa-layer-group"></i> Available Templates
+        </h2>
+        <div class="template-grid">
+            <!-- SAT Template -->
+            <div class="template-card active">
+                <span class="version-badge">v1.0</span>
+                <div class="template-header">
+                    <span class="template-type sat">SAT</span>
+                </div>
+                <h3 class="template-title">System Acceptance Testing</h3>
+                <p class="template-description">
+                    Comprehensive template for system acceptance testing documentation, including test procedures, results, and sign-offs.
+                </p>
+                <div class="template-meta">
+                    <span><i class="fas fa-calendar"></i> Updated 2 days ago</span>
+                    <span><i class="fas fa-chart-bar"></i> 45 uses</span>
+                </div>
+                <div class="usage-indicator">
+                    <span style="font-size: 0.875rem; color: #6b7280;">Usage:</span>
+                    <div class="usage-bar">
+                        <div class="usage-fill" style="width: 75%;"></div>
+                    </div>
+                    <span style="font-size: 0.875rem; color: #4b5563;">75%</span>
+                </div>
+                <div class="template-actions">
+                    <button class="btn btn-primary" onclick="useTemplate('SAT')">
+                        <i class="fas fa-play"></i> Use Template
+                    </button>
+                    <button class="btn btn-secondary">
+                        <i class="fas fa-eye"></i> Preview
+                    </button>
+                    <button class="btn btn-secondary">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+
+            <!-- FDS Template -->
+            <div class="template-card">
+                <span class="version-badge">v1.0</span>
+                <div class="template-header">
+                    <span class="template-type fds">FDS</span>
+                </div>
+                <h3 class="template-title">Functional Design Specification</h3>
+                <p class="template-description">
+                    Document functional requirements, process descriptions, and control philosophy for automation systems.
+                </p>
+                <div class="template-meta">
+                    <span><i class="fas fa-calendar"></i> Updated 1 week ago</span>
+                    <span><i class="fas fa-chart-bar"></i> 23 uses</span>
+                </div>
+                <div class="usage-indicator">
+                    <span style="font-size: 0.875rem; color: #6b7280;">Usage:</span>
+                    <div class="usage-bar">
+                        <div class="usage-fill" style="width: 38%;"></div>
+                    </div>
+                    <span style="font-size: 0.875rem; color: #4b5563;">38%</span>
+                </div>
+                <div class="template-actions">
+                    <button class="btn btn-primary" onclick="useTemplate('FDS')">
+                        <i class="fas fa-play"></i> Use Template
+                    </button>
+                    <button class="btn btn-secondary">
+                        <i class="fas fa-eye"></i> Preview
+                    </button>
+                    <button class="btn btn-secondary">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+
+            <!-- HDS Template -->
+            <div class="template-card">
+                <span class="version-badge">v1.0</span>
+                <div class="template-header">
+                    <span class="template-type hds">HDS</span>
+                </div>
+                <h3 class="template-title">Hardware Design Specification</h3>
+                <p class="template-description">
+                    Define hardware components, network architecture, and system infrastructure requirements.
+                </p>
+                <div class="template-meta">
+                    <span><i class="fas fa-calendar"></i> Updated 3 days ago</span>
+                    <span><i class="fas fa-chart-bar"></i> 18 uses</span>
+                </div>
+                <div class="usage-indicator">
+                    <span style="font-size: 0.875rem; color: #6b7280;">Usage:</span>
+                    <div class="usage-bar">
+                        <div class="usage-fill" style="width: 30%;"></div>
+                    </div>
+                    <span style="font-size: 0.875rem; color: #4b5563;">30%</span>
+                </div>
+                <div class="template-actions">
+                    <button class="btn btn-primary" onclick="useTemplate('HDS')">
+                        <i class="fas fa-play"></i> Use Template
+                    </button>
+                    <button class="btn btn-secondary">
+                        <i class="fas fa-eye"></i> Preview
+                    </button>
+                    <button class="btn btn-secondary">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+
+            <!-- FAT Template -->
+            <div class="template-card">
+                <span class="version-badge">v1.0</span>
+                <div class="template-header">
+                    <span class="template-type fat">FAT</span>
+                </div>
+                <h3 class="template-title">Factory Acceptance Testing</h3>
+                <p class="template-description">
+                    Document factory testing procedures, equipment verification, and acceptance criteria before shipment.
+                </p>
+                <div class="template-meta">
+                    <span><i class="fas fa-calendar"></i> Updated 5 days ago</span>
+                    <span><i class="fas fa-chart-bar"></i> 31 uses</span>
+                </div>
+                <div class="usage-indicator">
+                    <span style="font-size: 0.875rem; color: #6b7280;">Usage:</span>
+                    <div class="usage-bar">
+                        <div class="usage-fill" style="width: 52%;"></div>
+                    </div>
+                    <span style="font-size: 0.875rem; color: #4b5563;">52%</span>
+                </div>
+                <div class="template-actions">
+                    <button class="btn btn-primary" onclick="useTemplate('FAT')">
+                        <i class="fas fa-play"></i> Use Template
+                    </button>
+                    <button class="btn btn-secondary">
+                        <i class="fas fa-eye"></i> Preview
+                    </button>
+                    <button class="btn btn-secondary">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+
+            <!-- Commissioning Template -->
+            <div class="template-card">
+                <span class="version-badge">v1.0</span>
+                <div class="template-header">
+                    <span class="template-type commissioning">COMM</span>
+                </div>
+                <h3 class="template-title">Commissioning Report</h3>
+                <p class="template-description">
+                    Complete commissioning documentation including startup procedures, calibration records, and performance verification.
+                </p>
+                <div class="template-meta">
+                    <span><i class="fas fa-calendar"></i> Updated 1 day ago</span>
+                    <span><i class="fas fa-chart-bar"></i> 12 uses</span>
+                </div>
+                <div class="usage-indicator">
+                    <span style="font-size: 0.875rem; color: #6b7280;">Usage:</span>
+                    <div class="usage-bar">
+                        <div class="usage-fill" style="width: 20%;"></div>
+                    </div>
+                    <span style="font-size: 0.875rem; color: #4b5563;">20%</span>
+                </div>
+                <div class="template-actions">
+                    <button class="btn btn-primary" onclick="useTemplate('COMMISSIONING')">
+                        <i class="fas fa-play"></i> Use Template
+                    </button>
+                    <button class="btn btn-secondary">
+                        <i class="fas fa-eye"></i> Preview
+                    </button>
+                    <button class="btn btn-secondary">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Upload Modal -->
+    <div class="modal" id="uploadModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Upload New Template</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="templateUploadForm">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500;">Template Name</label>
+                    <input type="text" id="templateName" required style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500;">Template Type</label>
+                    <select id="templateType" required style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                        <option value="">Select Type</option>
+                        <option value="SAT">SAT - System Acceptance Testing</option>
+                        <option value="FDS">FDS - Functional Design Specification</option>
+                        <option value="HDS">HDS - Hardware Design Specification</option>
+                        <option value="FAT">FAT - Factory Acceptance Testing</option>
+                        <option value="COMMISSIONING">Commissioning Report</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500;">Description</label>
+                    <textarea id="templateDescription" rows="3" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;"></textarea>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500;">Version</label>
+                    <input type="text" id="templateVersion" value="1.0" required style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload"></i> Upload Template
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Drag and drop functionality
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('templateFile');
+
+        uploadZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileUpload(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileUpload(e.target.files[0]);
+            }
+        });
+
+        function handleFileUpload(file) {
+            if (file.name.endsWith('.docx')) {
+                document.getElementById('uploadModal').classList.add('active');
+                // Store file for later upload
+                window.uploadedFile = file;
+            } else {
+                alert('Please upload a .docx file');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('uploadModal').classList.remove('active');
+            window.uploadedFile = null;
+        }
+
+        function useTemplate(templateType) {
+            // Redirect to the appropriate report creation page
+            if (templateType === 'SAT') {
+                window.location.href = "{{ url_for('reports.sat_wizard') }}";
+            } else {
+                // For other templates, show a message (to be implemented)
+                alert(`${templateType} template will be available soon!`);
+            }
+        }
+
+        // Template upload form submission
+        document.getElementById('templateUploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!window.uploadedFile) {
+                alert('Please select a file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', window.uploadedFile);
+            formData.append('name', document.getElementById('templateName').value);
+            formData.append('type', document.getElementById('templateType').value);
+            formData.append('description', document.getElementById('templateDescription').value);
+            formData.append('version', document.getElementById('templateVersion').value);
+            formData.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+
+            try {
+                const response = await fetch('/api/upload-template', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    alert('Template uploaded successfully!');
+                    closeModal();
+                    location.reload();
+                } else {
+                    alert('Failed to upload template');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                alert('An error occurred while uploading the template');
+            }
+        });
+    </script>
+
+    {% include 'partials/chatbot_widget.html' %}
+    <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
+</body>
+</html>

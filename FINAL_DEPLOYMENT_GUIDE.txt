@@ -1,0 +1,96 @@
+========================================
+SAT REPORT GENERATOR - FINAL DEPLOYMENT
+========================================
+
+Your IIS is configured for: automation-reports.mobilehmi.org:443
+Directory: C:\inetpub\wwwroot\REPORT_GENERATOR
+
+========================================
+DEPLOYMENT STEPS
+========================================
+
+STEP 1: Deploy to IIS
+> deploy_to_iis.bat
+
+This copies:
+- index.html → C:\inetpub\wwwroot\REPORT_GENERATOR\
+- web.config → C:\inetpub\wwwroot\REPORT_GENERATOR\
+
+STEP 2: Start Backend Service  
+> start_backend_service.bat
+
+This starts Flask on http://127.0.0.1:8080
+
+STEP 3: Access Application
+https://automation-reports.mobilehmi.org
+
+========================================
+HOW IT WORKS
+========================================
+
+User Request:
+https://automation-reports.mobilehmi.org:443
+     ↓
+IIS serves index.html (with SSL certificate)
+     ↓
+index.html loads iframe: http://127.0.0.1:8080
+     ↓
+Flask backend serves SAT Report Generator
+     ↓
+User sees application through HTTPS
+
+========================================
+ARCHITECTURE
+========================================
+
+IIS (Port 443 - HTTPS)
+├── Handles SSL/TLS encryption
+├── Serves index.html
+├── Manages domain automation-reports.mobilehmi.org
+└── Proxies to Flask via iframe
+
+Flask Backend (Port 8080 - HTTP)  
+├── Runs SAT Report Generator application
+├── Localhost only (127.0.0.1:8080)
+├── Optimized for iframe embedding
+└── Handles all application logic
+
+========================================
+SECURITY FEATURES
+========================================
+
+✅ HTTPS encryption via IIS SSL certificate
+✅ Domain-only access (automation-reports.mobilehmi.org)
+✅ Backend isolated to localhost
+✅ Iframe security headers configured
+✅ CORS properly configured
+✅ Error handling and connection monitoring
+
+========================================
+TROUBLESHOOTING
+========================================
+
+Issue: "Cannot connect" error
+Solution: Ensure Flask backend is running (start_backend_service.bat)
+
+Issue: Blank page
+Solution: Check IIS site is running and files are deployed
+
+Issue: "Refused to frame" error
+Solution: Restart Flask backend with iframe headers
+
+Issue: SSL certificate errors
+Solution: Verify IIS SSL certificate for automation-reports.mobilehmi.org
+
+========================================
+MAINTENANCE
+========================================
+
+Daily Startup:
+1. start_backend_service.bat (starts Flask backend)
+2. Ensure IIS service is running
+3. Access: https://automation-reports.mobilehmi.org
+
+The backend service runs continuously.
+IIS handles all HTTPS traffic on port 443.
+Only port 443 needs to be open externally.

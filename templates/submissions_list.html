@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SAT Reports - All Submissions</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}"/>
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+  />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    .submissions-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    .submissions-table th {
+      background-color: var(--primary);
+      color: white;
+      padding: 10px;
+      text-align: left;
+    }
+    .submissions-table td {
+      padding: 10px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .submissions-table tr:hover {
+      background-color: rgba(255, 255, 255, 0.5);
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    .status-pending {
+      background-color: #ffeeba;
+      color: #856404;
+    }
+    .status-approved {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .status-rejected {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .status-partially-approved {
+      background-color: #d1ecf1;
+      color: #0c5460;
+    }
+    .action-btn {
+      text-decoration: none;
+      margin-right: 5px;
+      color: var(--primary);
+    }
+    .action-btn:hover {
+      color: var(--primary-light);
+    }
+    .empty-list {
+      text-align: center;
+      margin: 40px 0;
+      color: #555;
+    }
+  </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot-assistant.css') }}">
+</head>
+<body>
+  <div class="container">
+    <div class="logo-header">
+      <img src="{{ url_for('static', filename='cully.png') }}" alt="Company Logo"/>
+    </div>
+    
+    <h1>All SAT Report Submissions</h1>
+    
+    <div class="card">
+      <div class="card-header">Submissions List</div>
+      <div class="card-body">
+        {% if submissions %}
+        <div class="table-responsive">
+          <table class="submissions-table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Client</th>
+                <th>Submitted By</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for sub in submissions %}
+              <tr>
+                <td>{{ sub.document_title }}</td>
+                <td>{{ sub.client_name }}</td>
+                <td>{{ sub.user_email }}</td>
+                <td>{{ sub.created_at.split('T')[0] if sub.created_at else 'N/A' }}</td>
+                <td>
+                  <span class="status-badge status-{{ sub.status }}">
+                    {% if sub.status == 'pending' %}
+                      <i class="fa fa-clock"></i> Pending
+                    {% elif sub.status == 'partially_approved' %}
+                      <i class="fa fa-check-circle"></i> Partially Approved
+                    {% elif sub.status == 'approved' %}
+                      <i class="fa fa-check-circle"></i> Approved
+                    {% elif sub.status == 'rejected' %}
+                      <i class="fa fa-times-circle"></i> Rejected
+                    {% endif %}
+                  </span>
+                </td>
+                <td>
+                  <a href="{{ url_for('status.view_status', submission_id=sub.id) }}" class="action-btn" title="View Status">
+                    <i class="fa fa-eye"></i>
+                  </a>
+                  <a href="{{ url_for('status.download_report', submission_id=sub.id) }}" class="action-btn" title="Download Report">
+                    <i class="fa fa-download"></i>
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-list">
+          <i class="fa fa-info-circle fa-3x"></i>
+          <p>No submissions found.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <div class="actions-container">
+      <a href="{{ url_for('main.index') }}" class="btn-primary">
+        <i class="fa fa-plus"></i> New Submission
+      </a>
+    </div>
+  </div>
+
+    {% include 'partials/chatbot_widget.html' %}
+    <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
+</body>
+</html>
