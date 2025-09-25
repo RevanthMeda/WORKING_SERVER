@@ -185,7 +185,7 @@ def bot_llm():
         return jsonify({'error': 'Message cannot be empty.'}), 400
 
     try:
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+        genai.configure(api_key=os.environ["AIzaSyAMvpOfcZnCxNdUekb3IxJ94lXJrfuYm7w"])
         model = genai.GenerativeModel('gemini-pro')
 
         # Construct the prompt
