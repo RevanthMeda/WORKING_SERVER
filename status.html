@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>System Status</title>
+    <style>
+        body {
+            font-family: "Open Sans", Arial, sans-serif;
+            background-color: #f8f9f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+        }
+        h1 {
+            font-family: "Ubuntu", "Helvetica Neue", sans-serif;
+            color: #5DADE2; /* Light Blue */
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .status-item:last-child {
+            border-bottom: none;
+        }
+        .status-name {
+            font-weight: bold;
+        }
+        .status-value {
+            padding: 5px 10px;
+            border-radius: 4px;
+            color: white;
+        }
+        .status-ok {
+            background-color: #AED673; /* Warm Green */
+        }
+        .status-degraded {
+            background-color: #F4D06A; /* Warm Orange */
+        }
+        .status-down {
+            background-color: #C23304; /* Red */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>System Status</h1>
+        <div class="status-item">
+            <span class="status-name">Web Application</span>
+            <span class="status-value status-ok">Operational</span>
+        </div>
+        <div class="status-item">
+            <span class="status-name">API Service</span>
+            <span class="status-value status-ok">Operational</span>
+        </div>
+        <div class="status-item">
+            <span class="status-name">Database</span>
+            <span class="status-value status-ok">Operational</span>
+        </div>
+        <div class="status-item">
+            <span class="status-name">Background Tasks</span>
+            <span class="status-value status-degraded">Degraded Performance</span>
+        </div>
+    </div>
+</body>
+</html>

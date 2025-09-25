@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CSRF Error</title>
+    <style>
+        body {
+            font-family: "Open Sans", Arial, sans-serif;
+            background-color: #f8f9f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            font-family: "Ubuntu", "Helvetica Neue", sans-serif;
+            color: #C23304; /* Red for error */
+        }
+        p {
+            font-family: "Open Sans", Arial, sans-serif;
+            line-height: 1.6;
+        }
+        a {
+            color: #5DADE2; /* Light Blue */
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Session Expired</h1>
+        <p>Your session has expired due to inactivity.</p>
+        <p>Please refresh the page and try again.</p>
+        <a href="/">Go to Homepage</a>
+    </div>
+</body>
+</html>
