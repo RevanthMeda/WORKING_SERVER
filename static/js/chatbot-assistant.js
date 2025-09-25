@@ -44,23 +44,8 @@
     let busy = false;
     let lastProgressSignature = '';
 
-    function togglePanel(forceOpen) {
-        const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : panel.hidden;
-        if (shouldOpen) {
-            openPanel();
-        } else {
-            closePanel();
-        }
-    }
-
     function openPanel() {
-        if (!panel.hidden) {
-            return;
-        }
-        panel.hidden = false;
-        requestAnimationFrame(() => {
-            panel.classList.add('is-open');
-        });
+        panel.classList.add('is-open');
         launcher.setAttribute('aria-expanded', 'true');
         if (!conversationBootstrapped) {
             bootstrapConversation();
@@ -70,11 +55,14 @@
     function closePanel() {
         panel.classList.remove('is-open');
         launcher.setAttribute('aria-expanded', 'false');
-        setTimeout(() => {
-            if (!panel.classList.contains('is-open')) {
-                panel.hidden = true;
-            }
-        }, 260);
+    }
+
+    function togglePanel() {
+        if (panel.classList.contains('is-open')) {
+            closePanel();
+        } else {
+            openPanel();
+        }
     }
 
     function showToast(message, tone = 'info') {
@@ -129,12 +117,10 @@
         if (typeof text !== 'string') {
             text = String(text || '');
         }
-        const parts = text.split(/
-{2,}/);
+        const parts = text.split(/\n{2,}/);
         parts.forEach((block, index) => {
             const paragraph = document.createElement('p');
-            block.split('
-').forEach((line, lineIndex) => {
+            block.split('\n').forEach((line, lineIndex) => {
                 if (lineIndex > 0) {
                     paragraph.appendChild(document.createElement('br'));
                 }
@@ -171,7 +157,7 @@
         try {
             const payload = await requestJSON(endpoints.start, { method: 'POST' });
             conversationBootstrapped = true;
-            renderAssistantPayload(payload, { headline: 'Let's launch your SAT or FAT workflow step by step.' });
+            renderAssistantPayload(payload, { headline: 'Let\'s launch your SAT or FAT workflow step by step.' });
         } catch (error) {
             showToast(error.message || 'Failed to initialise assistant.', 'error');
         }
@@ -401,7 +387,7 @@
         try {
             const payload = await requestJSON(endpoints.reset, { method: 'POST' });
             messagesContainer.innerHTML = '';
-            appendMessage('bot', 'Starting fresh. Let's re-align on your SAT workflow.');
+            appendMessage('bot', 'Starting fresh. Let\'s re-align on your SAT workflow.');
             lastProgressSignature = '';
             renderAssistantPayload(payload);
         } catch (error) {
@@ -452,7 +438,7 @@
     }
 
     function bindEvents() {
-        launcher.addEventListener('click', () => togglePanel());
+        launcher.addEventListener('click', togglePanel);
         root.querySelector('[data-assistant-close]')?.addEventListener('click', closePanel);
         root.querySelector('[data-assistant-reset]')?.addEventListener('click', resetConversation);
 
@@ -569,6 +555,3 @@
     }
     bindEvents();
 })();
-
-
-

@@ -4,23 +4,39 @@
 
 {% block head %}
 <style>
-    .page-header {
-        text-align: left;
-        padding: 1rem 0 2rem;
-        border-bottom: 1px solid var(--cully-light-gray);
-        margin-bottom: 2.5rem;
+    .page-hero {
+        background: linear-gradient(135deg, var(--cully-blue), var(--cully-navy));
+        border-radius: 24px;
+        padding: var(--space-xl);
+        margin-bottom: var(--space-xl);
+        box-shadow: var(--shadow-lg);
+        color: var(--cully-white);
+        position: relative;
+        overflow: hidden;
     }
 
-    .page-title {
+    .page-hero::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.18), transparent 55%);
+    }
+
+    .page-hero__content {
+        position: relative;
+        z-index: 1;
+    }
+
+    .page-hero__title {
         font-size: 2.25rem;
-        margin-bottom: 0.5rem;
+        font-weight: 700;
+        margin: 0;
     }
 
-    .page-subtitle {
-        text-align: left;
-        max-width: 760px;
+    .page-hero__subtitle {
+        margin-top: var(--space-xs);
         font-size: 1.05rem;
-        color: var(--cully-gray);
+        opacity: 0.9;
     }
 
     .stats-grid {
@@ -58,11 +74,11 @@
         flex-shrink: 0;
     }
 
-    .stat-icon.stat-users { background: linear-gradient(135deg, #60a5fa 0%, #2563eb 100%); }
-    .stat-icon.stat-active { background: linear-gradient(135deg, #34d399 0%, #059669 100%); }
-    .stat-icon.stat-pending { background: linear-gradient(135deg, #facc15 0%, #ea580c 100%); }
-    .stat-icon.stat-reports { background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); }
-    .stat-icon.stat-db { background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%); }
+    .stat-icon.stat-users { background: var(--cully-blue); }
+    .stat-icon.stat-active { background: var(--cully-success); }
+    .stat-icon.stat-pending { background: var(--cully-warning); }
+    .stat-icon.stat-reports { background: var(--cully-navy); }
+    .stat-icon.stat-db { background: var(--cully-light-blue); }
 
     .stat-info {
         display: flex;
@@ -286,13 +302,17 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1 class="page-title">Admin Dashboard</h1>
-    <p class="page-subtitle">
-        Welcome back, {{ current_user.full_name if current_user and current_user.full_name else 'Admin' }}.
-        Monitor platform health, manage users, and keep the reporting workflow on track.
-    </p>
-</div>
+<section class="page-hero">
+    <div class="page-hero__content">
+        <div>
+            <h1 class="page-hero__title">Admin Dashboard</h1>
+            <p class="page-hero__subtitle">
+                Welcome back, {{ current_user.full_name if current_user and current_user.full_name else 'Admin' }}.
+                Monitor platform health, manage users, and keep the reporting workflow on track.
+            </p>
+        </div>
+    </div>
+</section>
 
 <div class="stats-grid">
     <div class="stat-card">

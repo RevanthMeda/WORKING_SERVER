@@ -2,7 +2,7 @@
     position: fixed;
     bottom: 1.75rem;
     right: 1.75rem;
-    z-index: 9000;
+    z-index: 99999;
     display: flex;
     align-items: flex-end;
     justify-content: flex-end;
@@ -100,7 +100,7 @@
     box-shadow: 0 32px 60px rgba(10, 15, 28, 0.45), 0 0 0 1px rgba(0, 229, 255, 0.12);
     border: 1px solid rgba(0, 229, 255, 0.2);
     overflow: hidden;
-    display: flex;
+    display: none;
     flex-direction: column;
     transform-origin: bottom right;
     transform: scale(0.9) translateY(12px);
@@ -110,6 +110,7 @@
 }
 
 .assistant-panel.is-open {
+    display: flex;
     opacity: 1;
     transform: scale(1) translateY(0);
     pointer-events: auto;
