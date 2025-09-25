@@ -141,8 +141,9 @@
                     <th data-sort="author">Author <i class="fas fa-sort"></i></th>
                     <th data-sort="project">Project Ref <i class="fas fa-sort"></i></th>
                     <th data-sort="date">Date <i class="fas fa-sort"></i></th>
-                    <th data-sort="status">Status <i class="fas fa-sort"></i></th>
+                    <th>Status</th>
                     <th>Actions</th>
+                    <th>Debug</th>
                 </tr>
             </thead>
             <tbody id="reports-table-body">
@@ -157,6 +158,7 @@
                         <a href="{{ url_for('status.view_status', submission_id=report.id) }}" class="btn btn-sm btn-info">View</a>
                         <a href="{{ url_for('edit.edit_report', report_id=report.id) }}" class="btn btn-sm btn-primary">Edit</a>
                     </td>
+                    <td>{{ report }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
