@@ -210,6 +210,7 @@
                 <a class="module-nav__link {% if request.endpoint == 'dashboard.admin' %}module-nav__link--active{% endif %}" href="{{ url_for('dashboard.admin') }}"><i class="fas fa-home"></i> Dashboard</a>
                 <a class="module-nav__link {% if request.endpoint == 'dashboard.user_management' %}module-nav__link--active{% endif %}" href="{{ url_for('dashboard.user_management') }}"><i class="fas fa-users"></i> User Management</a>
                 <a class="module-nav__link {% if request.endpoint == 'dashboard.admin_reports' %}module-nav__link--active{% endif %}" href="{{ url_for('dashboard.admin_reports') }}"><i class="fas fa-file-alt"></i> All Reports</a>
+                <a class="module-nav__link {% if request.endpoint == 'main.sat_form' %}module-nav__link--active{% endif %}" href="{{ url_for('main.sat_form') }}"><i class="fas fa-plus"></i> Create Report</a>
             </div>
         </nav>
         {% endif %}
