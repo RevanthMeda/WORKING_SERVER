@@ -5,23 +5,43 @@
 {% block head %}
 <style>
     /* Styles from admin_dashboard.html, adapted for user_management.html */
-    .page-header {
-        text-align: left;
-        padding: 1rem 0 2rem;
-        border-bottom: 1px solid var(--cully-light-gray);
-        margin-bottom: 2.5rem;
+    .page-hero {
+        background: linear-gradient(135deg, var(--cully-blue), var(--cully-navy));
+        border-radius: 24px;
+        padding: var(--space-xl);
+        margin-bottom: var(--space-xl);
+        box-shadow: var(--shadow-lg);
+        color: var(--cully-white);
+        position: relative;
+        overflow: hidden;
     }
 
-    .page-title {
+    .page-hero::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.18), transparent 55%);
+    }
+
+    .page-hero__content {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--space-xl);
+    }
+
+    .page-hero__title {
         font-size: 2.25rem;
-        margin-bottom: 0.5rem;
+        font-weight: 700;
+        margin: 0;
     }
 
-    .page-subtitle {
-        text-align: left;
-        max-width: 760px;
+    .page-hero__subtitle {
+        margin-top: var(--space-xs);
         font-size: 1.05rem;
-        color: var(--cully-gray);
+        opacity: 0.9;
     }
 
     .stats-grid {
@@ -188,10 +208,14 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1 class="page-title">User Management</h1>
-    <p class="page-subtitle">Approve new registrations, manage roles, and view user details.</p>
-</div>
+<section class="page-hero">
+    <div class="page-hero__content">
+        <div>
+            <h1 class="page-hero__title">User Management</h1>
+            <p class="page-hero__subtitle">Approve new registrations, manage roles, and view user details.</p>
+        </div>
+    </div>
+</section>
 
 <div class="stats-grid">
     <div class="stat-card">
@@ -244,12 +268,12 @@
             </thead>
             <tbody id="users-table-body">
                 {% for user in users %}
-                <tr>
+                <tr data-user-id="{{ user.id }}">
                     <td data-label="User Details">
                         <div class="user-details">
                             <div class="user-avatar">{{ user.full_name[0] if user.full_name else 'U' }}</div>
                             <div>
-                                <div class="user-name">{{ user.full_name }}</div>
+                                <div class="user-name" data-original-name="{{ user.full_name }}">{{ user.full_name }}</div>
                                 <div class="user-email">{{ user.email }}</div>
                             </div>
                         </div>
@@ -273,6 +297,7 @@
                                 <button type="submit" class="btn btn-success">Approve</button>
                             </form>
                         {% elif user.status == 'Active' and user.email != current_user.email %}
+                            <button type="button" class="btn btn-info edit-name-btn">Edit Name</button>
                             <form method="POST" action="{{ url_for('dashboard.change_user_role', user_id=user.id) }}" style="display: inline;">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <select name="role" required class="role-select">
@@ -373,6 +398,37 @@
         
         // Default sort by name
         document.querySelector('.users-table th[data-sort="name"]').click();
+
+        // Edit name functionality
+        tableBody.addEventListener('click', function(e) {
+            if (e.target.classList.contains('edit-name-btn')) {
+                const row = e.target.closest('tr');
+                const userNameDiv = row.querySelector('.user-name');
+                const originalName = userNameDiv.dataset.originalName;
+
+                userNameDiv.innerHTML = `
+                    <input type="text" value="${originalName}" class="edit-name-input">
+                    <button type="button" class="btn btn-sm btn-success save-name-btn">Save</button>
+                    <button type="button" class="btn btn-sm btn-secondary cancel-edit-btn">Cancel</button>
+                `;
+            } else if (e.target.classList.contains('cancel-edit-btn')) {
+                const row = e.target.closest('tr');
+                const userNameDiv = row.querySelector('.user-name');
+                const originalName = userNameDiv.dataset.originalName;
+                userNameDiv.innerHTML = originalName;
+            } else if (e.target.classList.contains('save-name-btn')) {
+                const row = e.target.closest('tr');
+                const userId = row.dataset.userId;
+                const input = row.querySelector('.edit-name-input');
+                const newName = input.value;
+
+                // Here you would typically make an API call to update the name
+                // For now, we'll just update the UI
+                const userNameDiv = row.querySelector('.user-name');
+                userNameDiv.textContent = newName;
+                userNameDiv.dataset.originalName = newName;
+            }
+        });
     });
 </script>
 {% endblock %}

@@ -204,6 +204,15 @@
     </header>
 
     <div class="dashboard-container">
+        {% if current_user.is_authenticated and current_user.role == 'Admin' %}
+        <nav class="module-nav">
+            <div class="module-nav__links">
+                <a class="module-nav__link {% if request.endpoint == 'dashboard.admin' %}module-nav__link--active{% endif %}" href="{{ url_for('dashboard.admin') }}"><i class="fas fa-home"></i> Dashboard</a>
+                <a class="module-nav__link {% if request.endpoint == 'dashboard.user_management' %}module-nav__link--active{% endif %}" href="{{ url_for('dashboard.user_management') }}"><i class="fas fa-users"></i> User Management</a>
+                <a class="module-nav__link {% if request.endpoint == 'dashboard.admin_reports' %}module-nav__link--active{% endif %}" href="{{ url_for('dashboard.admin_reports') }}"><i class="fas fa-file-alt"></i> All Reports</a>
+            </div>
+        </nav>
+        {% endif %}
         <div class="page-content">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
