@@ -13,7 +13,6 @@ from services.bot_assistant import (
 # Import new AI agent system
 from services.ai_agent import (
     start_ai_conversation,
-    process_ai_message,
     reset_ai_conversation,
     get_ai_capabilities,
     get_ai_context,
@@ -49,31 +48,44 @@ def bot_start():
 @bot_bp.route('/message', methods=['POST'])
 @login_required
 def bot_message():
-    """Process user message with advanced AI agent."""
+    """Process user message with Gemini LLM."""
     data = request.get_json(silent=True) or {}
     message = (data.get('message') or '').strip()
-    context_updates = data.get('context', {})
-    
+    context = data.get('context', {})
+
     if not message:
-        return jsonify({'error': 'Message cannot be empty.'}), 400
+        return jsonify({'errors': ['Message cannot be empty.']}), 400
 
     try:
-        # Use new AI agent system
-        response = process_ai_message(message, context_updates)
-        
-        # Add user context
-        response['user'] = {
-            'id': current_user.id,
-            'name': current_user.full_name,
-            'role': current_user.role
-        }
-        
-        return jsonify(response)
+        api_key = current_app.config.get('GEMINI_API_KEY')
+        if not api_key:
+            return jsonify({'errors': ['GEMINI_API_KEY not configured.']}), 500
+
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-pro')
+
+        # Construct the prompt
+        prompt = f"""
+        You are a helpful assistant for the Cully Automation website.
+        Your task is to assist users in completing their tasks on the website.
+        You have knowledge of the website's structure and functionality.
+
+        Current context:
+        - Page URL: {request.referrer}
+
+        User message: "{message}"
+
+        Based on the user's message and the context, provide a helpful response.
+        If the user is asking to perform an action, provide the necessary steps or information.
+        """
+
+        response = model.generate_content(prompt)
+
+        return jsonify({'messages': [response.text]})
+
     except Exception as e:
-        # Fallback to basic system if AI agent fails
-        from services.bot_assistant import process_user_message
-        response = process_user_message(message)
-        return jsonify(response)
+        current_app.logger.error(f"Error in bot_message function: {e}", exc_info=True)
+        return jsonify({'errors': ['Failed to communicate with the LLM.']}), 500
 
 
 @bot_bp.route('/reset', methods=['POST'])
@@ -172,45 +184,3 @@ def bot_document(submission_id):
     result = resolve_report_download_url(submission_id)
     status = 200 if 'download_url' in result else 404
     return jsonify(result), status
-
-@bot_bp.route('/llm', methods=['POST'])
-@login_required
-def bot_llm():
-    """Process user message with Gemini LLM."""
-    data = request.get_json(silent=True) or {}
-    message = (data.get('message') or '').strip()
-    context = data.get('context', {})
-
-    if not message:
-        return jsonify({'error': 'Message cannot be empty.'}), 400
-
-    try:
-        api_key = current_app.config.get('GEMINI_API_KEY')
-        if not api_key:
-            return jsonify({'error': 'GEMINI_API_KEY not configured.'}), 500
-
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-pro')
-
-        # Construct the prompt
-        prompt = f"""
-        You are a helpful assistant for the Cully Automation website.
-        Your task is to assist users in completing their tasks on the website.
-        You have knowledge of the website's structure and functionality.
-
-        Current context:
-        - Page URL: {context.get('url', 'Unknown')}
-
-        User message: "{message}"
-
-        Based on the user's message and the context, provide a helpful response.
-        If the user is asking to perform an action, provide the necessary steps or information.
-        """
-
-        response = model.generate_content(prompt)
-
-        return jsonify({'response': response.text})
-
-    except Exception as e:
-        current_app.logger.error(f"Error in bot_llm function: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to communicate with the LLM.'}), 500

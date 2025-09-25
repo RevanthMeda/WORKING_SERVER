@@ -370,14 +370,11 @@
         input.value = '';
         setBusy(true);
         try {
-            const context = {
-                url: window.location.href
-            };
-            const payload = await requestJSON('/bot/llm', {
+            const payload = await requestJSON(endpoints.message, {
                 method: 'POST',
-                body: JSON.stringify({ message: raw, context: context })
+                body: JSON.stringify({ message: raw, mode })
             });
-            appendMessage('bot', payload.response);
+            renderAssistantPayload(payload);
         } catch (error) {
             showToast(error.message || 'Assistant unavailable.', 'error');
         } finally {
