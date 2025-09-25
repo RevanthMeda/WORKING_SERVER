@@ -1,945 +1,266 @@
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>User Management - Cully Report Generator</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        :root {
-            --admin-primary: #5DADE2;
-            --admin-primary-dark: #4A90E2;
-            --admin-primary-light: #8EC9E6;
-            --admin-success: #AED673;
-            --admin-warning: #F4D06A;
-            --admin-danger: #C23304;
-            --admin-neutral: #555555;
-            --card-shadow: 0 4px 20px rgba(93, 173, 226, 0.1);
-            --card-shadow-hover: 0 8px 30px rgba(93, 173, 226, 0.15);
-        }
-
-        body {
-            margin: 0;
-            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            color: #1f2937;
-            line-height: 1.6;
-            min-height: 100vh;
-        }
-
-        h1, .widget-title, .stat-value, .user-name {
-            font-family: 'Ubuntu', sans-serif;
-        }
-
-        .admin-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 24px;
-        }
-
-        /* Header Section */
-        .admin-header {
-            background: linear-gradient(135deg, var(--admin-primary) 0%, var(--admin-primary-dark) 100%);
-            border-radius: 16px;
-            padding: 32px;
-            margin-bottom: 32px;
-            box-shadow: var(--card-shadow);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .admin-header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 200px;
-            height: 200px;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2"/><circle cx="50" cy="50" r="20" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1"/></svg>');
-            opacity: 0.3;
-        }
-
-        .header-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: relative;
-            z-index: 1;
-        }
-
-        .header-info h1 {
-            color: white;
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin: 0 0 8px 0;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .header-info p {
-            color: rgba(255, 255, 255, 0.9);
-            font-size: 1.1rem;
-            margin: 0;
-        }
-
-        .header-logo {
-            height: 80px;
-            filter: brightness(0) invert(1) drop-shadow(0 4px 8px rgba(0,0,0,0.2));
-        }
-
-        /* Navigation - Consistent Styling for All Items */
-        .dashboard-nav {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: white;
-            padding: 12px 24px;
-            border-radius: 16px;
-            box-shadow: var(--card-shadow);
-            margin-bottom: 32px;
-            border: 1px solid #e2e8f0;
-            overflow-x: auto;
-            white-space: nowrap;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 10px;
-        }
-
-        .nav-link {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 18px;
-            border-radius: 10px;
-            text-decoration: none;
-            color: #64748b;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            font-size: 14px;
-            white-space: nowrap;
-        }
-
-        .nav-link:hover {
-            background: #e2e8f0;
-            color: var(--admin-primary);
-            transform: translateY(-2px);
-            box-shadow: var(--card-shadow-hover);
-            border-color: var(--admin-primary-light);
-        }
-
-        .nav-link.active {
-            background: linear-gradient(135deg, var(--admin-primary), var(--admin-primary-dark));
-            color: white;
-            box-shadow: var(--card-shadow-hover);
-            border-color: var(--admin-primary);
-        }
-
-        .nav-link i {
-            font-size: 16px;
-            width: 20px;
-            text-align: center;
-            flex-shrink: 0;
-        }
-
-        .nav-link.logout {
-            background: var(--admin-danger) !important;
-            color: white !important;
-            border: 2px solid var(--admin-danger) !important;
-        }
-
-        .nav-link.logout:hover {
-            background: #fecaca !important;
-            color: #b91c1c !important;
-            border-color: #f87171 !important;
-        }
-
-        /* Flash Messages */
-        .flash-messages {
-            margin-bottom: 24px;
-        }
-
-        .alert {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 16px 20px;
-            border-radius: 12px;
-            color: #065f46;
-            font-weight: 500;
-            border: 1px solid #059669;
-        }
-
-        .alert.alert-success {
-            background: #d1fae5;
-            color: #065f46;
-            border-color: #059669;
-        }
-
-        .alert.alert-error {
-            background: #fee2e2;
-            color: #dc2626;
-            border-color: #fca5a5;
-        }
-
-        .alert.alert-info {
-            background: #dbeafe;
-            color: #1e40af;
-            border-color: #93c5fc;
-        }
-
-        .alert i {
-            font-size: 18px;
-        }
-
-        /* User Management Grid */
-        .user-management-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 24px;
-        }
-
-        .dashboard-widget {
-            background: white;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: var(--card-shadow);
-            transition: all 0.3s ease;
-        }
-
-        .dashboard-widget:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--card-shadow-hover);
-        }
-
-        .widget-header {
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            padding: 20px 24px;
-            border-bottom: 1px solid #e2e8f0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .widget-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1f2937;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .widget-content {
-            padding: 24px;
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 24px;
-            margin-bottom: 32px;
-        }
-
-        .stat-card {
-            background: white;
-            border-radius: 16px;
-            padding: 24px;
-            box-shadow: var(--card-shadow);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--card-shadow-hover);
-        }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: var(--admin-primary);
-        }
-
-        .stat-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 16px;
-        }
-
-        .stat-icon {
-            width: 48px;
-            height: 48px;
-            background: linear-gradient(135deg, var(--admin-primary), var(--admin-primary-light));
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 20px;
-        }
-
-        .stat-value {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: #1f2937;
-            margin: 0;
-        }
-
-        .stat-label {
-            color: #64748b;
-            font-size: 14px;
-            font-weight: 500;
-            margin: 4px 0 0 0;
-        }
-
-        /* Status badges */
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-weight: 600;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .status-connected {
-            background: #d1fae5;
-            color: #065f46;
-            border: 1px solid #059669;
-        }
-
-        .status-disconnected {
-            background: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #dc2626;
-        }
-
-        .status-warning {
-            background: #fef3c7;
-            color: #92400e;
-            border: 1px solid #f59e0b;
-        }
-
-        .status-indicator {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        /* User table styles */
-        .users-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 0;
-        }
-
-        .users-table th {
-            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-            color: #374151;
-            padding: 16px 12px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 13px;
-            border-bottom: 2px solid #e5e7eb;
-        }
-
-        .users-table td {
-            padding: 16px 12px;
-            border-bottom: 1px solid #f1f5f9;
-            vertical-align: middle;
-        }
-
-        .users-table tr:hover {
-            background: #f8fafc;
-        }
-
-        .user-details {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(135deg, var(--admin-primary), var(--admin-primary-dark));
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: 600;
-            font-size: 16px;
-        }
-
-        .user-info {
-            min-width: 0;
-        }
-
-        .user-name {
-            font-weight: 600;
-            color: #1f2937;
-            font-size: 14px;
-            margin-bottom: 2px;
-        }
-
-        .user-email {
-            color: #6b7280;
-            font-size: 13px;
-        }
-
-        .requested-role {
-            color: #f59e0b;
-            font-size: 12px;
-            font-style: italic;
-            margin-top: 2px;
-        }
-
-        .user-actions {
-            display: flex;
-            gap: 4px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .role-select {
-            padding: 4px 8px;
-            border: 1px solid #d1d5db;
-            border-radius: 4px;
-            font-size: 12px;
-            background: white;
-            margin-right: 8px;
-        }
-
-        .approve-btn {
-            padding: 8px 16px;
-            background: var(--admin-success);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .approve-btn:hover {
-            background: var(--admin-success);
-            transform: translateY(-1px);
-        }
-
-        .date-text {
-            color: #6b7280;
-            font-size: 13px;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 32px 16px;
-            color: #64748b;
-        }
-
-        .empty-state i {
-            font-size: 3rem;
-            color: #cbd5e1;
-            margin-bottom: 16px;
-        }
-
-        .empty-state h4 {
-            color: #374151;
-            font-size: 18px;
-            margin: 0 0 8px 0;
-        }
-
-        .empty-state p {
-            margin: 0;
-            font-size: 14px;
-        }
-
-        .developer-footer {
-            text-align: center;
-            padding: 20px;
-            margin-top: auto;
-            background-color: #f1f5f9;
-            border-top: 1px solid #e2e8f0;
-        }
-
-        /* Mobile Responsiveness */
-        @media (max-width: 768px) {
-            .admin-container {
-                padding: 16px;
-            }
-
-            .header-content {
-                flex-direction: column;
-                gap: 16px;
-                text-align: center;
-            }
-
-            .header-info h1 {
-                font-size: 2rem;
-                justify-content: center;
-            }
-
-            .dashboard-nav {
-                padding: 4px 8px;
-                flex-wrap: wrap;
-                gap: 4px;
-                justify-content: center;
-            }
-
-            .nav-links {
-                flex-wrap: wrap;
-                justify-content: center;
-                gap: 4px;
-            }
-
-            .nav-link {
-                padding: 6px 12px;
-                font-size: 12px;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .user-management-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .dashboard-nav {
-                padding: 2px 4px;
-                min-height: 40px;
-            }
-
-            .nav-link {
-                padding: 4px 8px;
-                font-size: 10px;
-            }
-
-            .nav-link i {
-                font-size: 12px;
-            }
-
-            .developer-footer {
-                padding: 12px;
-                font-size: 0.8rem;
-            }
-        }
-    </style>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot-assistant.css') }}">
-</head>
-<body class="dashboard-layout">
-    <div class="admin-container">
-        <!-- Header -->
-        <div class="admin-header">
-            <div class="header-content">
-                <div class="header-info">
-                    <h1><i class="fa fa-users"></i> User Management</h1>
-                    <p>Manage user accounts, permissions, and system access</p>
-                </div>
-                <img src="{{ url_for('static', filename='cully.png') }}" alt="Cully Logo" class="header-logo">
-            </div>
-        </div>
-
-        <div class="dashboard-content">
-            <!-- Unified Navigation -->
-            <div class="dashboard-nav">
-                <div class="nav-links">
-                    <a href="{{ url_for('dashboard.admin') }}" class="nav-link {% if request.endpoint == 'dashboard.admin' %}active{% endif %}" id="nav-dashboard">
-                        <i class="fa fa-home"></i> Dashboard
-                    </a>
-                    <a href="{{ url_for('dashboard.user_management') }}" class="nav-link {% if request.endpoint == 'dashboard.user_management' %}active{% endif %}" id="nav-users">
-                        <i class="fa fa-users"></i> User Management
-                    </a>
-                    <a href="{{ url_for('dashboard.admin_reports') }}" class="nav-link {% if request.endpoint == 'dashboard.admin_reports' %}active{% endif %}" id="nav-reports">
-                        <i class="fa fa-file-alt"></i> All Reports
-                    </a>
-                    <a href="{{ url_for('dashboard.system_settings') }}" class="nav-link {% if request.endpoint == 'dashboard.system_settings' %}active{% endif %}" id="nav-settings">
-                        <i class="fa fa-cog"></i> System Settings
-                    </a>
-                    <a href="{{ url_for('main.sat_form') }}" class="nav-link {% if request.endpoint == 'main.sat_form' %}active{% endif %}" id="nav-create">
-                        <i class="fa fa-plus"></i> Create Report
-                    </a>
-                    <a href="{{ url_for('auth.logout') }}" class="nav-link logout" id="nav-logout">
-                        <i class="fa fa-sign-out-alt"></i> Logout
-                    </a>
-                </div>
-            </div>
-
-            <!-- Flash Messages -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    <div class="flash-messages">
-                        {% for category, message in messages %}
-                            <div class="alert alert-{{ category }}">
-                                <i class="fa fa-{% if category == 'success' %}check-circle{% elif category == 'error' %}exclamation-triangle{% else %}info-circle{% endif %}"></i>
-                                {{ message }}
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            {% endwith %}
-
-            <!-- Main Content Area -->
-            <div class="dashboard-main">
-                <!-- Stats Grid -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-header">
-                            <div class="stat-icon">
-                                <i class="fa fa-users"></i>
-                            </div>
-                        </div>
-                        <div class="stat-value">{{ users|length }}</div>
-                        <p class="stat-label">Total Users</p>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-header">
-                            <div class="stat-icon">
-                                <i class="fa fa-clock"></i>
-                            </div>
-                        </div>
-                        <div class="stat-value">{{ users|selectattr('status', 'equalto', 'Pending')|list|length }}</div>
-                        <p class="stat-label">Pending Approval</p>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-header">
-                            <div class="stat-icon">
-                                <i class="fa fa-check-circle"></i>
-                            </div>
-                        </div>
-                        <div class="stat-value">{{ users|selectattr('status', 'equalto', 'Active')|list|length }}</div>
-                        <p class="stat-label">Active Users</p>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-header">
-                            <div class="stat-icon">
-                                <i class="fa fa-ban"></i>
-                            </div>
-                        </div>
-                        <div class="stat-value">{{ users|selectattr('status', 'equalto', 'Disabled')|list|length }}</div>
-                        <p class="stat-label">Disabled Users</p>
-                    </div>
-                </div>
-
-                <!-- User Management Grid -->
-                <div class="user-management-grid">
-                    <!-- User Management Widget -->
-                    <div class="dashboard-widget">
-                        <div class="widget-header">
-                            <h3 class="widget-title">
-                                <i class="fa fa-users"></i>
-                                All Users
-                            </h3>
-                        </div>
-                        <div class="widget-content">
-                            {% if users %}
-                            <!-- Users Table -->
-                            <div class="table-responsive">
-                                <table class="users-table">
-                                    <thead>
-                                        <tr>
-                                            <th>User Details</th>
-                                            <th>Role</th>
-                                            <th>Status</th>
-                                            <th>Joined Date</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for user in users %}
-                                        <tr class="user-row">
-                                            <td>
-                                                <div class="user-details">
-                                                    <div class="user-avatar">
-                                                        {{ user.full_name[0] if user.full_name else 'U' }}
-                                                    </div>
-                                                    <div class="user-info">
-                                                        <div class="user-name">{{ user.full_name }}</div>
-                                                        <div class="user-email">{{ user.email }}</div>
-                                                        {% if user.requested_role and user.status == 'Pending' %}
-                                                            <div class="requested-role">Requested: {{ user.requested_role }}</div>
-                                                        {% endif %}
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                {% if user.role %}
-                                                    <span class="status-badge status-connected">
-                                                        <div class="status-indicator" style="background: #059669;"></div>
-                                                        {{ user.role }}
-                                                    </span>
-                                                {% else %}
-                                                    <span class="status-badge status-warning">
-                                                        <div class="status-indicator" style="background: #f59e0b;"></div>
-                                                        {{ user.requested_role or 'Not Set' }}
-                                                    </span>
-                                                {% endif %}
-                                            </td>
-                                            <td>
-                                                <span class="status-badge {% if user.status == 'Active' %}status-connected{% elif user.status == 'Pending' %}status-warning{% else %}status-disconnected{% endif %}">
-                                                    <div class="status-indicator" style="background: var(--admin-danger);"></div>
-                                                    {{ user.status }}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span class="date-text">{{ user.created_date.strftime('%b %d, %Y') }}</span>
-                                            </td>
-                                            <td>
-                                                <div class="user-actions">
-                                                    {% if user.status == 'Pending' %}
-                                                        <form method="POST" action="{{ url_for('dashboard.approve_user', user_id=user.id) }}" style="display: inline;">
-                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                            <select name="role" required class="role-select">
-                                                                <option value="{{ user.requested_role }}" selected>{{ user.requested_role }}</option>
-                                                                <option value="Admin">Admin</option>
-                                                                <option value="Engineer">Engineer</option>
-                                                                <option value="Automation Manager">Automation Manager</option>
-                                                                <option value="PM">PM</option>
-                                                            </select>
-                                                            <button type="submit" class="approve-btn" onclick="return confirmApproval('{{ user.full_name }}', this.form.role.value)">
-                                                                <i class="fa fa-check"></i> Approve
-                                                            </button>
-                                                        </form>
-                                                    {% elif user.status == 'Active' and user.email != current_user.email %}
-                                                        <form method="POST" action="{{ url_for('dashboard.change_user_role', user_id=user.id) }}" style="display: inline;">
-                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                            <select name="role" required class="role-select">
-                                                                <option value="{{ user.role }}" selected>{{ user.role }}</option>
-                                                                {% for role in ['Admin', 'Engineer', 'Automation Manager', 'PM'] %}
-                                                                    {% if role != user.role %}
-                                                                        <option value="{{ role }}">{{ role }}</option>
-                                                                    {% endif %}
-                                                                {% endfor %}
-                                                            </select>
-                                                            <button type="submit" class="approve-btn" style="background: var(--admin-warning);" onclick="return confirmRoleChange('{{ user.full_name }}', this.form.role.value)">
-                                                                <i class="fa fa-user-edit"></i> Change Role
-                                                            </button>
-                                                        </form>
-                                                        <form method="POST" action="{{ url_for('dashboard.disable_user', user_id=user.id) }}" style="display: inline;">
-                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                            <button type="submit" class="approve-btn" style="background: var(--admin-danger); margin-left: 4px;" onclick="return confirmDisable('{{ user.full_name }}')">
-                                                                <i class="fa fa-ban"></i> Disable
-                                                            </button>
-                                                        </form>
-                                                    {% elif user.status == 'Disabled' %}
-                                                        <form method="POST" action="{{ url_for('dashboard.enable_user', user_id=user.id) }}" style="display: inline;">
-                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                            <button type="submit" class="approve-btn" onclick="return confirmEnable('{{ user.full_name }}')">
-                                                                <i class="fa fa-check"></i> Enable
-                                                            </button>
-                                                        </form>
-                                                    {% endif %}
-
-                                                    {% if user.email != current_user.email %}
-                                                        <form method="POST" action="{{ url_for('dashboard.delete_user', user_id=user.id) }}" style="display: inline;">
-                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                            <button type="submit" class="approve-btn" style="background: var(--admin-danger); margin-left: 4px;" onclick="return confirmDelete('{{ user.full_name }}')">
-                                                                <i class="fa fa-trash"></i> Delete
-                                                            </button>
-                                                        </form>
-                                                    {% endif %}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                            {% else %}
-                            <div class="empty-state">
-                                <i class="fa fa-users"></i>
-                                <h4>No Users Found</h4>
-                                <p>No users have been registered yet.</p>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Developer Credit Footer -->
-        <div class="developer-footer">
-            <p style="margin: 0; font-size: 0.85rem; color: #64748b;">
-                Developed by <strong style="color: var(--admin-primary);">Revanth Meda</strong> for Cully Automation
-            </p>
+{% extends "base.html" %}
+
+{% block title %}User Management - {{ super() }}{% endblock %}
+
+{% block head %}
+<style>
+    /* Styles from admin_dashboard.html, adapted for user_management.html */
+    .page-header {
+        text-align: left;
+        padding: 1rem 0 2rem;
+        border-bottom: 1px solid var(--cully-light-gray);
+        margin-bottom: 2.5rem;
+    }
+
+    .page-title {
+        font-size: 2.25rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .page-subtitle {
+        text-align: left;
+        max-width: 760px;
+        font-size: 1.05rem;
+        color: var(--cully-gray);
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 1.75rem;
+        margin-bottom: 2.5rem;
+    }
+
+    .stat-card {
+        background: var(--cully-white);
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: var(--cully-shadow);
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        transition: var(--transition-smooth);
+    }
+
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--cully-shadow-lg);
+    }
+
+    .stat-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.4rem;
+        color: var(--cully-white);
+        flex-shrink: 0;
+    }
+
+    .stat-icon.stat-users { background: linear-gradient(135deg, #60a5fa 0%, #2563eb 100%); }
+    .stat-icon.stat-active { background: linear-gradient(135deg, #34d399 0%, #059669 100%); }
+    .stat-icon.stat-pending { background: linear-gradient(135deg, #facc15 0%, #ea580c 100%); }
+    .stat-icon.stat-disabled { background: linear-gradient(135deg, #f87171 0%, #dc2626 100%); }
+
+    .stat-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .stat-info .value {
+        font-size: 2.6rem;
+        font-weight: 700;
+        color: var(--cully-dark);
+        line-height: 1;
+    }
+
+    .stat-info .label {
+        font-size: 0.95rem;
+        color: var(--cully-gray);
+        font-weight: 600;
+    }
+    
+    .users-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .users-table th, .users-table td {
+        padding: 1rem 0.5rem;
+        text-align: left;
+        border-bottom: 1px solid var(--cully-light-gray);
+    }
+
+    .users-table th {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--cully-gray);
+    }
+    
+    .user-details {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    
+    .user-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--cully-light-gray);
+        color: var(--cully-dark);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+    }
+    
+    .user-name {
+        font-weight: 600;
+    }
+    
+    .user-email {
+        font-size: 0.9rem;
+        color: var(--cully-gray);
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    
+    .status-badge.active {
+        background-color: #d1fae5;
+        color: #065f46;
+    }
+    
+    .status-badge.pending {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+    
+    .status-badge.disabled {
+        background-color: #fee2e2;
+        color: #991b1b;
+    }
+    
+    .user-actions .btn {
+        padding: 0.5rem 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">User Management</h1>
+    <p class="page-subtitle">Approve new registrations, manage roles, and view user details.</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <i class="fas fa-users stat-icon stat-users"></i>
+        <div class="stat-info">
+            <div class="value">{{ users|length }}</div>
+            <div class="label">Total Users</div>
         </div>
     </div>
+    <div class="stat-card">
+        <i class="fas fa-user-check stat-icon stat-active"></i>
+        <div class="stat-info">
+            <div class="value">{{ users|selectattr('status', 'equalto', 'Active')|list|length }}</div>
+            <div class="label">Active Accounts</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <i class="fas fa-user-clock stat-icon stat-pending"></i>
+        <div class="stat-info">
+            <div class="value">{{ users|selectattr('status', 'equalto', 'Pending')|list|length }}</div>
+            <div class="label">Pending Approvals</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <i class="fas fa-user-slash stat-icon stat-disabled"></i>
+        <div class="stat-info">
+            <div class="value">{{ users|selectattr('status', 'equalto', 'Disabled')|list|length }}</div>
+            <div class="label">Disabled Accounts</div>
+        </div>
+    </div>
+</div>
 
-    <!-- Unified JavaScript -->
-    <script>
-        // Common dashboard functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            // Auto-refresh database status with error handling
-            function updateDatabaseStatus() {
-                fetch('/dashboard/db-status')
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        // Update all database status indicators
-                        const statusElements = document.querySelectorAll('.status-badge');
-                        statusElements.forEach(element => {
-                            const textContent = element.textContent || '';
-                            if (textContent.includes('Connected') || textContent.includes('Disconnected') || textContent.includes('Not Connected')) {
-                                if (data.connected) {
-                                    element.className = 'status-badge status-connected';
-                                    element.innerHTML = '<i class="fa fa-circle" style="font-size: 8px; margin-right: 4px;"></i> Connected';
-                                } else {
-                                    element.className = 'status-badge status-disconnected';
-                                    element.innerHTML = '<i class="fa fa-circle" style="font-size: 8px; margin-right: 4px;"></i> Disconnected';
-                                }
-                            }
-                        });
-                    })
-                    .catch(error => {
-                        console.warn('Database status check failed:', error.message);
-                        // Update status to show disconnected on error
-                        const statusElements = document.querySelectorAll('.status-badge');
-                        statusElements.forEach(element => {
-                            const textContent = element.textContent || '';
-                            if (textContent.includes('Connected') || textContent.includes('Disconnected') || textContent.includes('Not Connected')) {
-                                element.className = 'status-badge status-disconnected';
-                                element.innerHTML = '<i class="fa fa-circle" style="font-size: 8px; margin-right: 4px;"></i> Disconnected';
-                            }
-                        });
-                    });
-            }
-
-            // Initial status check and setup interval
-            updateDatabaseStatus();
-            setInterval(updateDatabaseStatus, 30000); // Refresh every 30 seconds
-
-            // Common notification function
-            window.showNotification = function(message, type) {
-                const notification = document.createElement('div');
-                notification.className = `notification notification-${type}`;
-                notification.style.cssText = `
-                    position: fixed;
-                    top: 20px;
-                    right: 20px;
-                    padding: 15px 20px;
-                    border-radius: 4px;
-                    color: white;
-                    font-weight: 500;
-                    z-index: 10000;
-                    max-width: 400px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                `;
-                
-                if (type === 'success') {
-                    notification.style.backgroundColor = '#10b981';
-                } else if (type === 'error') {
-                    notification.style.backgroundColor = '#ef4444';
-                } else if (type === 'warning') {
-                    notification.style.backgroundColor = '#f59e0b';
-                } else {
-                    notification.style.backgroundColor = '#3b82f6';
-                }
-                
-                notification.textContent = message;
-                document.body.appendChild(notification);
-                
-                setTimeout(() => {
-                    notification.remove();
-                }, 5000);
-            };
-        });
-
-        // Common notification function
-        window.showNotification = function(message, type) {
-            const notification = document.createElement('div');
-            notification.className = `notification notification-${type}`;
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                padding: 16px 24px;
-                border-radius: 12px;
-                color: white;
-                font-weight: 600;
-                z-index: 1000;
-                transform: translateX(100%);
-                transition: transform 0.3s ease;
-                ${type === 'success' ? 'background: linear-gradient(135deg, #10b981, #059669);' : 'background: linear-gradient(135deg, #ef4444, #dc2626);'}
-                box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-            `;
-            notification.textContent = message;
-
-                document.body.appendChild(notification);
-
-                // Animate in
-                setTimeout(() => {
-                    notification.style.transform = 'translateX(0)';
-                }, 100);
-
-                // Remove after 3 seconds
-                setTimeout(() => {
-                    notification.style.transform = 'translateX(100%)';
-                    setTimeout(() => {
-                        document.body.removeChild(notification);
-                    }, 300);
-                }, 3000);
-            };
-        });
-
-        // Confirmation dialogs
-        function confirmApproval(userName, role) {
-            return confirm('Approve ' + userName + ' as ' + role + '?\n\nThis will grant them ' + role + ' access to the system.');
-        }
-
-        function confirmDisable(userName) {
-            return confirm('Disable ' + userName + '?\n\nThey will not be able to access the system until re-enabled.');
-        }
-
-        function confirmEnable(userName) {
-            return confirm('Re-enable ' + userName + '?\n\nThey will regain access to the system.');
-        }
-
-        function confirmDelete(userName) {
-            return confirm('⚠️ PERMANENTLY DELETE ' + userName + '?\n\n❌ This action CANNOT be undone!\n❌ All their data and reports will be lost!\n\nType \'DELETE\' below to confirm this irreversible action.') && 
-                   prompt('To confirm deletion of ' + userName + ', type DELETE:') === 'DELETE';
-        }
-
-        function confirmRoleChange(userName, newRole) {
-            return confirm('Change ' + userName + '\'s role to ' + newRole + '?\n\nThis will immediately update their system permissions.');
-        }
-    </script>
-
-    {% include 'partials/chatbot_widget.html' %}
-    <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
-</body>
-</html>
+<div class="widget-card">
+    <div class="widget-header">
+        <h3 class="widget-title"><i class="fas fa-users"></i> All Users</h3>
+    </div>
+    <div class="table-responsive">
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th>User Details</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Joined Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>
+                        <div class="user-details">
+                            <div class="user-avatar">{{ user.full_name[0] if user.full_name else 'U' }}</div>
+                            <div>
+                                <div class="user-name">{{ user.full_name }}</div>
+                                <div class="user-email">{{ user.email }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>{{ user.role }}</td>
+                    <td>
+                        <span class="status-badge {{ user.status|lower }}">{{ user.status }}</span>
+                    </td>
+                    <td>{{ user.created_date.strftime('%b %d, %Y') }}</td>
+                    <td class="user-actions">
+                        {% if user.status == 'Pending' %}
+                            <form method="POST" action="{{ url_for('dashboard.approve_user', user_id=user.id) }}" style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <select name="role" required class="role-select">
+                                    <option value="{{ user.requested_role }}" selected>{{ user.requested_role }}</option>
+                                    <option value="Admin">Admin</option>
+                                    <option value="Engineer">Engineer</option>
+                                    <option value="Automation Manager">Automation Manager</option>
+                                    <option value="PM">PM</option>
+                                </select>
+                                <button type="submit" class="btn btn-success">Approve</button>
+                            </form>
+                        {% elif user.status == 'Active' and user.email != current_user.email %}
+                            <form method="POST" action="{{ url_for('dashboard.disable_user', user_id=user.id) }}" style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-warning">Disable</button>
+                            </form>
+                        {% elif user.status == 'Disabled' %}
+                             <form method="POST" action="{{ url_for('dashboard.enable_user', user_id=user.id) }}" style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-success">Enable</button>
+                            </form>
+                        {% endif %}
+                        {% if user.email != current_user.email %}
+                        <form method="POST" action="{{ url_for('dashboard.delete_user', user_id=user.id) }}" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this user? This action cannot be undone.')">Delete</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
