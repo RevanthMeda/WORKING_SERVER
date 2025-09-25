@@ -148,11 +148,11 @@
             <tbody id="reports-table-body">
                 {% for report in reports %}
                 <tr>
-                    <td>{{ report.document_title }}</td>
-                    <td>{{ report.prepared_by }}</td>
-                    <td>{{ report.project_reference }}</td>
-                    <td>{{ report.created_date.strftime('%b %d, %Y') }}</td>
-                    <td><span class="status-badge {{ report.status|lower }}">{{ report.status }}</span></td>
+                    <td data-label="Report Title" style="color: black;">{{ report.document_title }}</td>
+                    <td data-label="Author" style="color: black;">{{ report.prepared_by }}</td>
+                    <td data-label="Project Ref" style="color: black;">{{ report.project_reference }}</td>
+                    <td data-label="Date">{{ report.created_date.strftime('%b %d, %Y') }}</td>
+                    <td data-label="Status"><span class="status-badge {{ report.status|lower }}">{{ report.status }}</span></td>
                     <td class="report-actions">
                         <a href="{{ url_for('status.view_status', submission_id=report.id) }}" class="btn btn-sm btn-info">View</a>
                         <a href="{{ url_for('edit.edit_report', report_id=report.id) }}" class="btn btn-sm btn-primary">Edit</a>
