@@ -44,8 +44,9 @@ class Config:
     DASHBOARD_STATS_MAX_AGE_SECONDS = int(os.environ.get('DASHBOARD_STATS_MAX_AGE_SECONDS', 600))
 
     # AI assistance configuration
-    AI_PROVIDER = os.environ.get('AI_PROVIDER', 'openai')
-    AI_ENABLED = os.environ.get('AI_ENABLED', '').lower() == 'true' or bool(os.environ.get('OPENAI_API_KEY'))
+    AI_PROVIDER = os.environ.get('AI_PROVIDER', 'gemini')
+    AI_ENABLED = os.environ.get('AI_ENABLED', '').lower() == 'true' or bool(os.environ.get('GEMINI_API_KEY'))
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
     OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
     OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-3.5-turbo')
 

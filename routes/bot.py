@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 import google.generativeai as genai
 import os
 from flask_login import login_required, current_user
@@ -185,7 +185,11 @@ def bot_llm():
         return jsonify({'error': 'Message cannot be empty.'}), 400
 
     try:
-        genai.configure(api_key=os.environ["AIzaSyAMvpOfcZnCxNdUekb3IxJ94lXJrfuYm7w"])
+        api_key = current_app.config.get('GEMINI_API_KEY')
+        if not api_key:
+            return jsonify({'error': 'GEMINI_API_KEY not configured.'}), 500
+
+        genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-pro')
 
         # Construct the prompt
