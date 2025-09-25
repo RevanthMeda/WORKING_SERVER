@@ -42,7 +42,7 @@
 
         /* Header Section */
         .admin-header {
-            background: linear-gradient(135deg, #4DD0E1 0%, #26C6DA 100%);
+            background: linear-gradient(135deg, var(--admin-primary) 0%, var(--admin-primary-dark) 100%);
             border-radius: 16px;
             padding: 32px;
             margin-bottom: 32px;
@@ -129,14 +129,14 @@
             background: #e2e8f0;
             color: var(--admin-primary);
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(77, 208, 225, 0.25);
+            box-shadow: var(--card-shadow-hover);
             border-color: var(--admin-primary-light);
         }
 
         .nav-link.active {
             background: linear-gradient(135deg, var(--admin-primary), var(--admin-primary-dark));
             color: white;
-            box-shadow: 0 4px 15px rgba(77, 208, 225, 0.4);
+            box-shadow: var(--card-shadow-hover);
             border-color: var(--admin-primary);
         }
 
@@ -148,9 +148,9 @@
         }
 
         .nav-link.logout {
-            background: #fee2e2 !important;
-            color: #dc2626 !important;
-            border: 2px solid #fca5a5 !important;
+            background: var(--admin-danger) !important;
+            color: white !important;
+            border: 2px solid var(--admin-danger) !important;
         }
 
         .nav-link.logout:hover {
@@ -436,7 +436,7 @@
 
         .approve-btn {
             padding: 8px 16px;
-            background: linear-gradient(135deg, var(--admin-success), #059669);
+            background: var(--admin-success);
             color: white;
             border: none;
             border-radius: 8px;
@@ -447,7 +447,7 @@
         }
 
         .approve-btn:hover {
-            background: linear-gradient(135deg, #059669, #047857);
+            background: var(--admin-success);
             transform: translateY(-1px);
         }
 
@@ -707,7 +707,7 @@
                                             </td>
                                             <td>
                                                 <span class="status-badge {% if user.status == 'Active' %}status-connected{% elif user.status == 'Pending' %}status-warning{% else %}status-disconnected{% endif %}">
-                                                    <div class="status-indicator" style="background: {% if user.status == 'Active' %}#059669{% elif user.status == 'Pending' %}#f59e0b{% else %}#dc2626{% endif %};"></div>
+                                                    <div class="status-indicator" style="background: var(--admin-danger);"></div>
                                                     {{ user.status }}
                                                 </span>
                                             </td>
@@ -741,13 +741,13 @@
                                                                     {% endif %}
                                                                 {% endfor %}
                                                             </select>
-                                                            <button type="submit" class="approve-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706);" onclick="return confirmRoleChange('{{ user.full_name }}', this.form.role.value)">
+                                                            <button type="submit" class="approve-btn" style="background: var(--admin-warning);" onclick="return confirmRoleChange('{{ user.full_name }}', this.form.role.value)">
                                                                 <i class="fa fa-user-edit"></i> Change Role
                                                             </button>
                                                         </form>
                                                         <form method="POST" action="{{ url_for('dashboard.disable_user', user_id=user.id) }}" style="display: inline;">
                                                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                            <button type="submit" class="approve-btn" style="background: linear-gradient(135deg, #ef4444, #dc2626); margin-left: 4px;" onclick="return confirmDisable('{{ user.full_name }}')">
+                                                            <button type="submit" class="approve-btn" style="background: var(--admin-danger); margin-left: 4px;" onclick="return confirmDisable('{{ user.full_name }}')">
                                                                 <i class="fa fa-ban"></i> Disable
                                                             </button>
                                                         </form>
@@ -763,7 +763,7 @@
                                                     {% if user.email != current_user.email %}
                                                         <form method="POST" action="{{ url_for('dashboard.delete_user', user_id=user.id) }}" style="display: inline;">
                                                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                            <button type="submit" class="approve-btn" style="background: linear-gradient(135deg, #ef4444, #dc2626); margin-left: 4px;" onclick="return confirmDelete('{{ user.full_name }}')">
+                                                            <button type="submit" class="approve-btn" style="background: var(--admin-danger); margin-left: 4px;" onclick="return confirmDelete('{{ user.full_name }}')">
                                                                 <i class="fa fa-trash"></i> Delete
                                                             </button>
                                                         </form>
