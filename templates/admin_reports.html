@@ -148,11 +148,11 @@
             <tbody id="reports-table-body">
                 {% for report in reports %}
                 <tr>
-                    <td data-label="Report Title">{{ report.document_title }}</td>
-                    <td data-label="Author">{{ report.prepared_by }}</td>
-                    <td data-label="Project Ref">{{ report.project_reference }}</td>
-                    <td data-label="Date">{{ report.created_date.strftime('%b %d, %Y') }}</td>
-                    <td data-label="Status"><span class="status-badge {{ report.status|lower }}">{{ report.status }}</span></td>
+                    <td>{{ report.document_title }}</td>
+                    <td>{{ report.prepared_by }}</td>
+                    <td>{{ report.project_reference }}</td>
+                    <td>{{ report.created_date.strftime('%b %d, %Y') }}</td>
+                    <td><span class="status-badge {{ report.status|lower }}">{{ report.status }}</span></td>
                     <td class="report-actions">
                         <a href="{{ url_for('status.view_status', submission_id=report.id) }}" class="btn btn-sm btn-info">View</a>
                         <a href="{{ url_for('edit.edit_report', report_id=report.id) }}" class="btn btn-sm btn-primary">Edit</a>
@@ -177,9 +177,9 @@
         searchInput.addEventListener('keyup', function() {
             const searchTerm = searchInput.value.toLowerCase();
             rows.forEach(row => {
-                const title = row.querySelector('[data-label="Report Title"]').textContent.toLowerCase();
-                const author = row.querySelector('[data-label="Author"]').textContent.toLowerCase();
-                const project = row.querySelector('[data-label="Project Ref"]').textContent.toLowerCase();
+                const title = row.cells[0].textContent.toLowerCase();
+                const author = row.cells[1].textContent.toLowerCase();
+                const project = row.cells[2].textContent.toLowerCase();
                 if (title.includes(searchTerm) || author.includes(searchTerm) || project.includes(searchTerm)) {
                     row.style.display = '';
                 } else {
@@ -201,11 +201,12 @@
                 rows.sort((a, b) => {
                     let valA, valB;
                     if (sortKey === 'date') {
-                        valA = new Date(a.querySelector('[data-label="Date"]').textContent.trim());
-                        valB = new Date(b.querySelector('[data-label="Date"]').textContent.trim());
+                        valA = new Date(a.cells[3].textContent.trim());
+                        valB = new Date(b.cells[3].textContent.trim());
                     } else {
-                        valA = a.querySelector(`[data-label="${header.textContent.trim().split(' ')[0]}"]`).textContent.trim().toLowerCase();
-                        valB = b.querySelector(`[data-label="${header.textContent.trim().split(' ')[0]}"]`).textContent.trim().toLowerCase();
+                        const cellIndex = Array.from(header.parentElement.children).indexOf(header);
+                        valA = a.cells[cellIndex].textContent.trim().toLowerCase();
+                        valB = b.cells[cellIndex].textContent.trim().toLowerCase();
                     }
 
                     if (valA < valB) {
