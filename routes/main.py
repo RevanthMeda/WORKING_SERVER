@@ -869,6 +869,11 @@ def save_progress():
                 approvals_json='[]'
             )
             db.session.add(report)
+        
+        # Ensure user_email is set
+        if not report.user_email and hasattr(current_user, 'email'):
+            report.user_email = current_user.email
+
         # IMPORTANT: Ensure status remains DRAFT for save progress (not submission)
         # Only preserve existing non-draft status if it's already PENDING/APPROVED
         if not report.status or report.status == '':
