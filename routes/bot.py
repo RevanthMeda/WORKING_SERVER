@@ -62,7 +62,7 @@ def bot_message():
             return jsonify({'errors': ['GEMINI_API_KEY not configured.']}), 500
 
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-2.5-flash')
 
         # Construct the prompt
         prompt = f"""
