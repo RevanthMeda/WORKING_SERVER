@@ -370,11 +370,14 @@
         input.value = '';
         setBusy(true);
         try {
-            const payload = await requestJSON(endpoints.message, {
+            const context = {
+                url: window.location.href
+            };
+            const payload = await requestJSON('/bot/llm', {
                 method: 'POST',
-                body: JSON.stringify({ message: raw, mode })
+                body: JSON.stringify({ message: raw, context: context })
             });
-            renderAssistantPayload(payload);
+            appendMessage('bot', payload.response);
         } catch (error) {
             showToast(error.message || 'Assistant unavailable.', 'error');
         } finally {
@@ -522,7 +525,13 @@
                 dropzone.addEventListener(type, (event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    dropzone.classList.remove('is-active');
+                    dropzone.classList.remove('is-visible');
+                    if (!dropzone?.classList.contains('is-active')) {
+                        dropzoneWrapper.setAttribute('hidden', '');
+                    }
+                    if (attachmentsButton) {
+                        attachmentsButton.classList.remove('is-active');
+                    }
                 });
             });
             dropzone.addEventListener('drop', (event) => {

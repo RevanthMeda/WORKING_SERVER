@@ -1,4 +1,6 @@
 from flask import Blueprint, jsonify, request
+import google.generativeai as genai
+import os
 from flask_login import login_required, current_user
 
 # Import both old and new systems for backward compatibility
@@ -170,3 +172,41 @@ def bot_document(submission_id):
     result = resolve_report_download_url(submission_id)
     status = 200 if 'download_url' in result else 404
     return jsonify(result), status
+
+@bot_bp.route('/llm', methods=['POST'])
+@login_required
+def bot_llm():
+    """Process user message with Gemini LLM."""
+    data = request.get_json(silent=True) or {}
+    message = (data.get('message') or '').strip()
+    context = data.get('context', {})
+
+    if not message:
+        return jsonify({'error': 'Message cannot be empty.'}), 400
+
+    try:
+        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+        model = genai.GenerativeModel('gemini-pro')
+
+        # Construct the prompt
+        prompt = f"""
+        You are a helpful assistant for the Cully Automation website.
+        Your task is to assist users in completing their tasks on the website.
+        You have knowledge of the website's structure and functionality.
+
+        Current context:
+        - Page URL: {context.get('url', 'Unknown')}
+
+        User message: "{message}"
+
+        Based on the user's message and the context, provide a helpful response.
+        If the user is asking to perform an action, provide the necessary steps or information.
+        """
+
+        response = model.generate_content(prompt)
+
+        return jsonify({'response': response.text})
+
+    except Exception as e:
+        current_app.logger.error(f"Error in bot_llm function: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to communicate with the LLM.'}), 500
