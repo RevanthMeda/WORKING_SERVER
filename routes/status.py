@@ -152,12 +152,7 @@ def download_report(submission_id):
 
         # --- Prepare context for the new report_builder (Page 1) ---
         context = {
-            'document_title': context_data.get('document_title', 'SAT Report'),
-            'project_reference': context_data.get('project_reference', ''),
             'document_reference': context_data.get('document_reference', submission_id),
-            'date': context_data.get('date', ''),
-            'client_name': context_data.get('client_name', ''),
-            'revision': context_data.get('revision', '1.0'),
         }
 
         from services.report_builder import build_sat_report
