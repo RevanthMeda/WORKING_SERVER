@@ -1,5 +1,5 @@
 from docx import Document
-from docx.shared import Mm, Pt, Cm
+from docx.shared import Mm, Pt, Cm, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import nsdecls, qn
 from docx.oxml import OxmlElement, parse_xml
@@ -13,16 +13,16 @@ def set_cell_color(cell, color):
 def add_watermark(doc, image_path):
     if not os.path.exists(image_path):
         return
-    
     for section in doc.sections:
         header = section.header
         p = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
-        
-        # This is a workaround to add a watermark by adding a picture to the header.
-        p.add_run().add_picture(image_path, width=Cm(15))
+        run = p.add_run()
+        # This is a workaround for watermarks. It adds a picture to the header.
+        # The image is not set to be behind text, as that is a complex operation.
+        run.add_picture(image_path, width=Inches(6))
 
 def build_sat_report(context, output_path):
-    """Builds the first page of the SAT report with a watermark."""
+    """Builds the first page of the SAT report with a watermark and line."""
     try:
         doc = Document()
 
@@ -48,17 +48,27 @@ def build_sat_report(context, output_path):
         else:
             header.paragraphs[0].text = "Cully Automation"
 
+        # Add a thin horizontal line
+        p = header.add_paragraph()
+        p.paragraph_format.space_before = Pt(3)
+        p.paragraph_format.space_after = Pt(3)
+        p_border = OxmlElement('w:pBdr')
+        bottom_border = OxmlElement('w:bottom')
+        bottom_border.set(qn('w:val'), 'single')
+        bottom_border.set(qn('w:sz'), '2') # 0.25pt
+        p_border.append(bottom_border)
+        p._p.get_or_add_pPr().append(p_border)
+
         # --- Watermark ---
         watermark_path = os.path.join(current_app.root_path, 'static', 'Cully_Watermark.jpg')
         add_watermark(doc, watermark_path)
 
-        # --- Main Body ---
-        # ... (rest of the page content)
+        # --- Main Body (empty for now) ---
 
         doc.save(output_path)
-        current_app.logger.info(f"Report first page built successfully at {output_path}")
+        current_app.logger.info(f"Report header built successfully at {output_path}")
         return True
 
     except Exception as e:
-        current_app.logger.error(f"Error building report: {e}", exc_info=True)
+        current_app.logger.error(f"Error building report header: {e}", exc_info=True)
         return False
