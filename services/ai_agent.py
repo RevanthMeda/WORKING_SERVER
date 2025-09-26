@@ -4,6 +4,13 @@ Supports all report types: SAT, FAT, FDS, HDS, SDS, Site Survey, and future type
 Replaces the basic bot with an intelligent, context-aware assistant
 """
 
+__all__ = [
+    'start_ai_conversation',
+    'process_ai_message',
+    'reset_ai_conversation',
+    'get_ai_capabilities',
+    'get_ai_context',
+]
 import json
 import os
 import re

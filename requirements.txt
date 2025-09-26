@@ -95,3 +95,6 @@ qrcode[pil]
 bleach
 structlog
 waitress
+
+# gemini pacage
+google-generativeai

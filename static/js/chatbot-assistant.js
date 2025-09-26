@@ -16,7 +16,8 @@
     const dropzone = dropzoneWrapper ? dropzoneWrapper.querySelector('.assistant-file-drop') : null;
     const fileInput = root.querySelector('.assistant-file-input');
     const attachmentsButton = root.querySelector('[data-assistant-attachments]');
-    const hintButtons = root.querySelectorAll('[data-assistant-hint]');
+    const hintsContainer = root.querySelector('[data-assistant-hints]');
+    const defaultHintsMarkup = hintsContainer ? hintsContainer.innerHTML : '';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
     const FIELD_LABELS = {
@@ -139,6 +140,154 @@
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
+    function formatAgentAction(action) {
+        if (!action || typeof action !== 'object') {
+            return null;
+        }
+        const rawLabel = action.label || action.title || action.name || action.summary || action.type;
+        const label = rawLabel ? String(rawLabel) : 'Agent action';
+        const readable = label.replace(/[_\-]+/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
+        const details = [];
+        if (action.priority) {
+            details.push(`${String(action.priority).toUpperCase()} priority`);
+        }
+        if (typeof action.confidence === 'number') {
+            details.push(`${Math.round(action.confidence * 100)}% confidence`);
+        }
+        const data = action.data && typeof action.data === 'object' ? action.data : null;
+        if (data && data.report_type) {
+            details.push(`Report ${String(data.report_type)}`);
+        }
+        if (data && data.project_reference) {
+            details.push(`Project ${String(data.project_reference)}`);
+        }
+        const suffix = details.length ? ` (${details.join(', ')})` : '';
+        return `- ${readable}${suffix}`;
+    }
+
+    function renderAgentInsights(payload) {
+        if (!payload || typeof payload !== 'object') {
+            return;
+        }
+        const agent = payload.agent && typeof payload.agent === 'object' ? payload.agent : {};
+        const actions = Array.isArray(payload.agent_actions)
+            ? payload.agent_actions
+            : (Array.isArray(agent.actions) ? agent.actions : []);
+        const nextSteps = Array.isArray(payload.agent_next_steps)
+            ? payload.agent_next_steps
+            : (Array.isArray(agent.next_steps) ? agent.next_steps : []);
+        const reasoning = payload.agent_reasoning || agent.reasoning;
+        const confidenceSource = payload.agent_confidence ?? agent.confidence;
+        const confidence = typeof confidenceSource === 'number' ? confidenceSource : null;
+
+        const sections = [];
+
+        if (reasoning) {
+            sections.push(`**Agent reasoning:** ${reasoning}`);
+        }
+
+        if (confidence !== null) {
+            const bounded = Math.max(0, Math.min(1, confidence));
+            sections.push(`**Confidence:** ${(bounded * 100).toFixed(1)}%`);
+        }
+
+        if (actions.length) {
+            const formattedActions = actions.slice(0, 3).map(formatAgentAction).filter(Boolean);
+            if (formattedActions.length) {
+                sections.push(['**Proposed actions:**', ...formattedActions].join('\n'));
+            }
+            if (actions.length > 3) {
+                sections.push(`(+${actions.length - 3} additional actions available)`);
+            }
+        }
+
+        if (nextSteps.length) {
+            const formattedSteps = nextSteps.slice(0, 5).map((step, index) => `${index + 1}. ${step}`);
+            if (formattedSteps.length) {
+                sections.push(['**Next steps:**', ...formattedSteps].join('\n'));
+            }
+        }
+
+        if (!sections.length) {
+            return;
+        }
+
+        appendMessage('bot', sections.join('\n\n'));
+    }
+
+    function extractAgentSuggestions(payload) {
+        const suggestions = [];
+        if (payload) {
+            if (Array.isArray(payload.suggestions)) {
+                suggestions.push(...payload.suggestions);
+            }
+            if (payload.agent && Array.isArray(payload.agent.suggestions)) {
+                suggestions.push(...payload.agent.suggestions);
+            }
+        }
+        const seen = new Set();
+        return suggestions
+            .map((item) => (typeof item === 'string' ? item.trim() : ''))
+            .filter((item) => {
+                if (!item) {
+                    return false;
+                }
+                const key = item.toLowerCase();
+                if (seen.has(key)) {
+                    return false;
+                }
+                seen.add(key);
+                return true;
+            });
+    }
+
+    function bindHintButtons() {
+        if (!hintsContainer || !input) {
+            return;
+        }
+        hintsContainer.querySelectorAll('[data-assistant-hint]').forEach((button) => {
+            if (button.dataset.hintBound === 'true') {
+                return;
+            }
+            button.addEventListener('click', () => {
+                input.value = button.dataset.assistantHint || button.textContent || '';
+                input.focus();
+            });
+            button.dataset.hintBound = 'true';
+        });
+    }
+
+    function updateDynamicHints(suggestions) {
+        if (!hintsContainer) {
+            return;
+        }
+        const nextSuggestions = Array.isArray(suggestions) ? suggestions.filter(Boolean) : [];
+        if (!nextSuggestions.length) {
+            if (hintsContainer.dataset.dynamicHints === 'true') {
+                hintsContainer.innerHTML = defaultHintsMarkup;
+                delete hintsContainer.dataset.dynamicHints;
+                delete hintsContainer.dataset.hintSignature;
+                bindHintButtons();
+            }
+            return;
+        }
+        const signature = nextSuggestions.join('||');
+        if (hintsContainer.dataset.hintSignature === signature) {
+            return;
+        }
+        hintsContainer.innerHTML = '';
+        nextSuggestions.slice(0, 3).forEach((suggestion) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.dataset.assistantHint = suggestion;
+            button.textContent = suggestion;
+            hintsContainer.appendChild(button);
+        });
+        hintsContainer.dataset.dynamicHints = 'true';
+        hintsContainer.dataset.hintSignature = signature;
+        bindHintButtons();
+    }
+
     function setBusy(state) {
         busy = state;
         if (!sendButton) {
@@ -228,6 +377,8 @@
             }
         }
 
+        renderAgentInsights(payload);
+        updateDynamicHints(extractAgentSuggestions(payload));
         updateStatus(payload);
     }
 
@@ -459,15 +610,7 @@
             submitMessage('research');
         });
 
-        hintButtons.forEach((button) => {
-            button.addEventListener('click', () => {
-                if (!input) {
-                    return;
-                }
-                input.value = button.dataset.assistantHint || '';
-                input.focus();
-            });
-        });
+        bindHintButtons();
 
         if (fileInput) {
             fileInput.addEventListener('change', (event) => {
