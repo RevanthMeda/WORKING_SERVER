@@ -1,8 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, current_app, send_file
 import os
 import json
-import tempfile
-import shutil
 from flask_login import current_user, login_required
 import datetime as dt
 
@@ -152,45 +150,17 @@ def download_report(submission_id):
             except Exception as e:
                 current_app.logger.warning(f"Could not remove existing file: {e}")
 
-        # Prepare context
-        context = {
-            'DOCUMENT_TITLE': context_data.get('DOCUMENT_TITLE', 'SAT Report'),
-            'PROJECT_REFERENCE': context_data.get('PROJECT_REFERENCE', ''),
-            'DOCUMENT_REFERENCE': context_data.get('DOCUMENT_REFERENCE', submission_id),
-            'REVISION': context_data.get('REVISION', '1.0'),
-            'DATE': context_data.get('DATE', ''),
-            'CLIENT_NAME': context_data.get('CLIENT_NAME', ''),
-            'PREPARED_BY': context_data.get('PREPARED_BY', ''),
-            'PREPARER_DATE': context_data.get('PREPARER_DATE', ''),
-            'REVIEWED_BY_TECH_LEAD': context_data.get('REVIEWED_BY_TECH_LEAD', ''),
-            'TECH_LEAD_DATE': context_data.get('TECH_LEAD_DATE', ''),
-            'REVIEWED_BY_PM': context_data.get('REVIEWED_BY_PM', ''),
-            'PM_DATE': context_data.get('PM_DATE', ''),
-            'APPROVED_BY_CLIENT': context_data.get('APPROVED_BY_CLIENT', ''),
-            'PURPOSE': context_data.get('PURPOSE', ''),
-            'SCOPE': context_data.get('SCOPE', ''),
-            'REVISION_DETAILS': context_data.get('REVISION_DETAILS', ''),
-            'REVISION_DATE': context_data.get('REVISION_DATE', ''),
-        }
-        
-        # Clean context values
-        for key, value in context.items():
-            if isinstance(value, str):
-                context[key] = value.replace('{', '').replace('}', '')
-
         from services.report_builder import build_sat_report
         
         # Generate the report
-        success = build_sat_report(context, permanent_path)
+        success = build_sat_report(context_data, permanent_path)
 
         if not success:
             flash('Error generating report.', 'error')
             return redirect(url_for('status.view_status', submission_id=submission_id))
 
         # Create download name
-        project_number = context.get("PROJECT_REFERENCE", "").strip()
-        if not project_number:
-            project_number = context_data.get("PROJECT_NUMBER", "").strip()
+        project_number = context_data.get("project_reference", "").strip() # Use lowercase key
         if not project_number:
             project_number = submission_id[:8]
             
@@ -208,7 +178,6 @@ def download_report(submission_id):
         current_app.logger.error(f"Error in download_report for {submission_id}: {e}", exc_info=True)
         flash('An unexpected error occurred while downloading the report.', 'error')
         return redirect(url_for('dashboard.home'))
-
 
 
 @status_bp.route('/download-modern/<submission_id>')
