@@ -435,60 +435,62 @@ def create_new_submission_notification(admin_emails, submission_id, document_tit
         current_app.logger.error(f"Failed to create submission notification: {e}")
         return False
 
-def send_edit_link(user_email, submission_id):
+def send_edit_link(user_email, submission_id, subject=None, html_content=None):
     """Send an email with the edit link for a submission"""
     if not user_email:
         return False
 
-    edit_url = url_for("main.edit_submission", submission_id=submission_id, _external=True)
-    status_url = url_for("status.view_status", submission_id=submission_id, _external=True)
+    if not subject or not html_content:
+        edit_url = url_for("main.edit_submission", submission_id=submission_id, _external=True)
+        status_url = url_for("status.view_status", submission_id=submission_id, _external=True)
 
-    subject = "Your SAT Report Edit Link"
-    html_content = f"""
-    <html>
-    <body>
-        <h1>SAT Report System</h1>
-        <p>Thank you for submitting your SAT report. You can edit your submission by clicking the link below:</p>
-        <p><a href="{edit_url}">{edit_url}</a></p>
-        <p>You can also check the status of your submission at any time:</p>
-        <p><a href="{status_url}">{status_url}</a></p>
-        <p>This edit link will remain active until the first approval stage is complete.</p>
-    </body>
-    </html>
-    """
+        subject = "Your SAT Report Edit Link"
+        html_content = f"""
+        <html>
+        <body>
+            <h1>SAT Report System</h1>
+            <p>Thank you for submitting your SAT report. You can edit your submission by clicking the link below:</p>
+            <p><a href=\"{edit_url}\">{edit_url}</a></p>
+            <p>You can also check the status of your submission at any time:</p>
+            <p><a href=\"{status_url}\">{status_url}</a></p>
+            <p>This edit link will remain active until the first approval stage is complete.</p>
+        </body>
+        </html>
+        """
 
     return send_email(user_email, subject, html_content)
 
-def send_approval_link(approver_email, submission_id, stage):
+def send_approval_link(approver_email, submission_id, stage, subject=None, html_content=None):
     """Send an email with the approval link for a submission"""
     if not approver_email:
         logger.warning("No approver email provided")
         return False
 
-    approval_url = url_for("approval.approve_submission", submission_id=submission_id, stage=stage, _external=True)
-    status_url = url_for("status.view_status", submission_id=submission_id, _external=True)
+    if not subject or not html_content:
+        approval_url = url_for("approval.approve_submission", submission_id=submission_id, stage=stage, _external=True)
+        status_url = url_for("status.view_status", submission_id=submission_id, _external=True)
 
-    # Find the approver title
-    approver_title = "Approver"
-    for approver in current_app.config['DEFAULT_APPROVERS']:
-        if approver['stage'] == stage:
-            approver_title = approver.get('title', 'Approver')
-            break
+        # Find the approver title
+        approver_title = "Approver"
+        for approver in current_app.config['DEFAULT_APPROVERS']:
+            if approver['stage'] == stage:
+                approver_title = approver.get('title', 'Approver')
+                break
 
-    subject = f"Approval required for SAT Report (Stage {stage} - {approver_title})"
-    html_content = f"""
-    <html>
-    <body>
-        <h1>SAT Report Approval Request</h1>
-        <p>A SAT report requires your approval as the {approver_title}.</p>
-        <p>Please review and approve the report by clicking the link below:</p>
-        <p><a href="{approval_url}">{approval_url}</a></p>
-        <p>This is approval stage {stage} of the workflow.</p>
-        <p>You can also view the current status of this submission:</p>
-        <p><a href="{status_url}">{status_url}</a></p>
-    </body>
-    </html>
-    """
+        subject = f"Approval required for SAT Report (Stage {stage} - {approver_title})"
+        html_content = f"""
+        <html>
+        <body>
+            <h1>SAT Report Approval Request</h1>
+            <p>A SAT report requires your approval as the {approver_title}.</p>
+            <p>Please review and approve the report by clicking the link below:</p>
+            <p><a href=\"{approval_url}\">{approval_url}</a></p>
+            <p>This is approval stage {stage} of the workflow.</p>
+            <p>You can also view the current status of this submission:</p>
+            <p><a href=\"{status_url}\">{status_url}</a></p>
+        </body>
+        </html>
+        """
 
     return send_email(approver_email, subject, html_content)
 

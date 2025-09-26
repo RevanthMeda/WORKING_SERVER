@@ -53,8 +53,8 @@ def bot_message():
         if not api_key:
             return jsonify({'errors': ['GEMINI_API_KEY not configured.']}), 500
 
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(model_name)
+        genai.configure(api_key=api_key)  # type: ignore
+        model = genai.GenerativeModel(model_name)  # type: ignore
 
         prompt = f"""
         You are a helpful assistant for the Cully Automation website.

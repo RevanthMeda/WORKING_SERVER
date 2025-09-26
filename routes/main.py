@@ -772,6 +772,27 @@ def generate():
         except Exception as e:
             current_app.logger.warning(f"Could not copy to outputs folder: {e}")
 
+        # AI Email Content Generation
+        email_subject = None
+        email_body = None
+        try:
+            import requests
+            # Make a request to the AI email generator
+            ai_email_response = requests.post(
+                url_for('ai.generate_email', _external=True),
+                json={'submission_id': submission_id},
+                headers={'Content-Type': 'application/json'}
+            )
+            if ai_email_response.status_code == 200:
+                email_content = ai_email_response.json()
+                email_subject = email_content.get('subject')
+                email_body = email_content.get('body')
+                current_app.logger.info(f"Successfully generated AI email content for {submission_id}")
+            else:
+                current_app.logger.error(f"AI email generation failed with status {ai_email_response.status_code}: {ai_email_response.text}")
+        except Exception as e:
+            current_app.logger.error(f"Error calling AI email generation service: {e}")
+
         # Notify first approver exactly once
         if not report.approval_notification_sent:
             first_stage = approvals[0] if approvals else None
@@ -781,7 +802,9 @@ def generate():
                 sent = send_approval_link(
                     first_email,
                     submission_id,
-                    first_stage["stage"]
+                    first_stage["stage"],
+                    subject=email_subject,
+                    html_content=email_body
                 )
                 current_app.logger.info(f"Approval email to {first_email}: {sent}")
 
@@ -815,7 +838,16 @@ def generate():
         email_sent = False
         if current_app.config.get('ENABLE_EMAIL_NOTIFICATIONS', True):
             try:
-                email_result = send_edit_link(report.user_email, submission_id)
+                # Use generated email content if available, but adapt it for the user
+                user_email_subject = f"SAT Report Submitted: {report.document_title}"
+                user_email_body = email_body  # Can be adapted if needed
+
+                email_result = send_edit_link(
+                    report.user_email, 
+                    submission_id,
+                    subject=user_email_subject if email_subject else None,
+                    html_content=user_email_body if email_body else None
+                )
                 if email_result:
                     email_sent = True
                     current_app.logger.info(f"Email sent successfully to {report.user_email}")
