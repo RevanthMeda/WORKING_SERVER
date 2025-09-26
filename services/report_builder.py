@@ -42,7 +42,7 @@ def build_sat_report(context, output_path):
         header.is_linked_to_previous = False
         header.paragraphs[0].text = ""
         htable = header.add_table(rows=1, cols=2, width=section.page_width - section.left_margin - section.right_margin)
-        logo_path = os.path.join(current_app.root_path, 'static', 'cully.png')
+        logo_path = os.path.join(current_app.root_path, 'static', 'Cully_Watermark.jpg')
         if os.path.exists(logo_path):
             logo_cell = htable.cell(0, 0)
             logo_cell.paragraphs[0].clear()
@@ -57,7 +57,7 @@ def build_sat_report(context, output_path):
         p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
         # --- Watermark ---
-        watermark_path = os.path.join(current_app.root_path, 'static', 'Cully_Watermark.jpg')
+        watermark_path = os.path.join(current_app.root_path, 'static', 'cully.jpg')
         if os.path.exists(watermark_path):
             add_watermark(doc, watermark_path)
 
