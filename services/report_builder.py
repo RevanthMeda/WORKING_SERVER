@@ -18,12 +18,8 @@ def add_watermark(doc, image_path):
         header = section.header
         p = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
         
-        # The following is a workaround to add a watermark
-        # It adds a shape to the header with the image
-        # The image is set to be behind the text
+        # This is a workaround to add a watermark by adding a picture to the header.
         p.add_run().add_picture(image_path, width=Cm(15))
-        last_paragraph = doc.paragraphs[-1] 
-        last_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 def build_sat_report(context, output_path):
     """Builds the first page of the SAT report with a watermark."""
