@@ -231,56 +231,62 @@ def download_report(submission_id):
             current_app.logger.info(f"DOCUMENT_TITLE LENGTH: {len(str(doc_title_raw)) if doc_title_raw else 'None'}")
             
             # Create comprehensive mapping with more field variations
+            def clean_value(value):
+                if isinstance(value, str):
+                    return value.replace('{', '').replace('}', '')
+                return value
+
             replacement_data = {
-                'DOCUMENT_TITLE': (
-                    context_data.get('DOCUMENT_TITLE') or 
-                    context_data.get('document_title') or 
-                    context_data.get('Document_Title') or 
-                    context_data.get('documentTitle') or ''
-                ),
-                'PROJECT_REFERENCE': (
-                    context_data.get('PROJECT_REFERENCE') or 
-                    context_data.get('project_reference') or 
-                    context_data.get('Project_Reference') or ''
-                ),
-                'DOCUMENT_REFERENCE': (
-                    context_data.get('DOCUMENT_REFERENCE') or 
-                    context_data.get('document_reference') or 
-                    context_data.get('Document_Reference') or 
-                    context_data.get('doc_reference') or ''
-                ),
-                'DATE': (
-                    context_data.get('DATE') or 
-                    context_data.get('date') or 
-                    context_data.get('Date') or ''
-                ),
-                'CLIENT_NAME': (
-                    context_data.get('CLIENT_NAME') or 
-                    context_data.get('client_name') or 
-                    context_data.get('Client_Name') or ''
-                ),
-                'REVISION': (
-                    context_data.get('REVISION') or 
-                    context_data.get('revision') or 
-                    context_data.get('Revision') or 
-                    context_data.get('rev') or ''
-                ),
-                'PREPARED_BY': context_data.get('PREPARED_BY', context_data.get('prepared_by', '')),
-                'PREPARER_DATE': context_data.get('PREPARER_DATE', context_data.get('preparer_date', '')),
-                'REVIEWED_BY_TECH_LEAD': context_data.get('REVIEWED_BY_TECH_LEAD', context_data.get('reviewed_by_tech_lead', '')),
-                'TECH_LEAD_DATE': context_data.get('TECH_LEAD_DATE', context_data.get('tech_lead_date', '')),
-                'REVIEWED_BY_PM': context_data.get('REVIEWED_BY_PM', context_data.get('reviewed_by_pm', '')),
-                'PM_DATE': context_data.get('PM_DATE', context_data.get('pm_date', '')),
-                'APPROVED_BY_CLIENT': context_data.get('APPROVED_BY_CLIENT', context_data.get('approved_by_client', '')),
-                'PURPOSE': context_data.get('PURPOSE', context_data.get('purpose', '')),
-                'SCOPE': context_data.get('SCOPE', context_data.get('scope', '')),
-                'REVISION_DETAILS': context_data.get('REVISION_DETAILS', context_data.get('revision_details', '')),
-                'REVISION_DATE': context_data.get('REVISION_DATE', context_data.get('revision_date', '')),
-                # Add signature placeholders
-                'SIG_PREPARED': '',
-                'SIG_REVIEW_TECH': '',
-                'SIG_REVIEW_PM': '',
-                'SIG_APPROVAL_CLIENT': ''
+                key: clean_value(value) for key, value in {
+                    'DOCUMENT_TITLE': (
+                        context_data.get('DOCUMENT_TITLE') or 
+                        context_data.get('document_title') or 
+                        context_data.get('Document_Title') or 
+                        context_data.get('documentTitle') or ''
+                    ),
+                    'PROJECT_REFERENCE': (
+                        context_data.get('PROJECT_REFERENCE') or 
+                        context_data.get('project_reference') or 
+                        context_data.get('Project_Reference') or ''
+                    ),
+                    'DOCUMENT_REFERENCE': (
+                        context_data.get('DOCUMENT_REFERENCE') or 
+                        context_data.get('document_reference') or 
+                        context_data.get('Document_Reference') or 
+                        context_data.get('doc_reference') or ''
+                    ),
+                    'DATE': (
+                        context_data.get('DATE') or 
+                        context_data.get('date') or 
+                        context_data.get('Date') or ''
+                    ),
+                    'CLIENT_NAME': (
+                        context_data.get('CLIENT_NAME') or 
+                        context_data.get('client_name') or 
+                        context_data.get('Client_Name') or ''
+                    ),
+                    'REVISION': (
+                        context_data.get('REVISION') or 
+                        context_data.get('revision') or 
+                        context_data.get('Revision') or 
+                        context_data.get('rev') or ''
+                    ),
+                    'PREPARED_BY': context_data.get('PREPARED_BY', context_data.get('prepared_by', '')),
+                    'PREPARER_DATE': context_data.get('PREPARER_DATE', context_data.get('preparer_date', '')),
+                    'REVIEWED_BY_TECH_LEAD': context_data.get('REVIEWED_BY_TECH_LEAD', context_data.get('reviewed_by_tech_lead', '')),
+                    'TECH_LEAD_DATE': context_data.get('TECH_LEAD_DATE', context_data.get('tech_lead_date', '')),
+                    'REVIEWED_BY_PM': context_data.get('REVIEWED_BY_PM', context_data.get('reviewed_by_pm', '')),
+                    'PM_DATE': context_data.get('PM_DATE', context_data.get('pm_date', '')),
+                    'APPROVED_BY_CLIENT': context_data.get('APPROVED_BY_CLIENT', context_data.get('approved_by_client', '')),
+                    'PURPOSE': context_data.get('PURPOSE', context_data.get('purpose', '')),
+                    'SCOPE': context_data.get('SCOPE', context_data.get('scope', '')),
+                    'REVISION_DETAILS': context_data.get('REVISION_DETAILS', context_data.get('revision_details', '')),
+                    'REVISION_DATE': context_data.get('REVISION_DATE', context_data.get('revision_date', '')),
+                    'SIG_PREPARED': '',
+                    'SIG_REVIEW_TECH': '',
+                    'SIG_REVIEW_PM': '',
+                    'SIG_APPROVAL_CLIENT': ''
+                }.items()
             }
             
             # Log final values for debugging
@@ -293,36 +299,21 @@ def download_report(submission_id):
                 """Efficiently replace template tags in paragraph runs"""
                 if not paragraph.runs or not replacement_dict:
                     return False
-                
-                # Get full text from all runs
+
                 full_text = ''.join(run.text for run in paragraph.runs)
                 if not full_text.strip() or '{{' not in full_text:
                     return False
-                
-                # Apply replacement data directly - SIMPLIFIED
-                new_text = full_text
-                replacements_made = 0
-                
-                for tag, value in replacement_dict.items():
-                    if value and f'{{ {tag} }}' in new_text:  # Simple pattern only
-                        new_text = new_text.replace(f'{{ {tag} }}', str(value))
-                        replacements_made += 1
-                        current_app.logger.info(f"REPLACED '{{ {tag} }}' with '{value}' in {location_info}")
-                
-                # Quick Jinja2 cleanup
-                import re
-                new_text = re.sub(r'{%\s*for\s+[^%]*%}.*?{%\s*endfor\s*%}', '', new_text, flags=re.DOTALL)
-                new_text = re.sub(r'{%\s*endfor\s*%}|{%\s*for\s+[^%]*%}', '', new_text)
-                new_text = re.sub(r'{{\s*[^}]*\s*}}', '', new_text)
-                
-                # Apply changes efficiently
-                if replacements_made > 0 or new_text != full_text:
+
+                new_text = clean_text(full_text)
+
+                if new_text != full_text:
                     for run in paragraph.runs:
                         run.clear()
                     if new_text.strip():
-                        paragraph.add_run(new_text.strip())
+                        paragraph.add_run(new_text)
+                    current_app.logger.info(f"REPLACED in {location_info}: '{full_text[:50]}...' -> '{new_text[:50]}...'")
                     return True
-                    
+
                 return False
             
             # STEP 2: Add missing invisible tags that aren't visible without Office
