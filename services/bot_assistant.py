@@ -36,6 +36,13 @@ GENERAL_KB_RESPONSES = {
     'progress_help': 'Ask for a "summary" or "what\'s left" whenever you need a checkpoint on collected and pending SAT fields.',
 }
 
+SAT_ALIASES = {
+    'sat',
+    'sat report',
+    'site acceptance testing',
+    'site acceptance test',
+}
+
 NEGATIVE_INTENT_PHRASES = (
     'i do not want',
     "i don't want",
@@ -323,7 +330,9 @@ def process_user_message(message: str, mode: str = "default") -> Dict[str, Any]:
         state.save()
         return command_payload
 
+
     primary_intent: Optional[str] = None
+    requested_report_type: Optional[str] = None
     treat_as_general = False
     try:
         ai_context = {
@@ -336,6 +345,7 @@ def process_user_message(message: str, mode: str = "default") -> Dict[str, Any]:
         current_app.logger.exception('Failed to analyze user intent for bot assistant.')
         intent_analysis = None
 
+    normalized_report_type: Optional[str] = None
     if intent_analysis:
         primary_intent = intent_analysis.get('intent') or intent_analysis.get('primary_intent')
         confidence = intent_analysis.get('confidence')
@@ -344,9 +354,35 @@ def process_user_message(message: str, mode: str = "default") -> Dict[str, Any]:
                 confidence = float(confidence)
             except ValueError:  # noqa: PERF203 - defensive parsing
                 confidence = None
+        entities = intent_analysis.get('entities') or {}
+        for key in ('report_type', 'report', 'document_type', 'workflow'):
+            candidate = entities.get(key)
+            if isinstance(candidate, dict):
+                candidate = candidate.get('name') or candidate.get('value') or candidate.get('type')
+            if isinstance(candidate, list):
+                candidate = candidate[0] if candidate else None
+            if candidate:
+                requested_report_type = str(candidate).strip() or None
+                break
+        if not requested_report_type:
+            lowered = message.lower()
+            if 'site survey' in lowered:
+                requested_report_type = 'site survey'
+            elif 'factory acceptance' in lowered or ('fat' in lowered and 'sat' not in lowered):
+                requested_report_type = 'fat'
+            elif 'fds' in lowered:
+                requested_report_type = 'fds'
+            elif 'hds' in lowered:
+                requested_report_type = 'hds'
+            elif 'sds' in lowered:
+                requested_report_type = 'sds'
+        if requested_report_type:
+            normalized_report_type = requested_report_type.lower()
         if primary_intent and primary_intent not in ('create_report', 'workflow_assistance'):
             treat_as_general = True
         elif isinstance(confidence, (int, float)) and confidence is not None and confidence < 0.45:
+            treat_as_general = True
+        elif primary_intent == 'create_report' and normalized_report_type and normalized_report_type not in SAT_ALIASES:
             treat_as_general = True
 
     if treat_as_general:
@@ -355,6 +391,14 @@ def process_user_message(message: str, mode: str = "default") -> Dict[str, Any]:
             payload = _build_question_payload(state)
         metadata = payload.setdefault('metadata', {})
         metadata['agent_intent'] = primary_intent or 'general'
+        if requested_report_type:
+            metadata['requested_report_type'] = requested_report_type
+            friendly = requested_report_type.title()
+            payload.setdefault('messages', []).insert(0, f"I can help you start a {friendly} workflow. Open the multi-report AI agent from the toolbar and I'll continue with that report type.")
+            suggestions = payload.setdefault('suggestions', [])
+            handoff_hint = f"Launch {friendly} assistant"
+            if handoff_hint not in suggestions:
+                suggestions.append(handoff_hint)
         state.save()
         return payload
 

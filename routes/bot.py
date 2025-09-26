@@ -86,6 +86,18 @@ def _merge_agent_payload(
     return payload
 
 
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _json_safe(sub_value) for key, sub_value in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return repr(value)
+
+
 @bot_bp.route('/start', methods=['POST'])
 @login_required
 def bot_start():
@@ -106,7 +118,7 @@ def bot_start():
         combined.setdefault('warnings', []).append(
             'Advanced AI agent is temporarily unavailable; continuing with fallback assistant.'
         )
-    return jsonify(combined)
+    return jsonify(_json_safe(combined))
 
 
 @bot_bp.route('/reset', methods=['POST'])
@@ -131,7 +143,7 @@ def bot_reset():
         combined.setdefault('warnings', []).append(
             'Advanced AI agent is temporarily unavailable after reset; continuing with fallback assistant.'
         )
-    return jsonify(combined)
+    return jsonify(_json_safe(combined))
 
 
 @bot_bp.route('/message', methods=['POST'])
@@ -190,7 +202,7 @@ def bot_message():
     if not combined['messages']:
         combined['messages'].append("I'm here and ready to help, but I need a bit more detail.")
 
-    return jsonify(combined)
+    return jsonify(_json_safe(combined))
 
 
 @bot_bp.route('/upload', methods=['POST'])
@@ -262,7 +274,7 @@ def bot_upload():
         current_app.logger.exception('Error while updating AI agent after file upload.')
 
     combined = _merge_agent_payload(response, agent_payload)
-    return jsonify(combined)
+    return jsonify(_json_safe(combined))
 
 
 @bot_bp.route('/document/<submission_id>', methods=['GET'])
