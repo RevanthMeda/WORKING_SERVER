@@ -50,7 +50,7 @@ def generate_report_html(context, output_path):
 
 </body>
 </html>
-"
+"""
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(html)
             
