@@ -112,6 +112,26 @@ def download_report(submission_id):
         if os.path.exists(html_temp_path):
             os.remove(html_temp_path)
 
+        from models import Report, SATReport
+        report = Report.query.filter_by(id=submission_id).first()
+        if not report:
+            flash('Report not found.', 'error')
+            return redirect(url_for('dashboard.home'))
+
+        sat_report = SATReport.query.filter_by(report_id=report.id).first()
+        if not sat_report:
+            flash('Report data not found.', 'error')
+            return redirect(url_for('dashboard.home'))
+
+        try:
+            stored_data = json.loads(sat_report.data_json) if sat_report.data_json else {}
+        except json.JSONDecodeError:
+            stored_data = {}
+
+        context_data = stored_data.get("context", {})
+        if not context_data:
+            context_data = stored_data
+
         # --- Prepare context for the html_generator ---
         context = {
             'document_title': context_data.get('document_title', 'SAT Report'),
