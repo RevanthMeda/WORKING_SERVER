@@ -294,6 +294,53 @@ def download_report(submission_id):
             current_app.logger.info(f"Final REVISION value: '{replacement_data['REVISION']}'")
             current_app.logger.info(f"Final PROJECT_REFERENCE value: '{replacement_data['PROJECT_REFERENCE']}'")
             
+            def clean_text(text):
+                """Clean template text by first removing Jinja2, then replacing tags"""
+                if not text.strip():
+                    return text
+                
+                original_text = text
+                import re
+                
+                # FIRST: Remove all Jinja2 template syntax BEFORE doing replacements
+                # Remove {% for %} ... {% endfor %} blocks (most common issue)
+                text = re.sub(r'{%\s*for\s+[^%]*%}.*?{%\s*endfor\s*%}', '', text, flags=re.DOTALL)
+                
+                # Remove standalone {% %} blocks
+                text = re.sub(r'{%\s*endfor\s*%}', '', text)
+                text = re.sub(r'{%\s*for\s+[^%]*%}', '', text)
+                text = re.sub(r'{%\s*[^%]*\s*%}', '', text)
+                
+                # SECOND: Replace template tags with actual values
+                for tag, value in replacement_data.items():
+                    if value:  # Only replace if we have a value
+                        patterns_to_try = [
+                            f'{{{{ {tag} }}}}',     # {{ TAG }}
+                            f'{{{{{tag}}}}}',       # {{TAG}}
+                            f'{{{{  {tag}  }}}}',   # {{  TAG  }}
+                            f'{{{{ {tag}}}}}',      # {{ TAG}}
+                            f'{{{{{tag} }}}}',      # {{TAG }}
+                        ]
+                        for pattern in patterns_to_try:
+                            if pattern in text:
+                                text = text.replace(pattern, str(value))
+                                current_app.logger.info(f"REPLACED '{pattern}' with '{value}' in text")
+                
+                # THIRD: Remove any remaining empty template tags
+                text = re.sub(r'{{\s*[^}]*\s*}}', '', text)
+                
+                # FOURTH: Clean up extra whitespace
+                text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)
+                text = text.strip()
+                
+                # Log results
+                if '{{' in text and text != original_text:
+                    current_app.logger.info(f"STILL HAS TAGS after replacement: '{text[:100]}...'")
+                elif '{{' in original_text and '{{' not in text:
+                    current_app.logger.info(f"SUCCESSFULLY CLEANED: '{original_text[:50]}...' -> '{text[:50]}...'")
+                
+                return text
+
             def brute_force_replace_in_runs(paragraph, location_info="", replacement_dict=None):
                 """Efficiently replace template tags in paragraph runs"""
                 if not paragraph.runs or not replacement_dict:
