@@ -116,53 +116,6 @@ def download_report(submission_id):
             except Exception as e:
                 current_app.logger.warning(f"Could not remove existing file: {e}")
         
-        if False:  # DISABLED - Always regenerate for now
-            current_app.logger.info(f"Found existing report file: {permanent_path}")
-            try:
-                # Try to get document title from database, but don't fail if database is down
-                from models import Report, SATReport
-                report = Report.query.filter_by(id=submission_id).first()
-                if report:
-                    sat_report = SATReport.query.filter_by(report_id=submission_id).first()
-                    if sat_report and sat_report.data_json:
-                        stored_data = json.loads(sat_report.data_json)
-                        context_data = stored_data.get("context", {})
-                        doc_title = context_data.get("DOCUMENT_TITLE", "SAT_Report")
-                    else:
-                        doc_title = "SAT_Report"
-                else:
-                    doc_title = "SAT_Report"
-            except Exception as db_error:
-                current_app.logger.warning(f"Database error when getting title, using default: {db_error}")
-                doc_title = "SAT_Report"
-            
-            # Get project number for filename (SAT_PROJNUMBER format)
-            project_number = context_data.get("PROJECT_REFERENCE", "").strip()
-            if not project_number:
-                project_number = context_data.get("PROJECT_NUMBER", "").strip()
-            if not project_number:
-                project_number = submission_id[:8]  # Fallback to submission ID
-                
-            # Clean project number for filename  
-            safe_proj_num = "".join(c if c.isalnum() or c in ['_', '-'] else "_" for c in project_number)
-            download_name = f"SAT_{safe_proj_num}.docx"
-            
-            # Ensure file is not corrupted and has proper headers
-            if not os.path.exists(permanent_path) or os.path.getsize(permanent_path) < 1000:
-                current_app.logger.error(f"Existing file is corrupted or too small: {permanent_path}")
-                flash('Report file is corrupted. Please regenerate.', 'error')
-                return redirect(url_for('status.view_status', submission_id=submission_id))
-            
-            current_app.logger.info(f"Serving existing file: {permanent_path} as {download_name}")
-            
-            # Return with proper Word document headers
-            return send_file(
-                permanent_path, 
-                as_attachment=True, 
-                download_name=download_name,
-                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            )
-
         # If file doesn't exist, try to get data from database and generate
         try:
             from models import Report, SATReport
@@ -211,26 +164,9 @@ def download_report(submission_id):
             from docx import Document
             import re
             
-            # Open the original SAT_Template.docx to preserve ALL formatting
             doc = Document(template_file)
             current_app.logger.info(f"Opened original SAT_Template.docx to preserve exact formatting: {template_file}")
             
-            # BRUTE FORCE APPROACH - Replace tags everywhere without detection
-            current_app.logger.info("=== BRUTE FORCE REPLACEMENT MODE ===")
-            
-            # FIRST: Create replacement data BEFORE using it
-            current_app.logger.info("=== CREATING REPLACEMENT DATA ===")
-            
-            # ULTRA DEBUG - Check exact DOCUMENT_TITLE value
-            doc_title_raw = context_data.get('DOCUMENT_TITLE')
-            doc_title_type = type(doc_title_raw)
-            doc_title_repr = repr(doc_title_raw)
-            current_app.logger.info(f"DOCUMENT_TITLE RAW: {doc_title_raw}")
-            current_app.logger.info(f"DOCUMENT_TITLE TYPE: {doc_title_type}")
-            current_app.logger.info(f"DOCUMENT_TITLE REPR: {doc_title_repr}")
-            current_app.logger.info(f"DOCUMENT_TITLE LENGTH: {len(str(doc_title_raw)) if doc_title_raw else 'None'}")
-            
-            # Create comprehensive mapping with more field variations
             raw_data = {
                     'DOCUMENT_TITLE': (
                         context_data.get('DOCUMENT_TITLE') or
@@ -282,73 +218,42 @@ def download_report(submission_id):
                     'SIG_APPROVAL_CLIENT': ''
             }
 
-            # Clean the values in the dictionary
             replacement_data = {
                 key: value.replace('{', '').replace('}', '') if isinstance(value, str) else value
                 for key, value in raw_data.items()
             }
             
-            # Log final values for debugging
             current_app.logger.info(f"Final DOCUMENT_TITLE value: '{replacement_data['DOCUMENT_TITLE']}'")
             current_app.logger.info(f"Final DOCUMENT_REFERENCE value: '{replacement_data['DOCUMENT_REFERENCE']}'")
             current_app.logger.info(f"Final REVISION value: '{replacement_data['REVISION']}'")
             current_app.logger.info(f"Final PROJECT_REFERENCE value: '{replacement_data['PROJECT_REFERENCE']}'")
             
             def clean_text(text):
-                """Clean template text by first removing Jinja2, then replacing tags"""
                 if not text.strip():
                     return text
                 
                 original_text = text
-                import re
                 
-                # FIRST: Remove all Jinja2 template syntax BEFORE doing replacements
-                # Remove {% for %} ... {% endfor %} blocks (most common issue)
-                text = re.sub(r'{%\s*for\s+[^%]*%}.*?{%\s*endfor\s*%}', '', text, flags=re.DOTALL)
+                def replace_tag(match):
+                    tag = match.group(1).strip()
+                    value = replacement_data.get(tag)
+                    if value is not None:
+                        current_app.logger.info(f"REPLACED '{{{{ {tag} }}}}' with '{value}'")
+                        return str(value)
+                    current_app.logger.warning(f"No value found for tag: {tag}")
+                    return match.group(0)
+
+                text = re.sub(r'{{\s*([^}]+)\s*}}', replace_tag, text)
                 
-                # Remove standalone {% %} blocks
-                text = re.sub(r'{%\s*endfor\s*%}', '', text)
-                text = re.sub(r'{%\s*for\s+[^%]*%}', '', text)
-                text = re.sub(r'{%\s*[^%]*\s*%}', '', text)
-                
-                # SECOND: Replace template tags with actual values
-                for tag, value in replacement_data.items():
-                    if value:  # Only replace if we have a value
-                        patterns_to_try = [
-                            f'{{{{ {tag} }}}}',     # {{ TAG }}
-                            f'{{{{{tag}}}}}',       # {{TAG}}
-                            f'{{{{  {tag}  }}}}',   # {{  TAG  }}
-                            f'{{{{ {tag}}}}}',      # {{ TAG}}
-                            f'{{{{{tag} }}}}',      # {{TAG }}
-                        ]
-                        for pattern in patterns_to_try:
-                            if pattern in text:
-                                text = text.replace(pattern, str(value))
-                                current_app.logger.info(f"REPLACED '{pattern}' with '{value}' in text")
-                
-                # THIRD: Remove any remaining empty template tags
-                text = re.sub(r'{{\s*[^}]*\s*}}', '', text)
-                
-                # FOURTH: Clean up extra whitespace
-                text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)
-                text = text.strip()
-                
-                # Log results
-                if '{{' in text and text != original_text:
-                    current_app.logger.info(f"STILL HAS TAGS after replacement: '{text[:100]}...'")
-                elif '{{' in original_text and '{{' not in text:
+                if '{{' in original_text and '{{' not in text:
                     current_app.logger.info(f"SUCCESSFULLY CLEANED: '{original_text[:50]}...' -> '{text[:50]}...'")
                 
                 return text
 
-            def brute_force_replace_in_runs(paragraph, location_info="", replacement_dict=None):
-                """Efficiently replace template tags in paragraph runs"""
-                if not paragraph.runs or not replacement_dict:
-                    return False
-
+            def replace_in_paragraph(paragraph):
                 full_text = ''.join(run.text for run in paragraph.runs)
-                if not full_text.strip() or '{{' not in full_text:
-                    return False
+                if '{{' not in full_text:
+                    return
 
                 new_text = clean_text(full_text)
 
@@ -357,191 +262,34 @@ def download_report(submission_id):
                         run.clear()
                     if new_text.strip():
                         paragraph.add_run(new_text)
-                    current_app.logger.info(f"REPLACED in {location_info}: '{full_text[:50]}...' -> '{new_text[:50]}...'")
-                    return True
+                    current_app.logger.info(f"REPLACED in paragraph: '{full_text[:50]}...' -> '{new_text[:50]}...'")
 
-                return False
-            
-            # STEP 2: Add missing invisible tags that aren't visible without Office
-            current_app.logger.info("=== ADDING MISSING INVISIBLE TAGS ===")
-            
-            # Look for Document Title row and add missing tag if needed - OPTIMIZED
-            for table_idx, table in enumerate(doc.tables):
-                for row_idx, row in enumerate(table.rows):
-                    if len(row.cells) >= 2:
-                        left_cell = row.cells[0].text.strip()
-                        right_cell = row.cells[1].text.strip()
-                        
-                        # Only process Document Title rows
-                        if 'Document Title' in left_cell and not right_cell:
-                            row.cells[1].text = '{{ DOCUMENT_TITLE }}'
-                            current_app.logger.info(f"ADDED MISSING DOCUMENT_TITLE TAG to TABLE {table_idx} ROW {row_idx}")
-                            break  # Found it, no need to continue
-            
-            # Add missing footer tags - OPTIMIZED
-            current_app.logger.info("=== ADDING MISSING FOOTER TAGS ===")
-            for section in doc.sections:
-                if hasattr(section, 'footer') and len(section.footer.tables) == 0:
-                    footer_table = section.footer.add_table(rows=1, cols=3)
-                    footer_table.cell(0, 0).text = '{{ DOCUMENT_REFERENCE }}'
-                    footer_table.cell(0, 1).text = 'Page'
-                    footer_table.cell(0, 2).text = '{{ REVISION }}'
-                    current_app.logger.info(f"ADDED FOOTER TABLE with missing tags")
-            
-            # STEP 3: Apply optimized replacement to essential parts only
-            current_app.logger.info("Processing document efficiently...")
-            
-            # Process paragraphs quickly
             for paragraph in doc.paragraphs:
-                brute_force_replace_in_runs(paragraph, "PARAGRAPH", replacement_data)
+                replace_in_paragraph(paragraph)
             
-            # Process tables efficiently
             for table in doc.tables:
                 for row in table.rows:
                     for cell in row.cells:
                         for paragraph in cell.paragraphs:
-                            brute_force_replace_in_runs(paragraph, "TABLE", replacement_data)
+                            replace_in_paragraph(paragraph)
             
-            # Process headers and footers efficiently
             for section in doc.sections:
-                if hasattr(section, 'header'):
-                    for paragraph in section.header.paragraphs:
-                        brute_force_replace_in_runs(paragraph, "HEADER", replacement_data)
-                        
-                if hasattr(section, 'footer'):
-                    for paragraph in section.footer.paragraphs:
-                        brute_force_replace_in_runs(paragraph, "FOOTER", replacement_data)
-            
-            current_app.logger.info("=== BRUTE FORCE REPLACEMENT COMPLETE ===")
-            
-            # Essential data logging only
-            current_app.logger.info(f"Processing complete. Key fields: DOCUMENT_TITLE='{replacement_data.get('DOCUMENT_TITLE')}', DOCUMENT_REFERENCE='{replacement_data.get('DOCUMENT_REFERENCE')}', REVISION='{replacement_data.get('REVISION')}'")
-            
-            def clean_text(text):
-                """Clean template text by first removing Jinja2, then replacing tags"""
-                if not text.strip():
-                    return text
-                
-                original_text = text
-                import re
-                
-                # FIRST: Remove all Jinja2 template syntax BEFORE doing replacements
-                # Remove {% for %} ... {% endfor %} blocks (most common issue)
-                text = re.sub(r'{%\s*for\s+[^%]*%}.*?{%\s*endfor\s*%}', '', text, flags=re.DOTALL)
-                
-                # Remove standalone {% %} blocks
-                text = re.sub(r'{%\s*endfor\s*%}', '', text)
-                text = re.sub(r'{%\s*for\s+[^%]*%}', '', text)
-                text = re.sub(r'{%\s*[^%]*\s*%}', '', text)
-                
-                # SECOND: Replace template tags with actual values
-                for tag, value in replacement_data.items():
-                    if value:  # Only replace if we have a value
-                        patterns_to_try = [
-                            f'{{{{ {tag} }}}}',     # {{ TAG }}
-                            f'{{{{{tag}}}}}',       # {{TAG}}
-                            f'{{{{  {tag}  }}}}',   # {{  TAG  }}
-                            f'{{{{ {tag}}}}}',      # {{ TAG}}
-                            f'{{{{{tag} }}}}',      # {{TAG }}
-                        ]
-                        for pattern in patterns_to_try:
-                            if pattern in text:
-                                text = text.replace(pattern, str(value))
-                                current_app.logger.info(f"REPLACED '{pattern}' with '{value}' in text")
-                
-                # THIRD: Remove any remaining empty template tags
-                text = re.sub(r'{{\s*[^}]*\s*}}', '', text)
-                
-                # FOURTH: Clean up extra whitespace
-                text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)
-                text = text.strip()
-                
-                # Log results
-                if '{{' in text and text != original_text:
-                    current_app.logger.info(f"STILL HAS TAGS after replacement: '{text[:100]}...'")
-                elif '{{' in original_text and '{{' not in text:
-                    current_app.logger.info(f"SUCCESSFULLY CLEANED: '{original_text[:50]}...' -> '{text[:50]}...'")
-                
-                return text
-            
-            # Advanced replacement: Process runs within paragraphs (handles split template tags)
-            def replace_in_runs(paragraph):
-                """Replace template tags that might be split across runs in Word"""
-                if not paragraph.runs:
-                    return False
-                
-                # Get full text from all runs
-                full_text = ''.join(run.text for run in paragraph.runs)
-                if not full_text or ('{{' not in full_text and '{%' not in full_text):
-                    return False
-                
-                # Debug: Show what we found
-                if any(tag in full_text for tag in ['DOCUMENT_TITLE', 'DOCUMENT_REFERENCE', 'REVISION']):
-                    current_app.logger.info(f"FOUND TARGET TAG: '{full_text[:100]}...'")
-                
-                # Clean the full text
-                new_full_text = clean_text(full_text)
-                if new_full_text == full_text:
-                    return False
-                
-                current_app.logger.info(f"RUN REPLACEMENT: '{full_text[:50]}...' -> '{new_full_text[:50]}...'")
-                
-                # Clear all runs and add new text as single run
-                for run in paragraph.runs:
-                    run.clear()
-                
-                # Add the cleaned text as a new run
-                if new_full_text.strip():
-                    paragraph.add_run(new_full_text)
-                
-                return True
-            
-            # BRUTE FORCE MODE COMPLETE - Skip the old processing since we did it above
-            current_app.logger.info("Skipping old processing - brute force replacement already completed")
+                for paragraph in section.header.paragraphs:
+                    replace_in_paragraph(paragraph)
+                for paragraph in section.footer.paragraphs:
+                    replace_in_paragraph(paragraph)
 
-            # Render template with field tags using FIXED approach
             try:
-                # Ensure output directory exists
                 permanent_dir = current_app.config['OUTPUT_DIR']
                 os.makedirs(permanent_dir, exist_ok=True)
                 
-                # Template content already exists - no need to add sections
-                # All formatting, logos, headers, footers, styles are preserved
-                current_app.logger.info("Original template structure and formatting preserved")
+                import io
+                buffer = io.BytesIO()
+                doc.save(buffer)
+                buffer.seek(0)
+                with open(permanent_path, 'wb') as f:
+                    f.write(buffer.getvalue())
                 
-                # Save using FIXED approach (memory buffer to avoid corruption)
-                try:
-                    import io
-                    buffer = io.BytesIO()
-                    doc.save(buffer)
-                    buffer_size = len(buffer.getvalue())
-                    current_app.logger.info(f"Template document saved to memory buffer: {buffer_size} bytes")
-                    
-                    # Write to file using working method
-                    buffer.seek(0)
-                    with open(permanent_path, 'wb') as f:
-                        f.write(buffer.getvalue())
-                    
-                    current_app.logger.info(f"SAT template document written to file: {permanent_path}")
-                    
-                except Exception as save_error:
-                    current_app.logger.error(f"Template save failed: {save_error}")
-                    raise Exception(f"Failed to save template document: {save_error}")
-                
-                # Verify file was created and has reasonable size
-                if not os.path.exists(permanent_path):
-                    raise Exception("Document file was not created")
-                    
-                file_size = os.path.getsize(permanent_path)
-                if file_size < 1000:  # Word docs should be at least 1KB
-                    raise Exception(f"Document file too small ({file_size} bytes) - likely corrupted")
-                    
-                current_app.logger.info(f"Document verified: {permanent_path} ({file_size} bytes)")
-                
-                # Verify the file was created and has content
-                if not os.path.exists(permanent_path) or os.path.getsize(permanent_path) == 0:
-                    raise Exception("Document file was not created properly or is empty")
-                    
                 current_app.logger.info(f"Document saved successfully: {permanent_path} ({os.path.getsize(permanent_path)} bytes)")
                 
             except Exception as render_error:
@@ -549,66 +297,20 @@ def download_report(submission_id):
                 flash(f'Error generating report document: {str(render_error)}', 'error')
                 return redirect(url_for('status.view_status', submission_id=submission_id))
 
-            current_app.logger.info(f"Fresh report generated: {permanent_path}")
-
-            # Get project number for filename (SAT_PROJNUMBER format)
             project_number = context_data.get("PROJECT_REFERENCE", "").strip()
             if not project_number:
                 project_number = context_data.get("PROJECT_NUMBER", "").strip()
             if not project_number:
-                project_number = submission_id[:8]  # Fallback to submission ID
+                project_number = submission_id[:8]
                 
-            # Clean project number for filename
             safe_proj_num = "".join(c if c.isalnum() or c in ['_', '-'] else "_" for c in project_number)
             download_name = f"SAT_{safe_proj_num}.docx"
 
-            # Verify file exists and has proper size before sending
             if not os.path.exists(permanent_path) or os.path.getsize(permanent_path) == 0:
                 flash('Error: Generated document is empty or corrupted.', 'error')
                 return redirect(url_for('status.view_status', submission_id=submission_id))
 
-            current_app.logger.info(f"Serving file: {permanent_path} as {download_name}")
-            
-            # Test different download approaches
-            current_app.logger.info(f"Testing direct file serve without modifications")
-            
-            # First verify the file on server is good
-            try:
-                from docx import Document
-                test_doc = Document(permanent_path)
-                para_count = len(test_doc.paragraphs)
-                current_app.logger.info(f"Server verification: Document has {para_count} paragraphs and can be opened")
-            except Exception as verify_error:
-                current_app.logger.error(f"Document corrupt on server: {verify_error}")
-                flash('Document is corrupted on server', 'error')
-                return redirect(url_for('status.view_status', submission_id=submission_id))
-            
-            # Try serving the file with minimal processing
-            try:
-                # Read file into memory and serve from memory to avoid file locking issues
-                with open(permanent_path, 'rb') as f:
-                    file_data = f.read()
-                
-                current_app.logger.info(f"Read {len(file_data)} bytes from file")
-                
-                # Create response from memory
-                from flask import Response
-                response = Response(
-                    file_data,
-                    mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                    headers={
-                        'Content-Disposition': f'attachment; filename="{download_name}"',
-                        'Content-Length': str(len(file_data))
-                    }
-                )
-                
-                current_app.logger.info(f"Serving {download_name} from memory ({len(file_data)} bytes)")
-                return response
-                
-            except Exception as serve_error:
-                current_app.logger.error(f"Error serving from memory: {serve_error}")
-                # Final fallback
-                return send_file(permanent_path, as_attachment=True, download_name=download_name)
+            return send_file(permanent_path, as_attachment=True, download_name=download_name)
 
         except Exception as generation_error:
             current_app.logger.error(f"Error during report generation: {generation_error}", exc_info=True)
