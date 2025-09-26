@@ -1,22 +1,18 @@
 from docx import Document
 from docx.shared import Mm, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import nsdecls
+from docx.oxml import parse_xml
+from docx.shared import RGBColor
 from flask import current_app
 
-def add_table(doc, heading, headers, data, keys):
-    """Helper function to create a table with a heading."""
-    doc.add_heading(heading, level=1)
-    table = doc.add_table(rows=1, cols=len(headers), style='Table Grid')
-    hdr_cells = table.rows[0].cells
-    for i, header_text in enumerate(headers):
-        hdr_cells[i].text = header_text
-    for item in data:
-        row_cells = table.add_row().cells
-        for i, key in enumerate(keys):
-            row_cells[i].text = str(item.get(key, ''))
+def set_cell_color(cell, color):
+    """Set cell background color."""
+    shading_elm = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{color}"/>')
+    cell._tc.get_or_add_tcPr().append(shading_elm)
 
 def build_sat_report(context, output_path):
-    """Builds a complete .docx report programmatically based on a detailed specification."""
+    """Builds the first page of the SAT report with detailed specifications."""
     try:
         doc = Document()
 
@@ -29,49 +25,60 @@ def build_sat_report(context, output_path):
         section.left_margin = Mm(25)
         section.right_margin = Mm(25)
 
-        # --- Style Definitions ---
-        styles = doc.styles
-        normal_style = styles['Normal']
-        font = normal_style.font # type: ignore
-        font.name = 'Calibri'
-        font.size = Pt(11)
-        p_fmt = normal_style.paragraph_format # type: ignore
-        p_fmt.space_before = Pt(0)
-        p_fmt.space_after = Pt(6)
-        p_fmt.line_spacing = 1.15
+        # --- Header ---
+        header = section.header
+        header_table = header.add_table(rows=1, cols=2, width=section.page_width - section.left_margin - section.right_margin)
+        logo_cell = header_table.cell(0, 0)
+        logo_cell.text = "CULLY\nYOUR PARTNER IN WATER EXCELLENCE."
+        tagline_cell = header_table.cell(0, 1)
+        p = tagline_cell.paragraphs[0]
+        p.text = f"SAT–{context.get('document_reference', '###')}"
+        p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
-        # --- Page 1: Title Page ---
-        doc.add_heading(context.get('document_title', 'SAT Report'), level=0).alignment = WD_ALIGN_PARAGRAPH.CENTER
-        doc.add_paragraph('Site Acceptance Test Report').alignment = WD_ALIGN_PARAGRAPH.CENTER
-        doc.add_paragraph(context.get('project_reference', '')).alignment = WD_ALIGN_PARAGRAPH.CENTER
-        doc.add_paragraph(f"{context.get('client_name', '')} - {context.get('date', '')}").alignment = WD_ALIGN_PARAGRAPH.CENTER
+        # --- Document Information Table ---
+        doc.add_paragraph() # Spacer
+        info_table = doc.add_table(rows=5, cols=2, style='Table Grid')
+        info_labels = ['Document Title', 'Project reference', 'Date', 'Client Name', 'Revision']
+        info_keys = ['document_title', 'project_reference', 'date', 'client_name', 'revision']
+        for i, label in enumerate(info_labels):
+            cell = info_table.cell(i, 0)
+            cell.text = label
+            set_cell_color(cell, 'D9EAD3') # Light blue fill
+            info_table.cell(i, 1).text = str(context.get(info_keys[i], ''))
 
-        doc.add_page_break()
+        # --- Document Approvals Table ---
+        doc.add_paragraph() # Spacer
+        approval_table = doc.add_table(rows=4, cols=3, style='Table Grid')
+        approval_labels = ['Prepared by', 'Reviewed by', 'Reviewed by', 'Approval (Client)']
+        for i, label in enumerate(approval_labels):
+            cell = approval_table.cell(i, 0)
+            cell.text = label
+            set_cell_color(cell, 'D9EAD3')
 
-        # --- Revision History ---
-        add_table(doc, 'Revision History', ['Revision No.', 'Date', 'Author', 'Description'], context.get('revisions', []), ['revision_no', 'date', 'author', 'description'])
+        # --- Document Version Control Table ---
+        doc.add_paragraph() # Spacer
+        version_table = doc.add_table(rows=2, cols=3, style='Table Grid')
+        version_hdr = version_table.rows[0].cells
+        version_hdr[0].text = 'Revision Number'
+        version_hdr[1].text = 'Details'
+        version_hdr[2].text = 'Date'
+        version_table.rows[1].cells[0].text = str(context.get('revision', 'R0'))
 
-        doc.add_page_break()
+        # --- Confidentiality Notice ---
+        doc.add_paragraph().add_run('This document contains proprietary and confidential information... WWW.CULLY.IE').italic = True
 
-        # --- Table of Contents ---
-        doc.add_heading('Table of Contents', level=1)
-        doc.add_paragraph('[TOC will be generated here]')
-
-        doc.add_page_break()
-
-        # --- Report Sections ---
-        for table_spec in context.get('tables', []):
-            add_table(doc, table_spec['title'], table_spec['headers'], table_spec['data'], table_spec['keys'])
-
-        # --- Final Page: Approval & Signatures ---
-        doc.add_heading('Approval & Signatures', level=1)
-        sig_table = doc.add_table(rows=len(context.get('approvers', [])), cols=2)
-        for i, approver in enumerate(context.get('approvers', [])):
-            sig_table.cell(i, 0).text = approver.get('role', '')
-            sig_table.cell(i, 1).text = "Signature: ____________________   Date: __________"
+        # --- Footer ---
+        footer = section.footer
+        footer_table = footer.add_table(rows=1, cols=2, width=section.page_width - section.left_margin - section.right_margin)
+        footer_cell_left = footer_table.cell(0, 0)
+        footer_cell_left.text = f"{context.get('document_reference', '')} / {context.get('revision', '')}"
+        footer_cell_right = footer_table.cell(0, 1)
+        p = footer_cell_right.paragraphs[0]
+        p.text = "Page | 1"
+        p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
         doc.save(output_path)
-        current_app.logger.info(f"Report built successfully at {output_path}")
+        current_app.logger.info(f"Report first page built successfully at {output_path}")
         return True
 
     except Exception as e:
