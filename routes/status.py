@@ -231,45 +231,39 @@ def download_report(submission_id):
             current_app.logger.info(f"DOCUMENT_TITLE LENGTH: {len(str(doc_title_raw)) if doc_title_raw else 'None'}")
             
             # Create comprehensive mapping with more field variations
-            def clean_value(value):
-                if isinstance(value, str):
-                    return value.replace('{', '').replace('}', '')
-                return value
-
-            replacement_data = {
-                key: clean_value(value) for key, value in {
+            raw_data = {
                     'DOCUMENT_TITLE': (
-                        context_data.get('DOCUMENT_TITLE') or 
-                        context_data.get('document_title') or 
-                        context_data.get('Document_Title') or 
-                        context_data.get('documentTitle') or ''
+                        context_data.get('DOCUMENT_TITLE') or
+                        context_data.get('document_title') or
+                        context_data.get('Document_Title') or
+                        context_data.get('documentTitle') or 'SAT Report'
                     ),
                     'PROJECT_REFERENCE': (
-                        context_data.get('PROJECT_REFERENCE') or 
-                        context_data.get('project_reference') or 
+                        context_data.get('PROJECT_REFERENCE') or
+                        context_data.get('project_reference') or
                         context_data.get('Project_Reference') or ''
                     ),
                     'DOCUMENT_REFERENCE': (
-                        context_data.get('DOCUMENT_REFERENCE') or 
-                        context_data.get('document_reference') or 
-                        context_data.get('Document_Reference') or 
-                        context_data.get('doc_reference') or ''
+                        context_data.get('DOCUMENT_REFERENCE') or
+                        context_data.get('document_reference') or
+                        context_data.get('Document_Reference') or
+                        context_data.get('doc_reference') or submission_id
                     ),
                     'DATE': (
-                        context_data.get('DATE') or 
-                        context_data.get('date') or 
+                        context_data.get('DATE') or
+                        context_data.get('date') or
                         context_data.get('Date') or ''
                     ),
                     'CLIENT_NAME': (
-                        context_data.get('CLIENT_NAME') or 
-                        context_data.get('client_name') or 
+                        context_data.get('CLIENT_NAME') or
+                        context_data.get('client_name') or
                         context_data.get('Client_Name') or ''
                     ),
                     'REVISION': (
-                        context_data.get('REVISION') or 
-                        context_data.get('revision') or 
-                        context_data.get('Revision') or 
-                        context_data.get('rev') or ''
+                        context_data.get('REVISION') or
+                        context_data.get('revision') or
+                        context_data.get('Revision') or
+                        context_data.get('rev') or '1.0'
                     ),
                     'PREPARED_BY': context_data.get('PREPARED_BY', context_data.get('prepared_by', '')),
                     'PREPARER_DATE': context_data.get('PREPARER_DATE', context_data.get('preparer_date', '')),
@@ -286,7 +280,12 @@ def download_report(submission_id):
                     'SIG_REVIEW_TECH': '',
                     'SIG_REVIEW_PM': '',
                     'SIG_APPROVAL_CLIENT': ''
-                }.items()
+            }
+
+            # Clean the values in the dictionary
+            replacement_data = {
+                key: value.replace('{', '').replace('}', '') if isinstance(value, str) else value
+                for key, value in raw_data.items()
             }
             
             # Log final values for debugging
