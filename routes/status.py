@@ -139,10 +139,9 @@ def download_report(submission_id):
             return redirect(url_for('dashboard.home'))
 
         # Generate fresh report
-        current_app.logger.info(f"Generating fresh report for submission {submission_id} using docxtpl")
+        current_app.logger.info(f"Generating fresh report for submission {submission_id} programmatically")
 
         # Define paths
-        template_file = current_app.config.get('TEMPLATE_FILE', 'templates/SAT_Template.docx')
         permanent_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.docx')
 
         # Remove existing file if it exists
@@ -153,7 +152,7 @@ def download_report(submission_id):
             except Exception as e:
                 current_app.logger.warning(f"Could not remove existing file: {e}")
 
-        # Prepare context for docxtpl
+        # Prepare context
         context = {
             'DOCUMENT_TITLE': context_data.get('DOCUMENT_TITLE', 'SAT Report'),
             'PROJECT_REFERENCE': context_data.get('PROJECT_REFERENCE', ''),
@@ -179,10 +178,10 @@ def download_report(submission_id):
             if isinstance(value, str):
                 context[key] = value.replace('{', '').replace('}', '')
 
-        from services.report_generator import generate_report_with_docxtpl
+        from services.report_builder import build_sat_report
         
         # Generate the report
-        success = generate_report_with_docxtpl(template_file, context, permanent_path)
+        success = build_sat_report(context, permanent_path)
 
         if not success:
             flash('Error generating report.', 'error')
