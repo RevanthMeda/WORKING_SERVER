@@ -1,5 +1,4 @@
 import os
-import logging
 from datetime import timedelta
 from dotenv import load_dotenv
 
@@ -29,13 +28,9 @@ class Config:
     # Session configuration - Force server-side sessions
     SESSION_TYPE = 'filesystem'
     SESSION_PERMANENT = False
-    PERMANENT_SESSION_LIFETIME = timedelta(minutes=30)
     SESSION_USE_SIGNER = True
     SESSION_KEY_PREFIX = 'sat_session:'
     SESSION_COOKIE_NAME = 'sat_session'
-    SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'Lax'
-    SESSION_COOKIE_SECURE = False  # Set to True when using HTTPS
     SEND_FILE_MAX_AGE_DEFAULT = 0  # Disable caching for static files
 
     # Dashboard stats caching
