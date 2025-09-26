@@ -11,6 +11,7 @@ except ImportError:  # pragma: no cover - handled gracefully at runtime
     load_workbook = None
 
 from models import Report, SATReport
+from services.ai_assistant import analyze_user_intent
 
 
 _ALIAS_SANITIZE = re.compile(r'[^a-z0-9]+')
@@ -321,6 +322,41 @@ def process_user_message(message: str, mode: str = "default") -> Dict[str, Any]:
     if command_payload is not None:
         state.save()
         return command_payload
+
+    primary_intent: Optional[str] = None
+    treat_as_general = False
+    try:
+        ai_context = {
+            'current_field': CONVERSATION_ORDER[state.position] if state.position < len(CONVERSATION_ORDER) else None,
+            'collected': _merge_results(state),
+            'pending_fields': _pending_fields(state),
+        }
+        intent_analysis = analyze_user_intent(message, ai_context)
+    except Exception:  # noqa: BLE001 - prefer resilient assistant
+        current_app.logger.exception('Failed to analyze user intent for bot assistant.')
+        intent_analysis = None
+
+    if intent_analysis:
+        primary_intent = intent_analysis.get('intent') or intent_analysis.get('primary_intent')
+        confidence = intent_analysis.get('confidence')
+        if isinstance(confidence, str):
+            try:
+                confidence = float(confidence)
+            except ValueError:  # noqa: PERF203 - defensive parsing
+                confidence = None
+        if primary_intent and primary_intent not in ('create_report', 'workflow_assistance'):
+            treat_as_general = True
+        elif isinstance(confidence, (int, float)) and confidence is not None and confidence < 0.45:
+            treat_as_general = True
+
+    if treat_as_general:
+        payload = _handle_general_query(message, state)
+        if payload is None:
+            payload = _build_question_payload(state)
+        metadata = payload.setdefault('metadata', {})
+        metadata['agent_intent'] = primary_intent or 'general'
+        state.save()
+        return payload
 
     state.sync_to_next_question()
     if state.position >= len(CONVERSATION_ORDER):
@@ -985,6 +1021,11 @@ def _handle_general_query(message: str, state: BotConversationState) -> Optional
         or ('report' in normalized and any(token in normalized for token in ('available', 'options', 'list', 'types')))
         or ('services' in normalized and any(token in normalized for token in ('offer', 'available', 'options', 'provide', 'list')))
         or ('what' in normalized and 'services' in normalized)
+        or 'what can you do' in normalized
+        or 'what all can you do' in normalized
+        or 'what do you do' in normalized
+        or 'what are you capable' in normalized
+        or 'what are your capabilities' in normalized
     ):
         responses.append(SERVICE_OVERVIEW_MESSAGE)
         service_requested = True
