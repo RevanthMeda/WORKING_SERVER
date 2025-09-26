@@ -105,18 +105,7 @@ def download_report(submission_id):
             flash('Invalid submission ID.', 'error')
             return redirect(url_for('dashboard.home'))
 
-        # FORCE REGENERATION - Skip existing file check to create fresh clean document
-        permanent_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.docx')
-        
-        # Remove existing file if it exists to force fresh generation
-        if os.path.exists(permanent_path):
-            try:
-                os.remove(permanent_path)
-                current_app.logger.info(f"Removed existing file to force fresh generation: {permanent_path}")
-            except Exception as e:
-                current_app.logger.warning(f"Could not remove existing file: {e}")
-        
-        # If file doesn't exist, try to get data from database and generate
+        # Get data from database
         try:
             from models import Report, SATReport
             report = Report.query.filter_by(id=submission_id).first()
@@ -150,176 +139,75 @@ def download_report(submission_id):
             return redirect(url_for('dashboard.home'))
 
         # Generate fresh report
-        current_app.logger.info(f"Generating fresh report for submission {submission_id}")
+        current_app.logger.info(f"Generating fresh report for submission {submission_id} using docxtpl")
 
-        try:
-            # Check template file exists
-            template_file = current_app.config.get('TEMPLATE_FILE', 'templates/SAT_Template.docx')
-            if not os.path.exists(template_file):
-                current_app.logger.error(f"Template file not found: {template_file}")
-                flash('Report template file not found.', 'error')
-                return redirect(url_for('status.view_status', submission_id=submission_id))
+        # Define paths
+        template_file = current_app.config.get('TEMPLATE_FILE', 'templates/SAT_Template.docx')
+        permanent_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.docx')
 
-            # PRESERVE EXACT TEMPLATE FORMAT - Open original and replace content only
-            from docx import Document
-            import re
-            
-            doc = Document(template_file)
-            current_app.logger.info(f"Opened original SAT_Template.docx to preserve exact formatting: {template_file}")
-            
-            raw_data = {
-                    'DOCUMENT_TITLE': (
-                        context_data.get('DOCUMENT_TITLE') or
-                        context_data.get('document_title') or
-                        context_data.get('Document_Title') or
-                        context_data.get('documentTitle') or 'SAT Report'
-                    ),
-                    'PROJECT_REFERENCE': (
-                        context_data.get('PROJECT_REFERENCE') or
-                        context_data.get('project_reference') or
-                        context_data.get('Project_Reference') or ''
-                    ),
-                    'DOCUMENT_REFERENCE': (
-                        context_data.get('DOCUMENT_REFERENCE') or
-                        context_data.get('document_reference') or
-                        context_data.get('Document_Reference') or
-                        context_data.get('doc_reference') or submission_id
-                    ),
-                    'DATE': (
-                        context_data.get('DATE') or
-                        context_data.get('date') or
-                        context_data.get('Date') or ''
-                    ),
-                    'CLIENT_NAME': (
-                        context_data.get('CLIENT_NAME') or
-                        context_data.get('client_name') or
-                        context_data.get('Client_Name') or ''
-                    ),
-                    'REVISION': (
-                        context_data.get('REVISION') or
-                        context_data.get('revision') or
-                        context_data.get('Revision') or
-                        context_data.get('rev') or '1.0'
-                    ),
-                    'PREPARED_BY': context_data.get('PREPARED_BY', context_data.get('prepared_by', '')),
-                    'PREPARER_DATE': context_data.get('PREPARER_DATE', context_data.get('preparer_date', '')),
-                    'REVIEWED_BY_TECH_LEAD': context_data.get('REVIEWED_BY_TECH_LEAD', context_data.get('reviewed_by_tech_lead', '')),
-                    'TECH_LEAD_DATE': context_data.get('TECH_LEAD_DATE', context_data.get('tech_lead_date', '')),
-                    'REVIEWED_BY_PM': context_data.get('REVIEWED_BY_PM', context_data.get('reviewed_by_pm', '')),
-                    'PM_DATE': context_data.get('PM_DATE', context_data.get('pm_date', '')),
-                    'APPROVED_BY_CLIENT': context_data.get('APPROVED_BY_CLIENT', context_data.get('approved_by_client', '')),
-                    'PURPOSE': context_data.get('PURPOSE', context_data.get('purpose', '')),
-                    'SCOPE': context_data.get('SCOPE', context_data.get('scope', '')),
-                    'REVISION_DETAILS': context_data.get('REVISION_DETAILS', context_data.get('revision_details', '')),
-                    'REVISION_DATE': context_data.get('REVISION_DATE', context_data.get('revision_date', '')),
-                    'SIG_PREPARED': '',
-                    'SIG_REVIEW_TECH': '',
-                    'SIG_REVIEW_PM': '',
-                    'SIG_APPROVAL_CLIENT': ''
-            }
-
-            replacement_data = {
-                key: value.replace('{', '').replace('}', '') if isinstance(value, str) else value
-                for key, value in raw_data.items()
-            }
-            
-            current_app.logger.info(f"Final DOCUMENT_TITLE value: '{replacement_data['DOCUMENT_TITLE']}'")
-            current_app.logger.info(f"Final DOCUMENT_REFERENCE value: '{replacement_data['DOCUMENT_REFERENCE']}'")
-            current_app.logger.info(f"Final REVISION value: '{replacement_data['REVISION']}'")
-            current_app.logger.info(f"Final PROJECT_REFERENCE value: '{replacement_data['PROJECT_REFERENCE']}'")
-            
-            def clean_text(text):
-                if not text.strip():
-                    return text
-                
-                original_text = text
-                
-                def replace_tag(match):
-                    tag = match.group(1).strip()
-                    value = replacement_data.get(tag)
-                    if value is not None:
-                        current_app.logger.info(f"REPLACED '{{{{ {tag} }}}}' with '{value}'")
-                        return str(value)
-                    current_app.logger.warning(f"No value found for tag: {tag}")
-                    return match.group(0)
-
-                text = re.sub(r'{{\s*([^}]+)\s*}}', replace_tag, text)
-                
-                if '{{' in original_text and '{{' not in text:
-                    current_app.logger.info(f"SUCCESSFULLY CLEANED: '{original_text[:50]}...' -> '{text[:50]}...'")
-                
-                return text
-
-            def replace_in_paragraph(paragraph):
-                full_text = ''.join(run.text for run in paragraph.runs)
-                if '{{' not in full_text:
-                    return
-
-                new_text = clean_text(full_text)
-
-                if new_text != full_text:
-                    for run in paragraph.runs:
-                        run.clear()
-                    if new_text.strip():
-                        paragraph.add_run(new_text)
-                    current_app.logger.info(f"REPLACED in paragraph: '{full_text[:50]}...' -> '{new_text[:50]}...'")
-
-            for paragraph in doc.paragraphs:
-                replace_in_paragraph(paragraph)
-            
-            for table in doc.tables:
-                for row in table.rows:
-                    for cell in row.cells:
-                        for paragraph in cell.paragraphs:
-                            replace_in_paragraph(paragraph)
-            
-            for section in doc.sections:
-                for paragraph in section.header.paragraphs:
-                    replace_in_paragraph(paragraph)
-                for paragraph in section.footer.paragraphs:
-                    replace_in_paragraph(paragraph)
-
+        # Remove existing file if it exists
+        if os.path.exists(permanent_path):
             try:
-                permanent_dir = current_app.config['OUTPUT_DIR']
-                os.makedirs(permanent_dir, exist_ok=True)
-                
-                import io
-                buffer = io.BytesIO()
-                doc.save(buffer)
-                buffer.seek(0)
-                with open(permanent_path, 'wb') as f:
-                    f.write(buffer.getvalue())
-                
-                current_app.logger.info(f"Document saved successfully: {permanent_path} ({os.path.getsize(permanent_path)} bytes)")
-                
-            except Exception as render_error:
-                current_app.logger.error(f"Error rendering/saving document: {render_error}", exc_info=True)
-                flash(f'Error generating report document: {str(render_error)}', 'error')
-                return redirect(url_for('status.view_status', submission_id=submission_id))
+                os.remove(permanent_path)
+                current_app.logger.info(f"Removed existing file to force fresh generation: {permanent_path}")
+            except Exception as e:
+                current_app.logger.warning(f"Could not remove existing file: {e}")
 
-            project_number = context_data.get("PROJECT_REFERENCE", "").strip()
-            if not project_number:
-                project_number = context_data.get("PROJECT_NUMBER", "").strip()
-            if not project_number:
-                project_number = submission_id[:8]
-                
-            safe_proj_num = "".join(c if c.isalnum() or c in ['_', '-'] else "_" for c in project_number)
-            download_name = f"SAT_{safe_proj_num}.docx"
+        # Prepare context for docxtpl
+        context = {
+            'DOCUMENT_TITLE': context_data.get('DOCUMENT_TITLE', 'SAT Report'),
+            'PROJECT_REFERENCE': context_data.get('PROJECT_REFERENCE', ''),
+            'DOCUMENT_REFERENCE': context_data.get('DOCUMENT_REFERENCE', submission_id),
+            'REVISION': context_data.get('REVISION', '1.0'),
+            'DATE': context_data.get('DATE', ''),
+            'CLIENT_NAME': context_data.get('CLIENT_NAME', ''),
+            'PREPARED_BY': context_data.get('PREPARED_BY', ''),
+            'PREPARER_DATE': context_data.get('PREPARER_DATE', ''),
+            'REVIEWED_BY_TECH_LEAD': context_data.get('REVIEWED_BY_TECH_LEAD', ''),
+            'TECH_LEAD_DATE': context_data.get('TECH_LEAD_DATE', ''),
+            'REVIEWED_BY_PM': context_data.get('REVIEWED_BY_PM', ''),
+            'PM_DATE': context_data.get('PM_DATE', ''),
+            'APPROVED_BY_CLIENT': context_data.get('APPROVED_BY_CLIENT', ''),
+            'PURPOSE': context_data.get('PURPOSE', ''),
+            'SCOPE': context_data.get('SCOPE', ''),
+            'REVISION_DETAILS': context_data.get('REVISION_DETAILS', ''),
+            'REVISION_DATE': context_data.get('REVISION_DATE', ''),
+        }
+        
+        # Clean context values
+        for key, value in context.items():
+            if isinstance(value, str):
+                context[key] = value.replace('{', '').replace('}', '')
 
-            if not os.path.exists(permanent_path) or os.path.getsize(permanent_path) == 0:
-                flash('Error: Generated document is empty or corrupted.', 'error')
-                return redirect(url_for('status.view_status', submission_id=submission_id))
+        from services.report_generator import generate_report_with_docxtpl
+        
+        # Generate the report
+        success = generate_report_with_docxtpl(template_file, context, permanent_path)
 
-            return send_file(permanent_path, as_attachment=True, download_name=download_name)
-
-        except Exception as generation_error:
-            current_app.logger.error(f"Error during report generation: {generation_error}", exc_info=True)
-            flash('Error generating report for download.', 'error')
+        if not success:
+            flash('Error generating report.', 'error')
             return redirect(url_for('status.view_status', submission_id=submission_id))
+
+        # Create download name
+        project_number = context.get("PROJECT_REFERENCE", "").strip()
+        if not project_number:
+            project_number = context_data.get("PROJECT_NUMBER", "").strip()
+        if not project_number:
+            project_number = submission_id[:8]
+            
+        safe_proj_num = "".join(c if c.isalnum() or c in ['_', '-'] else "_" for c in project_number)
+        download_name = f"SAT_{safe_proj_num}.docx"
+
+        # Serve the file
+        if not os.path.exists(permanent_path) or os.path.getsize(permanent_path) == 0:
+            flash('Error: Generated document is empty or corrupted.', 'error')
+            return redirect(url_for('status.view_status', submission_id=submission_id))
+
+        return send_file(permanent_path, as_attachment=True, download_name=download_name)
 
     except Exception as e:
         current_app.logger.error(f"Error in download_report for {submission_id}: {e}", exc_info=True)
-        flash('Error downloading report.', 'error')
+        flash('An unexpected error occurred while downloading the report.', 'error')
         return redirect(url_for('dashboard.home'))
 
 
