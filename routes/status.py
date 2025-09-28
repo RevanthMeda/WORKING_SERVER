@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, current_
 import os
 import json
 from flask_login import current_user, login_required
+import datetime as dt
 import pypandoc
 
 status_bp = Blueprint('status', __name__)
@@ -153,6 +154,7 @@ def download_report(submission_id):
 
         # --- Convert HTML to DOCX using Pandoc ---
         try:
+            pypandoc.download_pandoc()
             pypandoc.convert_file(html_temp_path, 'docx', outputfile=permanent_path)
         except (OSError, RuntimeError) as e:
             current_app.logger.error(f"Pandoc conversion failed: {e}", exc_info=True)
