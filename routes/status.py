@@ -152,7 +152,11 @@ def download_report(submission_id):
             return redirect(url_for('status.view_status', submission_id=submission_id))
 
         # --- Convert HTML to DOCX using Pandoc ---
-        command = f'pandoc -s -o "{permanent_path}" "{html_temp_path}"'
+        pandoc_path = 'C:\Program Files\Pandoc\pandoc.exe'
+        if os.path.exists(pandoc_path):
+            command = f'"{pandoc_path}" -s -o "{permanent_path}" "{html_temp_path}"'
+        else:
+            command = f'pandoc -s -o "{permanent_path}" "{html_temp_path}"'
         
         # This is a placeholder for the shell command execution
         # In a real scenario, you would use a library like subprocess
