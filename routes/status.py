@@ -125,7 +125,7 @@ def download_report(submission_id):
             return redirect(url_for('dashboard.home'))
 
         try:
-            stored_.data = json.loads(sat_report.data_json) if sat_report.data_json else {}
+            stored_data = json.loads(sat_report.data_json) if sat_report.data_json else {}
         except json.JSONDecodeError:
             stored_data = {}
 

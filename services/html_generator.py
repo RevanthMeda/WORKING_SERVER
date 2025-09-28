@@ -13,26 +13,26 @@ def generate_report_html(context, output_path):
             for approval in approvals:
                 approvals_html += f"""
                     <tr>
-                        <td class="label-cell">{approval.get('role', '')}</td>
+                        <td class=\"label-cell\">{approval.get('role', '')}</td>
                         <td>{approval.get('name', '')}</td>
                     </tr>
                 """
         else:
             approvals_html = """
                 <tr>
-                    <td class="label-cell">Prepared by</td>
+                    <td class=\"label-cell\">Prepared by</td>
                     <td>Revanth</td>
                 </tr>
                 <tr>
-                    <td class="label-cell">Reviewed by</td>
+                    <td class=\"label-cell\">Reviewed by</td>
                     <td>Jinnu</td>
                 </tr>
                 <tr>
-                    <td class="label-cell">Reviewed by</td>
+                    <td class=\"label-cell\">Reviewed by</td>
                     <td>Dazel</td>
                 </tr>
                 <tr>
-                    <td class="label-cell">Approval (Client)</td>
+                    <td class=\"label-cell\">Approval (Client)</td>
                     <td>Test</td>
                 </tr>
             """
@@ -60,6 +60,54 @@ def generate_report_html(context, output_path):
             """
 
 
+        body_html = f"""
+<div class=\"section-title\">Document Information</div>
+<table>
+    <tr>
+        <td class=\"label-cell\">Document Title</td>
+        <td>{context.get('document_title', '')}</td>
+    </tr>
+    <tr>
+        <td class=\"label-cell\">Project reference</td>
+        <td>{context.get('project_reference', '')}</td>
+    </tr>
+    <tr>
+        <td class=\"label-cell\">Document Reference</td>
+        <td>{context.get('document_reference', '')}</td>
+    </tr>
+    <tr>
+        <td class=\"label-cell\">Date</td>
+        <td>{context.get('date', '')}</td>
+    </tr>
+    <tr>
+        <td class=\"label-cell\">Prepared for</td>
+        <td>{context.get('client_name', '')}</td>
+    </tr>
+    <tr>
+        <td class=\"label-cell\">Revision</td>
+        <td>{context.get('revision', '')}</td>
+    </tr>
+</table>
+
+<div class=\"section-title\">Document Approvals</div>
+<table>
+    {approvals_html}
+</table>
+
+<div class=\"section-title\">Document Version Control</div>
+<table>
+    <tr>
+        <th>Revision Number</th>
+        <th>Details</th>
+        <th>Date</th>
+    </tr>
+    {version_history_html}
+</table>
+
+<div class=\"section-title\">Confidentiality Notice</div>
+<p>This document contains confidential and proprietary information of Cully. Unauthorized distribution or reproduction is strictly prohibited.</p>
+"""
+
         html = f"""
 <html>
 <head>
@@ -71,62 +119,23 @@ def generate_report_html(context, output_path):
     th, td {{ border: 1px solid #000; padding: 8px; text-align: left; }}
     .label-cell {{ background-color: #E6F3FF; }}
     .section-title {{ font-weight: bold; margin-top: 20px; margin-bottom: 10px; }}
-    .footer {{ text-align: center; margin-top: 50px; font-size: 10pt; }}
 </style>
 </head>
 <body>
-    <div class="header">
-        <img src="file:///{logo_path}" class="logo">
+    <div class=\"header\">
+        <img src=\"file:///{logo_path}\" class=\"logo\">
     </div>
 
-    <div class="section-title">Document Information</div>
-    <table>
-        <tr>
-            <td class="label-cell">Document Title</td>
-            <td>{context.get('document_title', '')}</td>
-        </tr>
-        <tr>
-            <td class="label-cell">Project reference</td>
-            <td>{context.get('project_reference', '')}</td>
-        </tr>
-        <tr>
-            <td class="label-cell">Document Reference</td>
-            <td>{context.get('document_reference', '')}</td>
-        </tr>
-        <tr>
-            <td class="label-cell">Date</td>
-            <td>{context.get('date', '')}</td>
-        </tr>
-        <tr>
-            <td class="label-cell">Prepared for</td>
-            <td>{context.get('client_name', '')}</td>
-        </tr>
-        <tr>
-            <td class="label-cell">Revision</td>
-            <td>{context.get('revision', '')}</td>
-        </tr>
-    </table>
+    {body_html}
 
-    <div class="section-title">Document Approvals</div>
-    <table>
-        {approvals_html}
-    </table>
-
-    <div class="section-title">Document Version Control</div>
-    <table>
-        <tr>
-            <th>Revision Number</th>
-            <th>Details</th>
-            <th>Date</th>
-        </tr>
-        {version_history_html}
-    </table>
-
-    <div class="section-title">Confidentiality Notice</div>
-    <p>This document contains confidential and proprietary information of Cully. Unauthorized distribution or reproduction is strictly prohibited.</p>
-
-    <div class="footer">
-        WWW.CULLY.IE
-    </div>
 </body>
 </html>
+"""
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(html)
+            
+        current_app.logger.info(f"HTML report generated successfully at {output_path}")
+        return True
+    except Exception as e:
+        current_app.logger.error(f"Error generating HTML report: {e}", exc_info=True)
+        return False
