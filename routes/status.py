@@ -155,7 +155,9 @@ def download_report(submission_id):
         # --- Convert HTML to DOCX using Pandoc ---
         try:
             pypandoc.download_pandoc()
-            pypandoc.convert_file(html_temp_path, 'docx', outputfile=permanent_path)
+            reference_doc_path = os.path.join(current_app.root_path, 'templates', 'SAT_template.docx')
+            extra_args = [f'--reference-doc={reference_doc_path}']
+            pypandoc.convert_file(html_temp_path, 'docx', outputfile=permanent_path, extra_args=extra_args)
         except (OSError, RuntimeError) as e:
             current_app.logger.error(f"Pandoc conversion failed: {e}", exc_info=True)
             flash('Error converting report to DOCX. Please ensure Pandoc is installed and accessible.', 'error')
