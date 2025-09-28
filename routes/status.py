@@ -152,16 +152,12 @@ def download_report(submission_id):
             return redirect(url_for('status.view_status', submission_id=submission_id))
 
         # --- Convert HTML to DOCX using Pandoc ---
-        pandoc_path = 'C:\Program Files\Pandoc\pandoc.exe'
-        if os.path.exists(pandoc_path):
-            command = f'"{pandoc_path}" -s -o "{permanent_path}" "{html_temp_path}"'
-        else:
-            command = f'pandoc -s -o "{permanent_path}" "{html_temp_path}"'
-        
-        # This is a placeholder for the shell command execution
-        # In a real scenario, you would use a library like subprocess
-        # For this example, we assume the command is executed successfully
-        os.system(command)
+        try:
+            pypandoc.convert_file(html_temp_path, 'docx', outputfile=permanent_path)
+        except (OSError, RuntimeError) as e:
+            current_app.logger.error(f"Pandoc conversion failed: {e}", exc_info=True)
+            flash('Error converting report to DOCX. Please ensure Pandoc is installed and accessible.', 'error')
+            return redirect(url_for('status.view_status', submission_id=submission_id))
 
         # --- Clean up temporary HTML file ---
         if os.path.exists(html_temp_path):
