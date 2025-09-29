@@ -98,4 +98,5 @@ structlog
 waitress
 
 # gemini pacage
-google-generativeaipypandoc 
+google-generativeai
+pypandoc 

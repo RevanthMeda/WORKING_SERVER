@@ -1,10 +1,11 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, make_response, session
 from flask_login import login_required, current_user
 from auth_utils import admin_required, role_required
-from models import db, User, Report, Notification, SystemSettings, SATReport, test_db_connection
-from utils import get_unread_count
+from models import db, User, Report, SATReport
+from datetime import datetime
+
 from sqlalchemy.orm import joinedload
-from sqlalchemy import and_, or_, func
+from sqlalchemy import and_, or_, func, case
 import json
 from functools import wraps
 from services.dashboard_stats import get_cached_dashboard_stats, compute_and_cache_dashboard_stats
@@ -62,36 +63,22 @@ def home():
 @no_cache
 def admin():
     """Admin dashboard"""
-    from models import Report, Notification
+    from models import SystemSettings, test_db_connection
 
     db_connected = test_db_connection()
 
     # Calculate user statistics with optimized single query
     user_stats = db.session.query(
         func.count(User.id).label('total'),
-        func.sum(func.cast(User.status == 'Active', db.Integer)).label('active'),
-        func.sum(func.cast(User.status == 'Pending', db.Integer)).label('pending')
+        func.sum(case([(User.status == 'Active', 1)], else_=0)).label('active'),
+        func.sum(case([(User.status == 'Pending', 1)], else_=0)).label('pending')
     ).first()
     
     total_users = user_stats.total or 0
-    active_users = user_stats.active or 0
     pending_users_count = user_stats.pending or 0
     
     # Get all users for display (only if needed)
     users = User.query.all()
-
-    # Get unread notifications count
-    try:
-        unread_count = Notification.query.filter_by(
-            user_email=current_user.email,
-            read=False
-        ).count()
-    except Exception as e:
-        current_app.logger.warning(f"Could not get unread count for admin: {e}")
-        unread_count = 0
-
-    # Get recent users (last 5)
-    recent_users = User.query.order_by(User.created_date.desc()).limit(5).all()
 
     # Get actual pending users (users who need approval)
     pending_users_list = User.query.filter_by(status='Pending').order_by(User.created_date.desc()).limit(5).all()
@@ -141,9 +128,6 @@ def admin():
         total_reports = 0
         recent_reports = []
 
-    # System status
-    system_status = "Online" if db_connected else "Offline"
-
     # Get settings
     company_logo = SystemSettings.get_setting('company_logo', 'static/cully.png')
     storage_location = SystemSettings.get_setting('default_storage_location', '/outputs/')
@@ -154,7 +138,6 @@ def admin():
                          pending_users=pending_users_count,
                          total_reports=total_reports,
                          db_status=db_connected,
-                         recent_activity=[],  # Placeholder for recent activity
                          pending_users_list=pending_users_list,
                          storage_location=storage_location,
                          company_logo=company_logo,
@@ -165,8 +148,7 @@ def admin():
 @no_cache
 def engineer():
     """Engineer dashboard"""
-    from models import Report, Notification
-    import json
+    from models import Notification
     current_app.logger.info(f"Fetching dashboard for user: {current_user.email}")
 
     # Get unread notifications count
@@ -215,8 +197,7 @@ def engineer():
 @no_cache
 def automation_manager():
     """Automation Manager dashboard"""
-    from models import Report, Notification, SATReport
-    import json
+    from models import Notification, test_db_connection
 
     # Get unread notifications count
     try:
@@ -324,8 +305,8 @@ def automation_manager_reviews():
 @no_cache
 def pm():
     """Project Manager dashboard"""
-    from models import Report, Notification, SATReport
-    import json
+    from models import Notification
+
 
     # Get unread notifications count
     try:
@@ -536,6 +517,7 @@ def change_user_role(user_id):
 @admin_required
 def delete_user(user_id):
     """Delete a user permanently"""
+    from models import Notification
     user = User.query.get_or_404(user_id)
 
     if user.email == current_user.email:
@@ -547,7 +529,7 @@ def delete_user(user_id):
 
     try:
         # Delete associated notifications first (to maintain referential integrity)
-        from models import Notification
+
         Notification.query.filter_by(user_email=user_email).delete()
 
         # Delete the user
@@ -565,6 +547,7 @@ def delete_user(user_id):
 @admin_required
 def system_settings():
     """System settings page"""
+    from models import SystemSettings
     company_logo = SystemSettings.get_setting('company_logo', 'static/cully.png')
     storage_location = SystemSettings.get_setting('default_storage_location', '/outputs/')
 
@@ -576,6 +559,7 @@ def system_settings():
 @admin_required
 def update_settings():
     """Update system settings"""
+    from models import SystemSettings
     storage_location = request.form.get('storage_location', '').strip()
 
     if storage_location:
@@ -591,9 +575,7 @@ def update_settings():
 def refresh_cully_stats():
     """Manually refresh Cully statistics"""
     try:
-        from models import CullyStatistics
-        
-        current_app.logger.info("Admin triggered manual Cully statistics refresh")
+
         
         # Fetch updated statistics
         success = CullyStatistics.fetch_and_update_from_cully()
@@ -617,7 +599,7 @@ def refresh_cully_stats():
 def api_cully_stats():
     """API endpoint to get current Cully statistics"""
     try:
-        from models import CullyStatistics
+
         
         stats = CullyStatistics.get_current_statistics()
         stats_record = CullyStatistics.query.first()
@@ -636,9 +618,7 @@ def api_cully_stats():
 @admin_required
 def admin_reports():
     """Admin reports view - show all system reports"""
-    from models import Report, SATReport
-    import json
-    from datetime import datetime, timedelta
+
     
     try:
         # Calculate this month start for template
@@ -805,7 +785,6 @@ def api_admin_reports():
             title = 'Untitled Report'
             if hasattr(report, 'sat_report') and report.sat_report:
                 try:
-                    import json
                     data = json.loads(report.sat_report.data_json)
                     title = data.get('context', {}).get('DOCUMENT_TITLE', 'Untitled Report')
                 except:
@@ -815,7 +794,6 @@ def api_admin_reports():
             status = 'pending'
             if report.approvals_json:
                 try:
-                    import json
                     approvals = json.loads(report.approvals_json)
                     statuses = [a.get("status", "pending") for a in approvals]
                     if "rejected" in statuses:
@@ -889,7 +867,7 @@ def api_admin_stats():
 def debug_reports():
     """Debug endpoint to check report data"""
     try:
-        from models import Report, SATReport
+
         
         # Get basic report count
         total_reports = Report.query.count()
@@ -926,8 +904,8 @@ def debug_reports():
 @admin_required
 def revoke_approval(report_id):
     """Revoke approval for a report"""
-    from models import Report, Notification
-    import json
+    from models import Notification
+
     
     try:
         report = Report.query.get(report_id)
@@ -984,7 +962,6 @@ def revoke_approval(report_id):
 @admin_required
 def delete_report(report_id):
     """Delete a report permanently"""
-    from models import Report, SATReport
     
     try:
         # Get the report
@@ -1013,8 +990,6 @@ def delete_report(report_id):
 @role_required(['Engineer', 'Automation Manager', 'PM'])
 def my_reports():
     """View reports relevant to the current user"""
-    from models import Report, SATReport
-    import json
 
     # Build reports queryset based on role
     if current_user.role == 'Engineer':
@@ -1057,12 +1032,6 @@ def my_reports():
             current_app.logger.warning(f"Could not decode SATReport data for report ID: {report.id}")
             stored_data = {} # Handle malformed JSON
 
-        try:
-            approvals = json.loads(report.approvals_json) if report.approvals_json else []
-        except json.JSONDecodeError:
-            current_app.logger.warning(f"Could not decode approvals_json for report ID: {report.id}")
-            approvals = [] # Handle malformed JSON
-
         # Use the actual status from the database - DO NOT compute from approvals!
         # The status field in the database is the source of truth
         actual_status = report.status if report.status else 'DRAFT'
@@ -1090,8 +1059,7 @@ def my_reports():
 @role_required(['Automation Manager', 'Admin'])
 def reviews():
     """Reviews and Approvals page for Automation Manager"""
-    from models import Report, SATReport
-    import json
+
 
     # Get all reports that need approval by this Automation Manager
     pending_reviews = []
