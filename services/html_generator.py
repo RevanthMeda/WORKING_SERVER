@@ -28,78 +28,78 @@ def generate_report_html(context, output_path):
 
         # Document Information Table
         doc_info_html = f"""
-            <div class="section-title" style="font-weight: bold; font-size: 11pt; font-family: Calibri, sans-serif; margin-top: 20px; margin-bottom: 10px;">Document Information</div>
-            <table style="width: 100%; border-collapse: collapse; border: 1px solid black; font-family: Calibri, sans-serif; font-size: 11pt;">
-                <tr style="height: 36px;">
-                    <td style="width: 180px; border: 1px solid black; padding: 8px; background-color: #E6F3FF;">Document Title</td>
-                    <td style="border: 1px solid black; padding: 8px;">{ doc_title }</td>
+            <div class="section-title">Document Information</div>
+            <table class="info-table">
+                <tr>
+                    <td class="label">Document Title</td>
+                    <td class="value">{ doc_title }</td>
                 </tr>
-                <tr style="height: 36px;">
-                    <td style="width: 180px; border: 1px solid black; padding: 8px; background-color: #E6F3FF;">Project reference</td>
-                    <td style="border: 1px solid black; padding: 8px;">{ project_ref }</td>
+                <tr>
+                    <td class="label">Project reference</td>
+                    <td class="value">{ project_ref }</td>
                 </tr>
-                <tr style="height: 36px;">
-                    <td style="width: 180px; border: 1px solid black; padding: 8px; background-color: #E6F3FF;">Document Reference</td>
-                    <td style="border: 1px solid black; padding: 8px;">{ doc_ref }</td>
+                <tr>
+                    <td class="label">Document Reference</td>
+                    <td class="value">{ doc_ref }</td>
                 </tr>
-                <tr style="height: 36px;">
-                    <td style="width: 180px; border: 1px solid black; padding: 8px; background-color: #E6F3FF;">Date</td>
-                    <td style="border: 1px solid black; padding: 8px;">{ date }</td>
+                <tr>
+                    <td class="label">Date</td>
+                    <td class="value">{ date }</td>
                 </tr>
-                <tr style="height: 36px;">
-                    <td style="width: 180px; border: 1px solid black; padding: 8px; background-color: #E6F3FF;">Prepared for</td>
-                    <td style="border: 1px solid black; padding: 8px;">{ client_name }</td>
+                <tr>
+                    <td class="label">Prepared for</td>
+                    <td class="value">{ client_name }</td>
                 </tr>
-                <tr style="height: 36px;">
-                    <td style="width: 180px; border: 1px solid black; padding: 8px; background-color: #E6F3FF;">Revision</td>
-                    <td style="border: 1px solid black; padding: 8px;">{ revision }</td>
+                <tr>
+                    <td class="label">Revision</td>
+                    <td class="value">{ revision }</td>
                 </tr>
             </table>
         """
 
         # Document Approvals Table
         approvals_html = f"""
-            <div class="section-title" style="font-weight: bold; font-size: 11pt; font-family: Calibri, sans-serif; margin-top: 20px; margin-bottom: 10px;">Document Approvals</div>
-            <table style="width: 100%; border-collapse: collapse;">
+            <div class="section-title">Document Approvals</div>
+            <table>
                 <tr>
-                    <td class="label-cell" style="width: 1.88in; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt; background-color: #E6F3FF;">Prepared by</td>
-                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">{ prepared_by }</td>
-                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;"></td>
+                    <td class="label-cell">Prepared by</td>
+                    <td style="width: 40%;">{ prepared_by }</td>
+                    <td style="width: 40%;"></td>
                 </tr>
                 <tr>
-                    <td class="label-cell" style="width: 1.88in; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt; background-color: #E6F3FF;">Reviewed by</td>
-                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">{ reviewed_by_tech }</td>
-                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;"></td>
+                    <td class="label-cell">Reviewed by</td>
+                    <td style="width: 40%;">{ reviewed_by_tech }</td>
+                    <td style="width: 40%;"></td>
                 </tr>
                 <tr>
-                    <td class="label-cell" style="width: 1.88in; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt; background-color: #E6F3FF;">Reviewed by</td>
-                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">{ reviewed_by_pm }</td>
-                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;"></td>
+                    <td class="label-cell">Reviewed by</td>
+                    <td style="width: 40%;">{ reviewed_by_pm }</td>
+                    <td style="width: 40%;"></td>
                 </tr>
                 <tr>
-                    <td class="label-cell" style="width: 1.88in; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt; background-color: #E6F3FF;">Approval (Client)</td>
-                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">{ approved_by_client }</td>
-                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;"></td>
+                    <td class="label-cell">Approval (Client)</td>
+                    <td style="width: 40%;">{ approved_by_client }</td>
+                    <td style="width: 40%;"></td>
                 </tr>
             </table>
         """
 
         # Document Version Control Table
         version_control_html = f"""
-            <div class="section-title" style="font-weight: bold; font-size: 11pt; font-family: Calibri, sans-serif; margin-top: 20px; margin-bottom: 10px;">Document Version Control</div>
-            <table style="width: 100%; border-collapse: collapse;">
+            <div class="section-title">Document Version Control</div>
+            <table>
                 <thead>
                     <tr>
-                        <th style="border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">Revision Number</th>
-                        <th style="border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">Details</th>
-                        <th style="border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">Date</th>
+                        <th>Revision Number</th>
+                        <th>Details</th>
+                        <th>Date</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td style="border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">{ revision }</td>
-                        <td style="border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">{ revision_details }</td>
-                        <td style="border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">{ revision_date }</td>
+                        <td>{ revision }</td>
+                        <td>{ revision_details }</td>
+                        <td>{ revision_date }</td>
                     </tr>
                 </tbody>
             </table>
@@ -119,12 +119,19 @@ def generate_report_html(context, output_path):
     <meta charset="UTF-8">
     <style>
         body {{ font-family: Calibri, sans-serif; font-size: 11pt; }}
-        table {{ border-collapse: collapse; width: 100%; }}
-        th, td {{ border: 1px solid #000; padding: 8px; text-align: left; vertical-align: top; }}
+        table {{ border-collapse: collapse; width: 100%; font-family: Calibri, sans-serif; font-size: 11pt; }}
+        th, td {{ border: 1px solid black; padding: 8px; text-align: left; font-weight: normal; vertical-align: top; }}
         .header {{ padding-bottom: 10px; margin-bottom: 20px; text-align: right; }}
         .logo {{ width: 200px; height: auto; }}
-        .section-title {{ font-weight: bold; font-size: 11pt; margin-top: 20px; margin-bottom: 10px; }}
+        .section-title {{ font-weight: bold; font-size: 11pt; font-family: Calibri, sans-serif; margin-top: 20px; margin-bottom: 10px; }}
+        
+        /* General table cell styling */
         .label-cell {{ background-color: #E6F3FF; width: 1.88in; }}
+        
+        /* Info Table specific styles */
+        .info-table tr {{ height: 36px; }}
+        .info-table .label {{ background-color: #E6F3FF; width: 180px; }}
+        
         .footer {{ position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 10pt; color: #888; }}
         .confidentiality {{ margin-top: 40px; }}
     </style>
