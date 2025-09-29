@@ -1,6 +1,5 @@
 from flask import current_app
 import os
-from datetime import datetime
 
 def generate_report_html(context, output_path):
     """Generates an HTML report from context data for the first page."""
@@ -8,7 +7,6 @@ def generate_report_html(context, output_path):
         # --- DATA PREPARATION ---
         logo_path = os.path.join(current_app.root_path, 'static', 'cully.png').replace('\\', '/')
         
-        # Fallback data for when context is not fully populated
         doc_title = context.get('DOCUMENT_TITLE', '')
         project_ref = context.get('PROJECT_REFERENCE', '')
         doc_ref = context.get('DOCUMENT_REFERENCE', '')
@@ -24,89 +22,100 @@ def generate_report_html(context, output_path):
         revision_details = context.get('REVISION_DETAILS', '')
         revision_date = context.get('REVISION_DATE', '')
 
+        # --- STYLE DEFINITIONS FOR DOCX COMPATIBILITY ---
+        section_title_style = "font-weight: bold; font-size: 11pt; font-family: Calibri, sans-serif; margin-top: 20px; margin-bottom: 10px;"
+        table_style = "width: 100%; border-collapse: collapse; font-family: Calibri, sans-serif; font-size: 11pt;"
+        
+        # Styles for Document Info table
+        info_label_style = "width: 180px; height: 36px; border: 1px solid black; padding: 8px; background-color: #E6F3FF; font-family: Calibri, sans-serif; font-size: 11pt;"
+        info_value_style = "height: 36px; border: 1px solid black; padding: 8px; font-family: Calibri, sans-serif; font-size: 11pt;"
+
+        # Styles for Approvals table
+        approvals_label_style = "width: 1.88in; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt; background-color: #E6F3FF;"
+        approvals_value_style = "width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;"
+        
+        # Styles for Version Control table
+        header_style = "border: 1px solid black; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt; background-color: #E6F3FF;"
+        cell_style = "border: 1px solid black; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;"
+
         # --- HTML SNIPPET GENERATION ---
 
-        # Document Information Table
         doc_info_html = f"""
-            <div class="section-title">Document Information</div>
-            <table class="info-table">
+            <div style="{section_title_style}">Document Information</div>
+            <table style="{table_style}">
                 <tr>
-                    <td class="label">Document Title</td>
-                    <td class="value">{ doc_title }</td>
+                    <td style="{info_label_style}">Document Title</td>
+                    <td style="{info_value_style}">{doc_title}</td>
                 </tr>
                 <tr>
-                    <td class="label">Project reference</td>
-                    <td class="value">{ project_ref }</td>
+                    <td style="{info_label_style}">Project reference</td>
+                    <td style="{info_value_style}">{project_ref}</td>
                 </tr>
                 <tr>
-                    <td class="label">Document Reference</td>
-                    <td class="value">{ doc_ref }</td>
+                    <td style="{info_label_style}">Document Reference</td>
+                    <td style="{info_value_style}">{doc_ref}</td>
                 </tr>
                 <tr>
-                    <td class="label">Date</td>
-                    <td class="value">{ date }</td>
+                    <td style="{info_label_style}">Date</td>
+                    <td style="{info_value_style}">{date}</td>
                 </tr>
                 <tr>
-                    <td class="label">Prepared for</td>
-                    <td class="value">{ client_name }</td>
+                    <td style="{info_label_style}">Prepared for</td>
+                    <td style="{info_value_style}">{client_name}</td>
                 </tr>
                 <tr>
-                    <td class="label">Revision</td>
-                    <td class="value">{ revision }</td>
+                    <td style="{info_label_style}">Revision</td>
+                    <td style="{info_value_style}">{revision}</td>
                 </tr>
             </table>
         """
 
-        # Document Approvals Table
         approvals_html = f"""
-            <div class="section-title">Document Approvals</div>
-            <table>
+            <div style="{section_title_style}">Document Approvals</div>
+            <table style="{table_style}">
                 <tr>
-                    <td class="label-cell">Prepared by</td>
-                    <td style="width: 40%;">{ prepared_by }</td>
-                    <td style="width: 40%;"></td>
+                    <td style="{approvals_label_style}">Prepared by</td>
+                    <td style="{approvals_value_style}">{prepared_by}</td>
+                    <td style="{approvals_value_style}"></td>
                 </tr>
                 <tr>
-                    <td class="label-cell">Reviewed by</td>
-                    <td style="width: 40%;">{ reviewed_by_tech }</td>
-                    <td style="width: 40%;"></td>
+                    <td style="{approvals_label_style}">Reviewed by</td>
+                    <td style="{approvals_value_style}">{reviewed_by_tech}</td>
+                    <td style="{approvals_value_style}"></td>
                 </tr>
                 <tr>
-                    <td class="label-cell">Reviewed by</td>
-                    <td style="width: 40%;">{ reviewed_by_pm }</td>
-                    <td style="width: 40%;"></td>
+                    <td style="{approvals_label_style}">Reviewed by</td>
+                    <td style="{approvals_value_style}">{reviewed_by_pm}</td>
+                    <td style="{approvals_value_style}"></td>
                 </tr>
                 <tr>
-                    <td class="label-cell">Approval (Client)</td>
-                    <td style="width: 40%;">{ approved_by_client }</td>
-                    <td style="width: 40%;"></td>
+                    <td style="{approvals_label_style}">Approval (Client)</td>
+                    <td style="{approvals_value_style}">{approved_by_client}</td>
+                    <td style="{approvals_value_style}"></td>
                 </tr>
             </table>
         """
 
-        # Document Version Control Table
         version_control_html = f"""
-            <div class="section-title">Document Version Control</div>
-            <table>
+            <div style="{section_title_style}">Document Version Control</div>
+            <table style="{table_style}">
                 <thead>
                     <tr>
-                        <th>Revision Number</th>
-                        <th>Details</th>
-                        <th>Date</th>
+                        <th style="{header_style}">Revision Number</th>
+                        <th style="{header_style}">Details</th>
+                        <th style="{header_style}">Date</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td>{ revision }</td>
-                        <td>{ revision_details }</td>
-                        <td>{ revision_date }</td>
+                        <td style="{cell_style}">{revision}</td>
+                        <td style="{cell_style}">{revision_details}</td>
+                        <td style="{cell_style}">{revision_date}</td>
                     </tr>
                 </tbody>
             </table>
         """
 
-        # --- FULL HTML DOCUMENT ASSEMBLY ---
-        
         body_html = f"""
             {doc_info_html}
             {approvals_html}
@@ -117,37 +126,19 @@ def generate_report_html(context, output_path):
 <html>
 <head>
     <meta charset="UTF-8">
-    <style>
-        body {{ font-family: Calibri, sans-serif; font-size: 11pt; }}
-        table {{ border-collapse: collapse; width: 100%; font-family: Calibri, sans-serif; font-size: 11pt; }}
-        th, td {{ border: 1px solid black; padding: 8px; text-align: left; font-weight: normal; vertical-align: top; }}
-        .header {{ padding-bottom: 10px; margin-bottom: 20px; text-align: right; }}
-        .logo {{ width: 200px; height: auto; }}
-        .section-title {{ font-weight: bold; font-size: 11pt; font-family: Calibri, sans-serif; margin-top: 20px; margin-bottom: 10px; }}
-        
-        /* General table cell styling */
-        .label-cell {{ background-color: #E6F3FF; width: 1.88in; }}
-        
-        /* Info Table specific styles */
-        .info-table tr {{ height: 36px; }}
-        .info-table .label {{ background-color: #E6F3FF; width: 180px; }}
-        
-        .footer {{ position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 10pt; color: #888; }}
-        .confidentiality {{ margin-top: 40px; }}
-    </style>
 </head>
-<body>
-    <div class="header">
-        <img src="file:///{logo_path}" class="logo" alt="Cully Logo">
+<body style="font-family: Calibri, sans-serif; font-size: 11pt;">
+    <div style="padding-bottom: 10px; margin-bottom: 20px; text-align: right;">
+        <img src="file:///{logo_path}" style="width: 200px; height: auto;" alt="Cully Logo">
     </div>
 
     {body_html}
 
-    <div class="confidentiality">
+    <div style="margin-top: 40px;">
         <p><strong>Confidentiality Notice:</strong> This document contains confidential and proprietary information of Cully. Unauthorized distribution or reproduction is strictly prohibited.</p>
     </div>
     
-    <div class="footer">
+    <div style="position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 10pt; color: #888;">
         WWW.CULLY.IE
     </div>
 </body>
