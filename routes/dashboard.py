@@ -1,13 +1,12 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, make_response
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, make_response, session
 from flask_login import login_required, current_user
-from auth import admin_required, role_required
+from auth_utils import admin_required, role_required
 from models import db, User, Report, Notification, SystemSettings, SATReport, test_db_connection
 from utils import get_unread_count
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import joinedload
 from sqlalchemy import and_, or_, func
 import json
-from functools import wraps, lru_cache
-from datetime import datetime, timedelta
+from functools import wraps
 from services.dashboard_stats import get_cached_dashboard_stats, compute_and_cache_dashboard_stats
 
 EMPTY_DASHBOARD_STATS = {
@@ -181,7 +180,7 @@ def engineer():
         unread_count = 0
 
     # Get report statistics for current user
-    user_reports = Report.query.filter_by(user_email=current_user.email).all()
+    user_reports = Report.query.filter_by(user_email=current_user.email).order_by(Report.updated_at.desc()).all()
     current_app.logger.info(f"Found {len(user_reports)} reports for user {current_user.email}")
 
     # Calculate statistics
@@ -209,7 +208,7 @@ def engineer():
     }
     current_app.logger.info(f"Calculated stats: {stats}")
 
-    return render_template('engineer_dashboard.html', stats=stats, unread_count=unread_count)
+    return render_template('engineer_dashboard.html', stats=stats, reports=user_reports, unread_count=unread_count)
 
 @dashboard_bp.route('/automation_manager')
 @role_required(['Automation Manager'])

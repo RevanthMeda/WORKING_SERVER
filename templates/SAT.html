@@ -3639,6 +3639,26 @@
       alert('Progress saved successfully!');
     }
 
+    function autoSaveProgress() {
+      const formData = new FormData(document.getElementById('satForm'));
+      fetch('/auto_save_progress', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          console.log('Auto-saved progress');
+          // Optionally update a UI element to show the last saved time
+        } else {
+          console.error('Auto-save failed:', data.message);
+        }
+      })
+      .catch(error => {
+        console.error('Error during auto-save:', error);
+      });
+    }
+
     // Add missing functions that are referenced in the HTML
     function addRow(templateId, tbodyId) {
       console.log(`Adding row: template=${templateId}, tbody=${tbodyId}`);
