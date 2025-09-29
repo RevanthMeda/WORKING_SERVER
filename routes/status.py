@@ -3,7 +3,6 @@ import os
 import json
 from flask_login import current_user, login_required
 import datetime as dt
-import pypandoc
 
 status_bp = Blueprint('status', __name__)
 
@@ -100,20 +99,16 @@ def download_report(submission_id):
     try:
         # ... (database retrieval code remains the same)
 
-        # Generate fresh report using HTML and Pandoc
-        current_app.logger.info(f"Generating fresh report for submission {submission_id} using HTML and Pandoc")
-
+        # Generate fresh report using python-docx template layout
+        current_app.logger.info(f"Generating fresh report for submission {submission_id} using python-docx")
         # Define paths
-        html_temp_path = os.path.join(current_app.config['OUTPUT_DIR'], f'temp_{submission_id}.html')
         permanent_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.docx')
 
         # Remove existing files if they exist
         if os.path.exists(permanent_path):
             os.remove(permanent_path)
-        if os.path.exists(html_temp_path):
-            os.remove(html_temp_path)
 
-        from models import Report, SATReport, ReportVersion
+        from models import Report, SATReport
         report = Report.query.filter_by(id=submission_id).first()
         if not report:
             flash('Report not found.', 'error')
@@ -132,12 +127,8 @@ def download_report(submission_id):
         context_data = stored_data.get("context", {})
         if not context_data:
             context_data = stored_data
-
-        # --- Prepare context for the html_generator ---
-        approvals = json.loads(report.approvals_json) if report.approvals_json else []
-        version_history = ReportVersion.query.filter_by(report_id=submission_id).order_by(ReportVersion.created_at.asc()).all()
-
-        context = {
+        # --- Prepare context for the report generator ---
+        render_context = {
             'DOCUMENT_TITLE': context_data.get('DOCUMENT_TITLE', 'SAT Report'),
             'PROJECT_REFERENCE': context_data.get('PROJECT_REFERENCE', ''),
             'DOCUMENT_REFERENCE': context_data.get('DOCUMENT_REFERENCE', submission_id),
@@ -145,39 +136,31 @@ def download_report(submission_id):
             'CLIENT_NAME': context_data.get('CLIENT_NAME', ''),
             'REVISION': context_data.get('REVISION', '1.0'),
             'PREPARED_BY': context_data.get('PREPARED_BY', ''),
+            'SIG_PREPARED': context_data.get('SIG_PREPARED', ''),
+            'PREPARER_DATE': context_data.get('PREPARER_DATE', ''),
             'REVIEWED_BY_TECH_LEAD': context_data.get('REVIEWED_BY_TECH_LEAD', ''),
+            'SIG_REVIEW_TECH': context_data.get('SIG_REVIEW_TECH', ''),
+            'TECH_LEAD_DATE': context_data.get('TECH_LEAD_DATE', ''),
             'REVIEWED_BY_PM': context_data.get('REVIEWED_BY_PM', ''),
+            'SIG_REVIEW_PM': context_data.get('SIG_REVIEW_PM', ''),
+            'PM_DATE': context_data.get('PM_DATE', ''),
             'APPROVED_BY_CLIENT': context_data.get('APPROVED_BY_CLIENT', ''),
+            'SIG_APPROVAL_CLIENT': context_data.get('SIG_APPROVAL_CLIENT', ''),
+            'CLIENT_APPROVAL_DATE': context_data.get('CLIENT_APPROVAL_DATE', ''),
             'REVISION_DETAILS': context_data.get('REVISION_DETAILS', ''),
             'REVISION_DATE': context_data.get('REVISION_DATE', ''),
         }
 
-        from services.html_generator import generate_report_html
-        
-        # Generate the HTML file
-        success = generate_report_html(context, html_temp_path)
+        from services.html_generator import generate_report_docx
+
+        success = generate_report_docx(render_context, permanent_path)
 
         if not success:
-            flash('Error generating HTML for the report.', 'error')
+            flash('Error generating the SAT report document.', 'error')
             return redirect(url_for('status.view_status', submission_id=submission_id))
-
-        # --- Convert HTML to DOCX using Pandoc ---
-        try:
-            pypandoc.download_pandoc()
-            reference_doc_path = os.path.join(current_app.root_path, 'templates', 'SAT_template.docx')
-            extra_args = [f'--reference-doc={reference_doc_path}']
-            pypandoc.convert_file(html_temp_path, 'docx', outputfile=permanent_path, extra_args=extra_args)
-        except (OSError, RuntimeError) as e:
-            current_app.logger.error(f"Pandoc conversion failed: {e}", exc_info=True)
-            flash('Error converting report to DOCX. Please ensure Pandoc is installed and accessible.', 'error')
-            return redirect(url_for('status.view_status', submission_id=submission_id))
-
-        # --- Clean up temporary HTML file ---
-        if os.path.exists(html_temp_path):
-            os.remove(html_temp_path)
 
         # --- Create download name ---
-        project_number = context_data.get("project_reference", "").strip()
+        project_number = context_data.get('PROJECT_REFERENCE', '').strip()
         if not project_number:
             project_number = submission_id[:8]
             
