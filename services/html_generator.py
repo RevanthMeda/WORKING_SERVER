@@ -117,6 +117,7 @@ def generate_report_html(context, output_path):
         """
 
         body_html = f"""
+            <h1 style="color: red;">DEBUG TEST v1</h1>
             {doc_info_html}
             {approvals_html}
             {version_control_html}
