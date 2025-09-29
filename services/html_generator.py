@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from typing import Any, Dict
 
+from docx.oxml.ns import qn
+from docx.oxml.parser import OxmlElement
 from docxtpl import DocxTemplate
 from flask import current_app
 
@@ -117,6 +119,10 @@ def _apply_document_properties(template: DocxTemplate, context: Dict[str, Any]) 
             revision_value = int(digits) or 1
             document.core_properties.revision = revision_value
 
-    document.settings.update_fields = True
-
+    # create element
+    update_fields = OxmlElement("w:updateFields")
+    # set attribute to true
+    update_fields.set(qn("w:val"), "true")
+    # add element to settings
+    document.settings.element.append(update_fields)
 
