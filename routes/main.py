@@ -589,10 +589,10 @@ def generate():
         DATA_VALIDATION = process_table_rows(
             request.form,
             {
-                'Validation_Tag[]': 'Tag',
-                'Validation_Range[]': 'Range',
-                'Validation_SCADA Value[]': 'SCADA Value',
-                'Validation_HMI Value[]': 'HMI Value'
+                'data_validation_tag[]': 'Tag',
+                'data_validation_range[]': 'Range',
+                'data_validation_scada_value[]': 'SCADA Value',
+                'data_validation_hmi_value[]': 'HMI Value'
             }
         )
 

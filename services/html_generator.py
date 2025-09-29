@@ -101,13 +101,22 @@ def _apply_document_properties(template: DocxTemplate, context: Dict[str, Any]) 
     title = (context or {}).get("DOCUMENT_TITLE") or ""
     revision = (context or {}).get("REVISION") or ""
     document = template.docx
+
     if title:
         document.core_properties.subject = title
-        document.core_properties.title = title
-    if revision:
-        document.core_properties.version = str(revision)
-        digits = ''.join(ch for ch in str(revision) if ch.isdigit())
+
+    revision_text = str(revision).strip()
+    display_title = revision_text or title
+    if display_title:
+        document.core_properties.title = display_title
+
+    if revision_text:
+        document.core_properties.version = revision_text
+        digits = ''.join(ch for ch in revision_text if ch.isdigit())
         if digits:
             revision_value = int(digits) or 1
             document.core_properties.revision = revision_value
+
+    document.settings.update_fields = True
+
 

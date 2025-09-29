@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+        
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
@@ -2501,6 +2502,41 @@
 
             <div class="data-card">
               <div class="card-header">
+                <span>Data Validation</span>
+              </div>
+              <div class="card-body">
+                <div class="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Tag</th><th>Range</th><th>SCADA Value</th><th>HMI Value</th><th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="data-validation-body">
+                      {% for row in submission_data.DATA_VALIDATION %}
+                      <tr>
+                        <td><input name="data_validation_tag[]" value="{{ row.Tag }}"/></td>
+                        <td><input name="data_validation_range[]" value="{{ row.Range }}"/></td>
+                        <td><input name="data_validation_scada_value[]" value="{{ row['SCADA Value'] }}"/></td>
+                        <td><input name="data_validation_hmi_value[]" value="{{ row['HMI Value'] }}"/></td>
+                        <td>
+                          <button type="button" class="btn-remove" onclick="removeRow(this)">
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                <button type="button" class="btn btn-add" onclick="addRow('tmpl-data-validation', 'data-validation-body')">
+                  <i class="fas fa-plus"></i> Add Data Validation
+                </button>
+              </div>
+            </div>
+
+            <div class="data-card">
+              <div class="card-header">
                 <span>Modbus Analogue Signals</span>
               </div>
               <div class="card-body">
@@ -3020,6 +3056,19 @@
             <td><input name="modbus_analogue_comment[]" placeholder="Comment"/></td>
             <td>
               <button type="button" class="btn-remove remove-row-btn" onclick="removeRow(this)">
+                <i class="fas fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        </template>
+        <template id="tmpl-data-validation">
+          <tr>
+            <td><input name="data_validation_tag[]" placeholder="Tag"/></td>
+            <td><input name="data_validation_range[]" placeholder="Range"/></td>
+            <td><input name="data_validation_scada_value[]" placeholder="SCADA Value"/></td>
+            <td><input name="data_validation_hmi_value[]" placeholder="HMI Value"/></td>
+            <td>
+              <button type="button" class="btn-remove" onclick="removeRow(this)">
                 <i class="fas fa-trash"></i>
               </button>
             </td>
@@ -3913,6 +3962,10 @@
         populateTableSection('analogue-outputs-body', tables.analog_outputs, 'analogue_output');
       }
 
+      if (tables.data_validation) {
+        populateTableSection('data-validation-body', tables.data_validation, 'data_validation');
+      }
+
       showStatusMessage('I/O tables populated in Step 8. You can now continue to testing.', 'success');
     }
 
@@ -3936,6 +3989,14 @@
             <td><input name="${prefix}_punch[]" placeholder="Punch Item"></td>
             <td><input name="${prefix}_verified[]" placeholder="Verified By"></td>
             <td><input name="${prefix}_comment[]" placeholder="Comment"></td>
+            <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+          `;
+        } else if (prefix === 'data_validation') {
+          row.innerHTML = `
+            <td><input name="${prefix}_tag[]" value="${item.tag || item.Tag || ''}"></td>
+            <td><input name="${prefix}_range[]" value="${item.range || item.Range || ''}"></td>
+            <td><input name="${prefix}_scada_value[]" value="${item.scada_value || item['SCADA Value'] || ''}"></td>
+            <td><input name="${prefix}_hmi_value[]" value="${item.hmi_value || item['HMI Value'] || ''}"></td>
             <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
           `;
         } else {
