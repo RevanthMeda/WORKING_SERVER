@@ -9,21 +9,20 @@ def generate_report_html(context, output_path):
         logo_path = os.path.join(current_app.root_path, 'static', 'cully.png').replace('\\', '/')
         
         # Fallback data for when context is not fully populated
-        doc_title = context.get('document_title', 'Test')
-        project_ref = context.get('project_reference', 'TEST-123')
-        doc_ref = context.get('document_reference', 'test-doc-12')
-        date = context.get('date', datetime.now().strftime('%Y-%m-%d'))
-        client_name = context.get('client_name', 'test')
-        revision = context.get('revision', 'R0')
-        revision_details = context.get('revision_details', 'test')
-        revision_date = context.get('revision_date', datetime.now().strftime('%Y-%m-%d'))
+        doc_title = context.get('DOCUMENT_TITLE', '')
+        project_ref = context.get('PROJECT_REFERENCE', '')
+        doc_ref = context.get('DOCUMENT_REFERENCE', '')
+        date = context.get('DATE', '')
+        client_name = context.get('CLIENT_NAME', '')
+        revision = context.get('REVISION', '')
+        
+        prepared_by = context.get('PREPARED_BY', '')
+        reviewed_by_tech = context.get('REVIEWED_BY_TECH_LEAD', '')
+        reviewed_by_pm = context.get('REVIEWED_BY_PM', '')
+        approved_by_client = context.get('APPROVED_BY_CLIENT', '')
 
-        approvals = context.get('approvals', [
-            {'role': 'Prepared by', 'name': 'Revanth'},
-            {'role': 'Reviewed by', 'name': 'Jinnu'},
-            {'role': 'Reviewed by', 'name': 'Dazel'},
-            {'role': 'Approval (Client)', 'name': 'Test'}
-        ])
+        revision_details = context.get('REVISION_DETAILS', '')
+        revision_date = context.get('REVISION_DATE', '')
 
         # --- HTML SNIPPET GENERATION ---
 
@@ -56,23 +55,32 @@ def generate_report_html(context, output_path):
                     <td style="border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">{ revision }</td>
                 </tr>
             </table>
-        "
+        """
 
         # Document Approvals Table
-        approvals_rows = ""
-        for approval in approvals:
-            approvals_rows += f"""
-                <tr>
-                    <td class="label-cell" style="border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt; background-color: #E6F3FF;">{approval.get('role', '')}</td>
-                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">{approval.get('name', '')}</td>
-                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;"></td>
-                </tr>
-            """
-        
         approvals_html = f"""
             <div class="section-title" style="font-weight: bold; font-size: 11pt; font-family: Calibri, sans-serif; margin-top: 20px; margin-bottom: 10px;">Document Approvals</div>
             <table style="width: 100%; border-collapse: collapse;">
-                {approvals_rows}
+                <tr>
+                    <td class="label-cell" style="width: 1.88in; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt; background-color: #E6F3FF;">Prepared by</td>
+                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">{ prepared_by }</td>
+                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;"></td>
+                </tr>
+                <tr>
+                    <td class="label-cell" style="width: 1.88in; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt; background-color: #E6F3FF;">Reviewed by</td>
+                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">{ reviewed_by_tech }</td>
+                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;"></td>
+                </tr>
+                <tr>
+                    <td class="label-cell" style="width: 1.88in; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt; background-color: #E6F3FF;">Reviewed by</td>
+                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">{ reviewed_by_pm }</td>
+                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;"></td>
+                </tr>
+                <tr>
+                    <td class="label-cell" style="width: 1.88in; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt; background-color: #E6F3FF;">Approval (Client)</td>
+                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;">{ approved_by_client }</td>
+                    <td style="width: 40%; border: 1px solid #000; padding: 8px; text-align: left; font-family: Calibri, sans-serif; font-size: 11pt;"></td>
+                </tr>
             </table>
         """
 

@@ -138,14 +138,18 @@ def download_report(submission_id):
         version_history = ReportVersion.query.filter_by(report_id=submission_id).order_by(ReportVersion.created_at.asc()).all()
 
         context = {
-            'document_title': context_data.get('document_title', 'SAT Report'),
-            'project_reference': context_data.get('project_reference', ''),
-            'document_reference': context_data.get('document_reference', submission_id),
-            'date': context_data.get('date', ''),
-            'client_name': context_data.get('client_name', ''),
-            'revision': context_data.get('revision', '1.0'),
-            'approvals': approvals,
-            'version_history': version_history,
+            'DOCUMENT_TITLE': context_data.get('DOCUMENT_TITLE', 'SAT Report'),
+            'PROJECT_REFERENCE': context_data.get('PROJECT_REFERENCE', ''),
+            'DOCUMENT_REFERENCE': context_data.get('DOCUMENT_REFERENCE', submission_id),
+            'DATE': context_data.get('DATE', ''),
+            'CLIENT_NAME': context_data.get('CLIENT_NAME', ''),
+            'REVISION': context_data.get('REVISION', '1.0'),
+            'PREPARED_BY': context_data.get('PREPARED_BY', ''),
+            'REVIEWED_BY_TECH_LEAD': context_data.get('REVIEWED_BY_TECH_LEAD', ''),
+            'REVIEWED_BY_PM': context_data.get('REVIEWED_BY_PM', ''),
+            'APPROVED_BY_CLIENT': context_data.get('APPROVED_BY_CLIENT', ''),
+            'REVISION_DETAILS': context_data.get('REVISION_DETAILS', ''),
+            'REVISION_DATE': context_data.get('REVISION_DATE', ''),
         }
 
         from services.html_generator import generate_report_html
