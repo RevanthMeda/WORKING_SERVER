@@ -214,7 +214,15 @@ def list_submissions():
     from models import Report, SATReport
 
     try:
-        reports = Report.query.order_by(Report.created_at.desc()).all()
+        # SQLAlchemy attaches columns dynamically; getattr avoids static analysis warnings.
+        created_at_column = getattr(Report, 'created_at', None)
+        query = Report.query
+        if created_at_column is not None:
+            query = query.order_by(created_at_column.desc())
+        else:
+            fallback_id = getattr(Report, 'id')
+            query = query.order_by(fallback_id.desc())
+        reports = query.all()
         submission_list = []
 
         for report in reports:
