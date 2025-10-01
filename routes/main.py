@@ -1,8 +1,13 @@
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
-from flask_login import login_required, current_user
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify, send_file
+from flask_login import current_user
 from models import db, Report, SATReport, CullyStatistics
+from auth import login_required
 import json
+import os
+import uuid
+import datetime as dt
+from datetime import datetime
 
 main_bp = Blueprint('main', __name__)
 
@@ -51,23 +56,7 @@ def edit_submission(submission_id):
     # If user can edit, redirect to the SAT wizard with the submission ID
     return redirect(url_for('reports.sat_wizard', submission_id=submission_id))
 
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash, send_file, current_app
-from flask_login import current_user
-from auth import login_required
-import json
-import os
-import uuid
-import datetime as dt
-from datetime import datetime
 
-try:
-    from models import db, Report, SATReport, test_db_connection
-except ImportError as e:
-    print(f"Warning: Could not import models: {e}")
-    db = None
-    Report = None
-    SATReport = None
-    test_db_connection = lambda: False
 
 try:
     from utils import (load_submissions, save_submissions, send_edit_link,
@@ -168,11 +157,7 @@ def create_new_submission_notification(admin_emails, submission_id, document_tit
         return False
 
 
-@login_required
-def index():
-    """Render the main form with empty data for a new submission"""
-    # Redirect to SAT form if user is logged in and it's the main entry point
-    return redirect(url_for('main.sat_form'))
+
 
 @main_bp.route('/sat_form', methods=['GET'])
 @login_required
@@ -189,53 +174,7 @@ def sat_form():
         user_role=current_user.role if hasattr(current_user, 'role') else 'user'
     )
 
-@main_bp.route('/edit/<submission_id>')
-@login_required  
-def edit_submission(submission_id):
-    """Edit an existing submission (if not yet locked)"""
-    try:
-        from models import Report, SATReport
 
-        # Get report from database
-        report = Report.query.get(submission_id)
-        if not report:
-            flash("Submission not found", "error")
-            return redirect(url_for('main.index'))
-
-        # Check if the current user is authorized to edit based on approval status
-        if report.locked:
-            flash("This submission is locked and cannot be edited", "warning")
-            return redirect(url_for('status.view_status', submission_id=submission_id))
-
-        # Check if the current user is authorized to edit
-        if current_user.role != 'admin' and report.user_email != current_user.email:
-            flash("You are not authorized to edit this submission.", "error")
-            return redirect(url_for('main.index'))
-
-        # Get SAT report data
-        sat_report = SATReport.query.filter_by(report_id=submission_id).first()
-        if not sat_report:
-            flash("SAT report data not found", "error")
-            return redirect(url_for('main.index'))
-
-        # Parse the stored data
-        stored_data = json.loads(sat_report.data_json)
-        context_data = stored_data.get("context", {})
-
-        # Get unread notifications count
-        unread_count = get_unread_count()
-
-        return render_template('SAT.html',
-                              submission_data=context_data,
-                              submission_id=submission_id,
-                              unread_count=unread_count,
-                              user_role=current_user.role if hasattr(current_user, 'role') else 'user',
-                              edit_mode=True)
-    except Exception as e:
-        current_app.logger.error(f"Error in edit_submission: {e}", exc_info=True)
-        current_app.logger.error(f"Template rendering error: {str(e)}")
-        flash("An error occurred while loading the submission", "error")
-        return redirect(url_for('dashboard.my_reports'))
 
 @main_bp.route('/generate', methods=['POST'])
 @login_required
