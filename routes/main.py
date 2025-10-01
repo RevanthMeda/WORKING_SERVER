@@ -4,7 +4,8 @@ from flask_login import current_user
 from models import db, Report, SATReport, CullyStatistics
 from auth import login_required
 import json
-from services.sat_tables import extract_ui_tables, build_doc_tables, migrate_context_tables
+from services.sat_tables import extract_ui_tables, build_doc_tables, migrate_context_tables, TABLE_CONFIG
+TABLE_UI_KEYS = [cfg['ui_section'] for cfg in TABLE_CONFIG]
 import os
 import uuid
 import datetime as dt
@@ -492,6 +493,30 @@ def generate():
             "updated_at": dt.datetime.now().isoformat()
         }
 
+        for table_key in TABLE_UI_KEYS:
+            submission_data[table_key] = context_to_store.get(table_key, [])
+
+        try:
+            submissions = load_submissions()
+            if isinstance(submissions, list):
+                submissions = {}
+            submissions[submission_id] = submission_data
+            save_submissions(submissions)
+        except Exception as save_error:
+            current_app.logger.info(f"Could not persist final snapshot to file: {save_error}")
+        for table_key in TABLE_UI_KEYS:
+            submission_data[table_key] = context.get(table_key, [])
+
+        try:
+            submissions = load_submissions()
+            if isinstance(submissions, list):
+                submissions = {}
+            submissions[submission_id] = submission_data
+            save_submissions(submissions)
+        except Exception as save_error:
+            current_app.logger.warning(f"Could not persist progress snapshot to file: {save_error}")
+
+
         # Update SAT report data
         sat_report.data_json = json.dumps(submission_data)
         sat_report.date = context_to_store.get('DATE', '')
@@ -731,6 +756,30 @@ def save_progress():
             "auto_saved": True  # Mark as auto-saved
         }
 
+        for table_key in TABLE_UI_KEYS:
+            submission_data[table_key] = context.get(table_key, [])
+
+        try:
+            submissions = load_submissions()
+            if isinstance(submissions, list):
+                submissions = {}
+            submissions[submission_id] = submission_data
+            save_submissions(submissions)
+        except Exception as save_error:
+            current_app.logger.debug(f"Auto-save snapshot file update skipped: {save_error}")
+
+        for table_key in TABLE_UI_KEYS:
+            submission_data[table_key] = context.get(table_key, [])
+
+        try:
+            submissions = load_submissions()
+            if isinstance(submissions, list):
+                submissions = {}
+            submissions[submission_id] = submission_data
+            save_submissions(submissions)
+        except Exception as save_error:
+            current_app.logger.debug(f"Auto-save snapshot file update skipped: {save_error}")
+
         # Update SAT report data
         sat_report.data_json = json.dumps(submission_data)
         sat_report.date = context.get('DATE', '')
@@ -753,6 +802,8 @@ def save_progress():
             'success': False,
             'message': f'Auto-save failed: {str(e)}'
         }), 500
+
+
 
 
 
