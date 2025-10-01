@@ -61,7 +61,7 @@ def edit_submission(submission_id):
 
 try:
     from utils import (load_submissions, save_submissions, send_edit_link,
-                  setup_approval_workflow, process_table_rows, handle_image_removals,
+                  setup_approval_workflow, setup_approval_workflow_db, process_table_rows, handle_image_removals,
                   allowed_file, save_uploaded_file, generate_sat_report as create_docx_from_template)
 except ImportError as e:
     print(f"Warning: Could not import utils: {e}")
@@ -74,25 +74,6 @@ def get_unread_count():
     """Placeholder for getting unread notification count"""
     # Replace with actual implementation if available
     return 0
-
-def setup_approval_workflow_db(report, approver_emails):
-    """Set up approval workflow for database-stored reports"""
-    approvals = []
-    valid_emails = [email for email in approver_emails if email]
-
-    for i, email in enumerate(valid_emails, 1):
-        approvals.append({
-            "stage": i,
-            "approver_email": email,
-            "status": "pending",
-            "approved_at": None,
-            "signature": None
-        })
-
-    # Reports should NOT be locked when pending approval
-    # They should only be locked when approved
-    locked = False
-    return approvals, locked
 
 def send_approval_link(email, submission_id, stage):
     """Send approval link to approver"""

@@ -646,6 +646,63 @@ def process_table_rows(form_data, field_mappings, *, add_placeholder=True):
 
     return rows
 
+def setup_approval_workflow_db(report, approver_emails=None):
+    """Create or refresh the approval workflow rows for a database-backed report."""
+    approver_emails = approver_emails or []
+    valid_emails = [email for email in approver_emails if email]
+
+    approvals = []
+    locked = False
+
+    existing = []
+    if getattr(report, 'approvals_json', None):
+        try:
+            existing = json.loads(report.approvals_json) or []
+        except (TypeError, ValueError, json.JSONDecodeError):
+            existing = []
+
+    if existing:
+        approvals = existing
+        for idx, approval in enumerate(approvals):
+            if idx < len(valid_emails) and valid_emails[idx]:
+                if approval.get('status') == 'pending':
+                    approval['approver_email'] = valid_emails[idx]
+        locked = any(
+            approval.get('status') == 'approved' and approval.get('stage', 0) > 1
+            for approval in approvals
+        )
+        return approvals, locked
+
+    default_approvers = current_app.config.get('DEFAULT_APPROVERS', [])
+    if not valid_emails and default_approvers:
+        valid_emails = [
+            approver.get('approver_email')
+            for approver in default_approvers
+            if approver.get('approver_email')
+        ]
+        stages = [
+            approver.get('stage') or idx + 1
+            for idx, approver in enumerate(default_approvers)
+        ]
+    else:
+        stages = list(range(1, len(valid_emails) + 1))
+
+    if not valid_emails:
+        return approvals, locked
+
+    for idx, email in enumerate(valid_emails):
+        stage = stages[idx] if idx < len(stages) else idx + 1
+        approvals.append({
+            'stage': stage,
+            'approver_email': email,
+            'status': 'pending',
+            'approved_at': None,
+            'signature': None,
+            'comment': ''
+        })
+
+    return approvals, locked
+
 def handle_image_removals(form_data, removal_field_name, url_list):
     """Handle removal of images marked for deletion"""
     try:
