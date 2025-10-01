@@ -201,15 +201,17 @@ def sat_wizard():
         try:
             stored_data = json.loads(sat_report.data_json)
             context_data = stored_data.get('context', {})
+            base_data = _build_empty_sat_submission()
+            submission_data = _merge_sat_submission_data(base_data, context_data)
         except:
-            context_data = {}
+            submission_data = _build_empty_sat_submission()
         
         # Get unread notifications count
         unread_count = get_unread_count()
         
         # Render the SAT form with existing data for editing
         return render_template('SAT.html',
-                             submission_data=context_data,
+                             submission_data=submission_data,
                              submission_id=submission_id,
                              unread_count=unread_count,
                              user_role=current_user.role if hasattr(current_user, 'role') else 'user',
