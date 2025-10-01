@@ -2,7 +2,17 @@
 
 This is a comprehensive Flask-based web application for generating System Acceptance Testing (SAT) reports, specifically designed for Cully Automation. The application provides a complete user management system with role-based access control, admin approval workflows, and multi-step report generation capabilities. Users can create detailed SAT reports through a guided interface, with built-in approval workflows for Technical Managers and Project Managers, and automated document generation in Word and PDF formats.
 
-## Recent Updates (September 14, 2025)
+## Recent Updates
+
+### October 1, 2025 - Replit Environment Setup
+- Configured application for Replit deployment
+- Created main.py entry point for gunicorn server
+- Set up workflow with gunicorn (2 workers, 120s timeout, auto-reload)
+- Created stub cache modules for non-Redis environments
+- Configured deployment for autoscale with proper gunicorn settings
+- Verified application is running successfully on port 5000
+
+### September 14, 2025
 - Fixed report status persistence - reports now correctly maintain DRAFT status across browser sessions
 - Restored edit functionality - users can now properly edit DRAFT and PENDING reports
 - Fixed manager dashboards - approval workflows now display pending reports correctly
