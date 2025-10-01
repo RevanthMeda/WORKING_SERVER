@@ -108,6 +108,8 @@ def new_sat_full():
             source_report = Report.query.filter_by(id=template_id).first()
             if not source_report:
                 flash('Source report could not be found.', 'warning')
+            elif source_report.status.upper() == 'DRAFT':
+                flash('A new report cannot be created from a draft.', 'warning')
             else:
                 sat_report = SATReport.query.filter_by(report_id=template_id).first()
                 if sat_report and sat_report.data_json:
