@@ -813,7 +813,7 @@ def generate():
     except Exception as e:
         current_app.logger.error(f"Error in generate: {e}", exc_info=True)
         flash(f"An error occurred while generating the report: {str(e)}", "error")
-        return redirect(url_for('main.index'))
+        return redirect(url_for('index'))
 
 @main_bp.route('/save_progress', methods=['POST'])
 @login_required

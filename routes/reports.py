@@ -117,7 +117,19 @@ def new_sat_full():
         submission_data = _build_empty_sat_submission()
         prefill_source = None
 
-
+        template_id = request.args.get('template_id')
+        if template_id:
+            template_report = Report.query.get(template_id)
+            if template_report:
+                sat_template = SATReport.query.filter_by(report_id=template_id).first()
+                if sat_template and sat_template.data_json:
+                    try:
+                        template_data = json.loads(sat_template.data_json)
+                        context_data = template_data.get('context', {})
+                        submission_data = _merge_sat_submission_data(submission_data, context_data)
+                        prefill_source = template_report
+                    except json.JSONDecodeError:
+                        flash('Could not load template data.', 'error')
 
         if current_user.is_authenticated:
             submission_data['USER_EMAIL'] = current_user.email
