@@ -167,9 +167,7 @@ def create_new_submission_notification(admin_emails, submission_id, document_tit
         current_app.logger.error(f"Error creating submission notifications: {e}")
         return False
 
-main_bp = Blueprint('main', __name__)
 
-@main_bp.route('/')
 @login_required
 def index():
     """Render the main form with empty data for a new submission"""
@@ -253,7 +251,7 @@ def generate():
         from models import db, Report, SATReport
 
         # Retrieve submission id and current report
-        submission_id = request.form.get("submission_id", "")
+        submission_id = request.form.get("submission_id", "").strip()
 
         # Create a new submission ID if needed
         if not submission_id:
@@ -886,7 +884,7 @@ def save_progress():
         from models import db, Report, SATReport
 
         # Get submission ID or create new one
-        submission_id = request.form.get("submission_id", "")
+        submission_id = request.form.get("submission_id", "").strip()
         if not submission_id:
             submission_id = str(uuid.uuid4())
 
@@ -1202,7 +1200,7 @@ def auto_save_progress():
         from models import db, Report, SATReport
 
         # Get submission ID or create new one
-        submission_id = request.form.get("submission_id", "")
+        submission_id = request.form.get("submission_id", "").strip()
         if not submission_id:
             submission_id = str(uuid.uuid4())
 
