@@ -148,14 +148,6 @@ def login():
                     flash('Login successful!', 'success')
                     current_app.logger.info(f"User {user.email} logged in with session {session_id}")
 
-                    # Check for incomplete drafts
-                    if user.role == 'Engineer':
-                        from models import Report
-                        draft_report = Report.query.filter_by(user_email=user.email, status='DRAFT').order_by(Report.updated_at.desc()).first()
-                        if draft_report:
-                            flash('You have an incomplete draft. Resuming your session.', 'info')
-                            return redirect(url_for('main.edit_submission', submission_id=draft_report.id))
-
                     # Role-based dashboard redirect
                     if user.role == 'Admin':
                         return redirect(url_for('dashboard.admin'))
