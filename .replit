@@ -6,7 +6,7 @@ channel = "stable-25_05"
 packages = ["cargo", "freetype", "lcms2", "libiconv", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "libyaml", "openjpeg", "openssl", "pandoc", "pkg-config", "postgresql", "rustc", "sqlite-interactive", "tcl", "tk", "xcodebuild", "zlib"]
 
 [deployment]
-run = ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]
+run = ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "main:app"]
 deploymentTarget = "autoscale"
 build = ["pip", "install", "-r", "requirements.txt"]
 
