@@ -103,36 +103,7 @@ def new_sat_full():
         submission_data = _build_empty_sat_submission()
         prefill_source = None
 
-        template_id = request.args.get('template_id') or request.args.get('source_id')
-        if template_id:
-            source_report = Report.query.filter_by(id=template_id).first()
-            if not source_report:
-                flash('Source report could not be found.', 'warning')
-            elif source_report.status.upper() == 'DRAFT':
-                flash('A new report cannot be created from a draft.', 'warning')
-            else:
-                sat_report = SATReport.query.filter_by(report_id=template_id).first()
-                if sat_report and sat_report.data_json:
-                    try:
-                        stored_data = json.loads(sat_report.data_json)
-                        context_data = stored_data.get('context', stored_data)
-                        if isinstance(context_data, dict):
-                            submission_data = _merge_sat_submission_data(submission_data, context_data)
-                            prefill_source = {
-                                'id': template_id,
-                                'document_title': context_data.get('DOCUMENT_TITLE') or source_report.document_title or 'SAT Report',
-                                'client_name': context_data.get('CLIENT_NAME') or source_report.client_name,
-                                'project_reference': context_data.get('PROJECT_REFERENCE') or source_report.project_reference,
-                                'prepared_by': context_data.get('PREPARED_BY') or source_report.prepared_by,
-                            }
-                            flash('Report details pre-filled from existing submission.', 'success')
-                        else:
-                            flash('Existing report data could not be used to pre-fill the form.', 'warning')
-                    except (ValueError, TypeError) as parse_error:
-                        current_app.logger.warning('Failed to parse SAT data for template %s: %s', template_id, parse_error)
-                        flash('Could not read data from the selected report.', 'warning')
-                else:
-                    flash('No SAT data available on the selected report.', 'warning')
+
 
         if current_user.is_authenticated:
             submission_data['USER_EMAIL'] = current_user.email
