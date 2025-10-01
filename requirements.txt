@@ -100,3 +100,9 @@ waitress
 # gemini pacage
 google-generativeai
 pypandoc 
+docx
+email_validator
+flask
+flask-sqlalchemy
+gunicorn
+psycopg2-binary
