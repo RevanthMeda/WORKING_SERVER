@@ -148,17 +148,8 @@ def login():
                     flash('Login successful!', 'success')
                     current_app.logger.info(f"User {user.email} logged in with session {session_id}")
 
-                    # Role-based dashboard redirect
-                    if user.role == 'Admin':
-                        return redirect(url_for('dashboard.admin'))
-                    elif user.role == 'Engineer':
-                        return redirect(url_for('dashboard.engineer'))
-                    elif user.role == 'Automation Manager':
-                        return redirect(url_for('dashboard.automation_manager'))
-                    elif user.role == 'PM':
-                        return redirect(url_for('dashboard.pm'))
-                    else:
-                        return redirect(url_for('dashboard.home'))
+                    # Always land on the main dashboard; role-specific redirects happen there
+                    return redirect(url_for('dashboard.home'))
                 else:
                     flash('Account status unknown. Please contact an administrator.', 'error')
                     return render_template('login.html')
@@ -350,3 +341,15 @@ def change_password():
             return render_template('change_password.html', unread_count=unread_count)
 
     return render_template('change_password.html', unread_count=unread_count)
+
+@auth_bp.route('/session/heartbeat', methods=['POST'])
+@login_required
+def session_heartbeat():
+    """Keep authenticated sessions alive during long-running form work."""
+    if not session_manager.is_session_valid():
+        session_manager.revoke_session()
+        return jsonify({'message': 'Session expired'}), 401
+
+    session['last_activity'] = time.time()
+    session.modified = True
+    return '', 204

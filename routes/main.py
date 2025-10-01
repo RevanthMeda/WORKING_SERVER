@@ -4,6 +4,7 @@ from flask_login import current_user
 from models import db, Report, SATReport, CullyStatistics
 from auth import login_required
 import json
+from services.sat_tables import extract_ui_tables, build_doc_tables, migrate_context_tables
 import os
 import uuid
 import datetime as dt
@@ -407,178 +408,22 @@ def generate():
         save_new("trends_screenshots[]", trends_urls, trends_image_objects)
         save_new("alarm_screenshots[]", alarm_urls, alarm_image_objects)
 
-        # Process related documents
-        related_documents = process_table_rows(
-            request.form,
-            {
-                'doc_ref[]': 'Document_Reference',
-                'doc_title[]': 'Document_Title'
-            }
-        )
-
-        # Skip Pre and Post Approvals processing since they're not used
-        PRE_APPROVALS = []
-        POST_APPROVALS = []
-
-        # Remove signature image processing since we're not using them
+        # Prepare signature placeholders
+        # Prepare signature placeholders (legacy fields retained for compatibility)
         SIG_PREPARED_BY = ""
         SIG_REVIEW_TECH = ""
         SIG_REVIEW_PM = ""
         SIG_APPROVAL_CLIENT = ""
 
-        # Process Pre-Test Requirements
-        PRE_TEST_REQUIREMENTS = process_table_rows(
-            request.form,
-            {
-                'pretest_item[]': 'Item',
-                'pretest_test[]': 'Test',
-                'pretest_method[]': 'Method_Test_Steps',
-                'pretest_acceptance[]': 'Acceptance_Criteria',
-                'pretest_result[]': 'Result',
-                'pretest_punch[]': 'Punch_Item',
-                'pretest_verified_by[]': 'Verified_by',
-                'pretest_comment[]': 'Comment'
-            }
-        )
-
-        # Process Key Components
-        KEY_COMPONENTS = process_table_rows(
-            request.form,
-            {
-                'keycomp_s_no[]': 'S.no',
-                'keycomp_model[]': 'Model',
-                'keycomp_description[]': 'Description',
-                'keycomp_remarks[]': 'Remarks'
-            }
-        )
-
-        # Process IP Records
-        IP_RECORDS = process_table_rows(
-            request.form,
-            {
-                'ip_device[]': 'Device_Name',
-                'ip_address[]': 'IP_Address',
-                'ip_comment[]': 'Comment'
-            }
-        )
-
-        # Process Digital Signals
-        SIGNAL_LISTS = process_table_rows(
-            request.form,
-            {
-                'S. No.[]': 'S. No.',
-                'Rack No.[]': 'Rack No.',
-                'Module Position[]': 'Module Position',
-                'Signal TAG[]': 'Signal TAG',
-                'Signal Description[]': 'Signal Description',
-                'Result[]': 'Result',
-                'Punch Item[]': 'Punch Item',
-                'Verified By[]': 'Verified By',
-                'Comment[]': 'Comment'
-            }
-        )
-
-        # Process Analogue Signals
-        ANALOGUE_LISTS = process_table_rows(
-            request.form,
-            {
-                'S. No. Analogue[]': 'S. No.',
-                'Rack No. Analogue[]': 'Rack No.',
-                'Module Position Analogue[]': 'Module Position',
-                'Signal TAG Analogue[]': 'Signal TAG',
-                'Signal Description Analogue[]': 'Signal Description',
-                'Result Analogue[]': 'Result',
-                'Punch Item Analogue[]': 'Punch Item',
-                'Verified By Analogue[]': 'Verified By',
-                'Comment Analogue[]': 'Comment'
-            }
-        )
-
-        # Process Modbus Digital Signals
-        MODBUS_DIGITAL_LISTS = process_table_rows(
-            request.form,
-            {
-                'Address[]': 'Address',
-                'Description[]': 'Description',
-                'Remarks[]': 'Remarks',
-                'Digital_Result[]': 'Result',
-                'Digital_Punch Item[]': 'Punch Item',
-                'Digital_Verified By[]': 'Verified By',
-                'Digital_Comment[]': 'Comment'
-            }
-        )
-
-        # Process Modbus Analogue Signals
-        MODBUS_ANALOGUE_LISTS = process_table_rows(
-            request.form,
-            {
-                'Address Analogue[]': ' Address',  # Note: space in name is intentional
-                'Description Analogue[]': 'Description',
-                'Range Analogue[]': 'Range',
-                'Result Analogue[]': 'Result',
-                'Punch Item Analogue[]': 'Punch Item',
-                'Verified By Analogue[]': 'Verified By',
-                'Comment Analogue[]': 'Comment'
-            }
-        )
-
-        # Process Data Validation
-        DATA_VALIDATION = process_table_rows(
-            request.form,
-            {
-                'data_validation_tag[]': 'Tag',
-                'data_validation_range[]': 'Range',
-                'data_validation_scada_value[]': 'SCADA Value',
-                'data_validation_hmi_value[]': 'HMI Value'
-            }
-        )
-
-        # Process Process Test
-        PROCESS_TEST = process_table_rows(
-            request.form,
-            {
-                'Process_Item[]': 'Item',
-                'Process_Action[]': 'Action',
-                'Process_Expected / Required Result[]': 'Expected / Required Result',
-                'Process_Pass/Fail[]': ' Pass/Fail ',  # Note: spaces in name are intentional
-                'Process_Comments[]': ' Comments '     # Note: spaces in name are intentional
-            }
-        )
-
-        # Process SCADA Verification
-        SCADA_VERIFICATION = process_table_rows(
-            request.form,
-            {
-                'SCADA_Task[]': 'Task',
-                'SCADA_Expected_Result[]': 'Expected Result',
-                'SCADA_Pass/Fail[]': 'Pass/Fail',
-                'SCADA_Comments[]': 'Comments'
-            }
-        )
-
-        # Process Trends Testing
-        TRENDS_TESTING = process_table_rows(
-            request.form,
-            {
-                'Trend[]': 'Trend',
-                'Expected Behavior[]': 'Expected Behavior',
-                'Pass/Fail Trend[]': 'Pass/Fail',
-                'Comments Trend[]': 'Comments'
-            }
-        )
-
-        # Process Alarm Signals
-        ALARM_LIST = process_table_rows(
-            request.form,
-            {
-                'Alarm_Type[]': 'Alarm Type',
-                'Expected / Required Result[]': ' Expected / Required Result',
-                'Pass/Fail []': ' Pass/Fail ',  # Note: spaces in name are intentional
-                'Comments []': ' Comments '     # Note: spaces in name are intentional
-            }
-        )
+        # Extract table data using the unified schema helpers
+        ui_tables = extract_ui_tables(request.form)
+        doc_tables = build_doc_tables(ui_tables)
+        legacy_tables = migrate_context_tables(existing_data.get('context', {}))
+        combined_tables = dict(legacy_tables)
+        combined_tables.update(ui_tables)
 
         # Build final context for the DOCX
+        # Build final context for document rendering
         context = {
             "DOCUMENT_TITLE": request.form.get('document_title', ''),
             "PROJECT_REFERENCE": request.form.get('project_reference', ''),
@@ -599,31 +444,20 @@ def generate():
             "SIG_APPROVAL_CLIENT": SIG_APPROVAL_CLIENT,
             "PURPOSE": request.form.get("purpose", ""),
             "SCOPE": request.form.get("scope", ""),
-            "PRE_TEST_REQUIREMENTS": PRE_TEST_REQUIREMENTS,
-            "KEY_COMPONENTS": KEY_COMPONENTS,
-            "IP_RECORDS": IP_RECORDS,
-            "RELATED_DOCUMENTS": related_documents,
-            "PRE_APPROVALS": PRE_APPROVALS,
-            "POST_APPROVALS": POST_APPROVALS,
-            "SIGNAL_LISTS": SIGNAL_LISTS,
-            "ANALOGUE_LISTS": ANALOGUE_LISTS,
-            "MODBUS_DIGITAL_LISTS": MODBUS_DIGITAL_LISTS,
-            "MODBUS_ANALOGUE_LISTS": MODBUS_ANALOGUE_LISTS,
-            "DATA_VALIDATION": DATA_VALIDATION,
-            "PROCESS_TEST": PROCESS_TEST,
-            "SCADA_VERIFICATION": SCADA_VERIFICATION,
-            "TRENDS_TESTING": TRENDS_TESTING,
             "SCADA_IMAGES": scada_image_objects,
             "TRENDS_IMAGES": trends_image_objects,
             "ALARM_IMAGES": alarm_image_objects,
-            "ALARM_LIST": ALARM_LIST,
             "SIG_APPROVER_1": SIG_APPROVER_1,
             "SIG_APPROVER_2": SIG_APPROVER_2,
             "SIG_APPROVER_3": SIG_APPROVER_3,
         }
+        for key, value in doc_tables.items():
+            context[key] = value
 
         # For storage, remove the InlineImage objects recursively
         context_to_store = dict(context)
+        for key, value in combined_tables.items():
+            context_to_store[key] = value
         def remove_inline_images(obj):
             """Recursively remove InlineImage objects from nested data structures"""
             if isinstance(obj, InlineImage):
@@ -863,577 +697,6 @@ def save_progress():
 
         # Load existing data
         existing_data = json.loads(sat_report.data_json) if sat_report.data_json != '{}' else {}
-
-        # Build context from current form data
-        context = {
-            "DOCUMENT_TITLE": request.form.get('document_title', ''),
-            "PROJECT_REFERENCE": request.form.get('project_reference', ''),
-            "DOCUMENT_REFERENCE": request.form.get('document_reference', ''),
-            "DATE": request.form.get('date', ''),
-            "CLIENT_NAME": request.form.get('client_name', ''),
-            "REVISION": request.form.get('revision', ''),
-            "REVISION_DETAILS": request.form.get('revision_details', ''),
-            "REVISION_DATE": request.form.get('revision_date', ''),
-            "PREPARED_BY": request.form.get('prepared_by', ''),
-            "REVIEWED_BY_TECH_LEAD": request.form.get('reviewed_by_tech_lead', ''),
-            "REVIEWED_BY_PM": request.form.get('reviewed_by_pm', ''),
-            "APPROVED_BY_CLIENT": request.form.get('approved_by_client', ''),
-            "PURPOSE": request.form.get("purpose", ""),
-            "SCOPE": request.form.get("scope", ""),
-            "approver_1_name": request.form.get("approver_1_name", ""),
-            "approver_1_email": request.form.get("approver_1_email", ""),
-            "approver_2_name": request.form.get("approver_2_name", ""),
-            "approver_2_email": request.form.get("approver_2_email", ""),
-            "approver_3_email": request.form.get("approver_3_email", ""),
-        }
-        
-        # Process list fields (table data) - only if they're in the form data
-        # This prevents overwriting existing data when saving from earlier steps
-        
-        # Get existing context data to preserve list fields not in current save
-        existing_context = existing_data.get('context', {})
-        
-        if 'doc_ref[]' in request.form:
-            context['RELATED_DOCUMENTS'] = process_table_rows(
-                request.form,
-                {
-                    'doc_ref[]': 'Document_Reference',
-                    'doc_title[]': 'Document_Title'
-                }
-            )
-        else:
-            context['RELATED_DOCUMENTS'] = existing_context.get('RELATED_DOCUMENTS', [])
-        
-        if 'pre_approval_print_name[]' in request.form:
-            context['PRE_EXECUTION_APPROVAL'] = process_table_rows(
-                request.form,
-                {
-                    'pre_approval_print_name[]': 'Print_Name',
-                    'pre_approval_signature[]': 'Signature',
-                    'pre_approval_date[]': 'Date',
-                    'pre_approval_initial[]': 'Initial',
-                    'pre_approval_company[]': 'Company'
-                }
-            )
-        else:
-            context['PRE_EXECUTION_APPROVAL'] = existing_context.get('PRE_EXECUTION_APPROVAL', [])
-        
-        if 'post_approval_print_name[]' in request.form:
-            context['POST_EXECUTION_APPROVAL'] = process_table_rows(
-                request.form,
-                {
-                    'post_approval_print_name[]': 'Print_Name',
-                    'post_approval_signature[]': 'Signature',
-                    'post_approval_date[]': 'Date',
-                    'post_approval_initial[]': 'Initial',
-                    'post_approval_company[]': 'Company'
-                }
-            )
-        else:
-            context['POST_EXECUTION_APPROVAL'] = existing_context.get('POST_EXECUTION_APPROVAL', [])
-        
-        if 'pretest_item[]' in request.form:
-            context['PRE_TEST_REQUIREMENTS'] = process_table_rows(
-                request.form,
-                {
-                    'pretest_item[]': 'Item',
-                    'pretest_test[]': 'Test',
-                    'pretest_criteria[]': 'Acceptance_Criteria',
-                    'pretest_passfail[]': 'Pass_Fail',
-                    'pretest_comments[]': 'Comments'
-                }
-            )
-        else:
-            context['PRE_TEST_REQUIREMENTS'] = existing_context.get('PRE_TEST_REQUIREMENTS', [])
-        
-        if 'component_tag[]' in request.form:
-            context['KEY_COMPONENTS'] = process_table_rows(
-                request.form,
-                {
-                    'component_tag[]': 'Tag',
-                    'component_description[]': 'Description'
-                }
-            )
-        else:
-            context['KEY_COMPONENTS'] = existing_context.get('KEY_COMPONENTS', [])
-        
-        if 'ip_device[]' in request.form:
-            context['IP_RECORDS'] = process_table_rows(
-                request.form,
-                {
-                    'ip_device[]': 'Device',
-                    'ip_address[]': 'IP_Address',
-                    'ip_subnet[]': 'Subnet',
-                    'ip_gateway[]': 'Gateway'
-                }
-            )
-        else:
-            context['IP_RECORDS'] = existing_context.get('IP_RECORDS', [])
-        
-        # Process signal tables
-        if 'digital_s_no[]' in request.form:
-            context['DIGITAL_SIGNALS'] = process_table_rows(
-                request.form,
-                {
-                    'digital_s_no[]': 'S_No',
-                    'digital_rack[]': 'Rack',
-                    'digital_pos[]': 'Pos',
-                    'digital_signal_tag[]': 'Signal_TAG',
-                    'digital_description[]': 'Description',
-                    'digital_result[]': 'Result',
-                    'digital_punch[]': 'Punch',
-                    'digital_verified[]': 'Verified',
-                    'digital_comment[]': 'Comment'
-                }
-            )
-        else:
-            context['DIGITAL_SIGNALS'] = existing_context.get('DIGITAL_SIGNALS', [])
-        
-        if 'analogue_input_s_no[]' in request.form:
-            context['ANALOGUE_INPUT_SIGNALS'] = process_table_rows(
-                request.form,
-                {
-                    'analogue_input_s_no[]': 'S_No',
-                    'analogue_input_rack_no[]': 'Rack_No',
-                    'analogue_input_module_position[]': 'Module_Position',
-                    'analogue_input_signal_tag[]': 'Signal_TAG',
-                    'analogue_input_description[]': 'Description',
-                    'analogue_input_result[]': 'Result',
-                    'analogue_input_punch_item[]': 'Punch_Item',
-                    'analogue_input_verified_by[]': 'Verified_by',
-                    'analogue_input_comment[]': 'Comment'
-                }
-            )
-        else:
-            context['ANALOGUE_INPUT_SIGNALS'] = existing_context.get('ANALOGUE_INPUT_SIGNALS', [])
-        
-        if 'analogue_output_s_no[]' in request.form:
-            context['ANALOGUE_OUTPUT_SIGNALS'] = process_table_rows(
-                request.form,
-                {
-                    'analogue_output_s_no[]': 'S_No',
-                    'analogue_output_rack_no[]': 'Rack_No',
-                    'analogue_output_module_position[]': 'Module_Position',
-                    'analogue_output_signal_tag[]': 'Signal_TAG',
-                    'analogue_output_description[]': 'Description',
-                    'analogue_output_result[]': 'Result',
-                    'analogue_output_punch_item[]': 'Punch_Item',
-                    'analogue_output_verified_by[]': 'Verified_by',
-                    'analogue_output_comment[]': 'Comment'
-                }
-            )
-        else:
-            context['ANALOGUE_OUTPUT_SIGNALS'] = existing_context.get('ANALOGUE_OUTPUT_SIGNALS', [])
-        
-        if 'digital_output_s_no[]' in request.form:
-            context['DIGITAL_OUTPUT_SIGNALS'] = process_table_rows(
-                request.form,
-                {
-                    'digital_output_s_no[]': 'S_No',
-                    'digital_output_rack_no[]': 'Rack_No',
-                    'digital_output_module_position[]': 'Module_Position',
-                    'digital_output_signal_tag[]': 'Signal_TAG',
-                    'digital_output_description[]': 'Description',
-                    'digital_output_result[]': 'Result',
-                    'digital_output_punch_item[]': 'Punch_Item',
-                    'digital_output_verified_by[]': 'Verified_by',
-                    'digital_output_comment[]': 'Comment'
-                }
-            )
-        else:
-            context['DIGITAL_OUTPUT_SIGNALS'] = existing_context.get('DIGITAL_OUTPUT_SIGNALS', [])
-        
-        if 'modbus_digital_address[]' in request.form:
-            context['MODBUS_DIGITAL_SIGNALS'] = process_table_rows(
-                request.form,
-                {
-                    'modbus_digital_address[]': 'Address',
-                    'modbus_digital_description[]': 'Description',
-                    'modbus_digital_remarks[]': 'Remarks',
-                    'modbus_digital_result[]': 'Result',
-                    'modbus_digital_punch_item[]': 'Punch_Item',
-                    'modbus_digital_verified_by[]': 'Verified_by',
-                    'modbus_digital_comment[]': 'Comment'
-                }
-            )
-        else:
-            context['MODBUS_DIGITAL_SIGNALS'] = existing_context.get('MODBUS_DIGITAL_SIGNALS', [])
-        
-        if 'modbus_analogue_address[]' in request.form:
-            context['MODBUS_ANALOGUE_SIGNALS'] = process_table_rows(
-                request.form,
-                {
-                    'modbus_analogue_address[]': 'Address',
-                    'modbus_analogue_description[]': 'Description',
-                    'modbus_analogue_range[]': 'Range',
-                    'modbus_analogue_result[]': 'Result',
-                    'modbus_analogue_punch_item[]': 'Punch_Item',
-                    'modbus_analogue_verified_by[]': 'Verified_by',
-                    'modbus_analogue_comment[]': 'Comment'
-                }
-            )
-        else:
-            context['MODBUS_ANALOGUE_SIGNALS'] = existing_context.get('MODBUS_ANALOGUE_SIGNALS', [])
-
-        # Process image uploads
-        from werkzeug.utils import secure_filename
-        from PIL import Image
-        
-        # Create upload directory
-        upload_dir = os.path.join(current_app.config['UPLOAD_ROOT'], submission_id)
-        os.makedirs(upload_dir, exist_ok=True)
-        
-        # Load existing image URLs from database
-        scada_urls = json.loads(sat_report.scada_image_urls) if sat_report.scada_image_urls else []
-        trends_urls = json.loads(sat_report.trends_image_urls) if sat_report.trends_image_urls else []
-        alarm_urls = json.loads(sat_report.alarm_image_urls) if sat_report.alarm_image_urls else []
-        
-        # Remove images flagged for deletion
-        handle_image_removals(request.form, "removed_scada_images", scada_urls)
-        handle_image_removals(request.form, "removed_trends_images", trends_urls)
-        handle_image_removals(request.form, "removed_alarm_images", alarm_urls)
-        
-        # Function to save uploaded images with validation
-        def save_uploaded_images(field_name, url_list):
-            """Save uploaded images with security validation and add their URLs to the list"""
-            for f in request.files.getlist(field_name):
-                if not f or not f.filename:
-                    continue
-                
-                # Validate file extension
-                if not allowed_file(f.filename):
-                    current_app.logger.warning(f"Rejected file with invalid extension: {f.filename}")
-                    continue
-                
-                try:
-                    # Create secure unique filename
-                    fn = secure_filename(f.filename)
-                    uniq_fn = f"{uuid.uuid4().hex}_{fn}"
-                    
-                    # Save file to disk
-                    disk_path = os.path.join(upload_dir, uniq_fn)
-                    f.save(disk_path)
-                    
-                    # Validate it's actually an image using PIL
-                    try:
-                        with Image.open(disk_path) as img:
-                            img.verify()
-                    except Exception as img_error:
-                        # Not a valid image, delete it
-                        os.remove(disk_path)
-                        current_app.logger.warning(f"Rejected invalid image file: {f.filename} - {img_error}")
-                        continue
-                    
-                    # Create URL for the file
-                    rel_path = os.path.join("uploads", submission_id, uniq_fn).replace("\\", "/")
-                    url = url_for("static", filename=rel_path)
-                    url_list.append(url)
-                    
-                    current_app.logger.info(f"Saved image: {uniq_fn}, URL: {url}")
-                except Exception as e:
-                    current_app.logger.error(f"Error saving image {f.filename}: {e}", exc_info=True)
-        
-        # Save new uploaded images
-        save_uploaded_images("scada_screenshots[]", scada_urls)
-        save_uploaded_images("trends_screenshots[]", trends_urls)
-        save_uploaded_images("alarm_screenshots[]", alarm_urls)
-        
-        # Update report metadata
-        report.document_title = context.get('DOCUMENT_TITLE', '')
-        report.document_reference = context.get('DOCUMENT_REFERENCE', '')
-        report.project_reference = context.get('PROJECT_REFERENCE', '')
-        report.client_name = context.get('CLIENT_NAME', '')
-        report.revision = context.get('REVISION', '')
-        report.prepared_by = context.get('PREPARED_BY', '')
-        report.updated_at = dt.datetime.utcnow()
-
-        # Prepare submission data for storage
-        submission_data = {
-            "context": context,
-            "user_email": current_user.email if hasattr(current_user, 'email') else request.form.get("user_email", ""),
-            "approvals": existing_data.get("approvals", []),
-            "locked": existing_data.get("locked", False),
-            "scada_image_urls": scada_urls,
-            "trends_image_urls": trends_urls,
-            "alarm_image_urls": alarm_urls,
-            "created_at": existing_data.get("created_at", dt.datetime.now().isoformat()),
-            "updated_at": dt.datetime.now().isoformat()
-        }
-
-        # Update SAT report data
-        sat_report.data_json = json.dumps(submission_data)
-        sat_report.scada_image_urls = json.dumps(scada_urls)
-        sat_report.trends_image_urls = json.dumps(trends_urls)
-        sat_report.alarm_image_urls = json.dumps(alarm_urls)
-        sat_report.date = context.get('DATE', '')
-        sat_report.purpose = context.get('PURPOSE', '')
-        sat_report.scope = context.get('SCOPE', '')
-
-        # Save to database
-        db.session.commit()
-
-        return jsonify({
-            'success': True,
-            'message': 'Progress saved successfully',
-            'submission_id': submission_id
-        })
-
-    except Exception as e:
-        current_app.logger.error(f"Error saving progress: {e}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'message': f'Error saving progress: {str(e)}'
-        }), 500
-
-@main_bp.route('/generate_site_survey', methods=['POST'])
-@login_required
-def generate_site_survey():
-    """Generate a Site Survey report from form data"""
-    try:
-        from models import db, Report, SiteSurveyReport
-        import datetime as dt
-
-        # Get submission ID
-        submission_id = request.form.get("submission_id", "")
-        if not submission_id:
-            submission_id = str(uuid.uuid4())
-
-        # Get or create report record
-        report = Report.query.get(submission_id)
-        if not report:
-            report = Report(
-                id=submission_id,
-                type='SITE_SURVEY',
-                status='DRAFT',
-                user_email=current_user.email if hasattr(current_user, 'email') else '',
-                approvals_json='[]',
-                version='R0'
-            )
-            db.session.add(report)
-
-        # Get or create Site Survey report record
-        site_survey_report = SiteSurveyReport.query.filter_by(report_id=submission_id).first()
-        if not site_survey_report:
-            site_survey_report = SiteSurveyReport(
-                report_id=submission_id,
-                data_json='{}'
-            )
-            db.session.add(site_survey_report)
-
-        # Build context from form data
-        context = {
-            "SITE_NAME": request.form.get('site_name', ''),
-            "SITE_LOCATION": request.form.get('site_location', ''),
-            "SITE_ACCESS_DETAILS": request.form.get('site_access_details', ''),
-            "ON_SITE_PARKING": request.form.get('on_site_parking', ''),
-            "AREA_ENGINEER": request.form.get('area_engineer', ''),
-            "SITE_CARETAKER": request.form.get('site_caretaker', ''),
-            "SURVEY_COMPLETED_BY": request.form.get('survey_completed_by', ''),
-            "SIGNATURE_DATA": request.form.get('sig_prepared_data', '')
-        }
-
-        # Update report fields
-        report.document_title = f"Site Survey - {context.get('SITE_NAME', submission_id)}"
-        report.project_reference = f"SURVEY-{submission_id[:8]}"
-        report.client_name = "Irish Water"
-        report.revision = "R0"
-        report.prepared_by = context.get('SURVEY_COMPLETED_BY', current_user.full_name if current_user.is_authenticated else '')
-        report.updated_at = dt.datetime.utcnow()
-        report.status = 'PENDING'  # Submit for approval
-
-        # Prepare submission data for storage
-        submission_data = {
-            "context": context,
-            "user_email": current_user.email if hasattr(current_user, 'email') else '',
-            "created_at": dt.datetime.now().isoformat(),
-            "updated_at": dt.datetime.now().isoformat(),
-            "report_type": "SITE_SURVEY"
-        }
-
-        # Update Site Survey report data
-        site_survey_report.data_json = json.dumps(submission_data)
-        site_survey_report.site_name = context.get('SITE_NAME', '')
-        site_survey_report.site_location = context.get('SITE_LOCATION', '')
-        site_survey_report.survey_completed_by = context.get('SURVEY_COMPLETED_BY', '')
-
-        # Save to database
-        db.session.commit()
-
-        flash("Site Survey submitted successfully!", "success")
-        
-        return jsonify({
-            "success": True,
-            "message": "Site Survey submitted successfully!",
-            "submission_id": submission_id,
-            "redirect_url": url_for('status.view_status', submission_id=submission_id)
-        })
-
-    except Exception as e:
-        current_app.logger.error(f"Error in generate_site_survey: {e}", exc_info=True)
-        flash(f"An error occurred while submitting the survey: {str(e)}", "error")
-        return jsonify({
-            "success": False,
-            "message": f"Error: {str(e)}"
-        }), 500
-
-@main_bp.route('/generate_scada_migration', methods=['POST'])
-@login_required
-def generate_scada_migration():
-    """Generate a SCADA Migration Site Survey report from form data"""
-    try:
-        from models import db, Report, SiteSurveyReport
-        import datetime as dt
-
-        # Get submission ID
-        submission_id = request.form.get("submission_id", "")
-        if not submission_id:
-            submission_id = str(uuid.uuid4())
-
-        # Get or create report record
-        report = Report.query.get(submission_id)
-        if not report:
-            report = Report(
-                id=submission_id,
-                type='SCADA_MIGRATION',
-                status='DRAFT',
-                user_email=current_user.email if hasattr(current_user, 'email') else '',
-                approvals_json='[]',
-                version='R0'
-            )
-            db.session.add(report)
-
-        # Get or create Site Survey report record
-        site_survey_report = SiteSurveyReport.query.filter_by(report_id=submission_id).first()
-        if not site_survey_report:
-            site_survey_report = SiteSurveyReport(
-                report_id=submission_id,
-                data_json='{}'
-            )
-            db.session.add(site_survey_report)
-
-        # Build context from form data
-        context = {
-            "SITE_NAME": request.form.get('site_name', ''),
-            "SITE_LOCATION": request.form.get('site_location', ''),
-            "SITE_ACCESS_DETAILS": request.form.get('site_access_details', ''),
-            "ON_SITE_PARKING": request.form.get('on_site_parking', ''),
-            "AREA_ENGINEER": request.form.get('area_engineer', ''),
-            "SITE_CARETAKER": request.form.get('site_caretaker', ''),
-            "SURVEY_COMPLETED_BY": request.form.get('survey_completed_by', ''),
-            "CONTROL_APPROACH_DISCUSSED": request.form.get('control_approach_discussed', ''),
-            "VISUAL_INSPECTION": request.form.get('visual_inspection', ''),
-            "SITE_TYPE": request.form.get('site_type', ''),
-            "ELECTRICAL_SUPPLY": request.form.get('electrical_supply', ''),
-            "PLANT_PHOTOS_COMPLETED": request.form.get('plant_photos_completed', ''),
-            "SITE_UNDERGOING_CONSTRUCTION": request.form.get('site_undergoing_construction', ''),
-            "CONSTRUCTION_DESCRIPTION": request.form.get('construction_description', ''),
-            "PLC_MANUFACTURER": request.form.get('plc_manufacturer', ''),
-            "PLC_VERSION": request.form.get('plc_version', ''),
-            "PLC_COMMENTS": request.form.get('plc_comments', ''),
-            "HMI_MANUFACTURER": request.form.get('hmi_manufacturer', ''),
-            "HMI_VERSION": request.form.get('hmi_version', ''),
-            "HMI_COMMENTS": request.form.get('hmi_comments', ''),
-            "ROUTER_MANUFACTURER": request.form.get('router_manufacturer', ''),
-            "ROUTER_VERSION": request.form.get('router_version', ''),
-            "ROUTER_COMMENTS": request.form.get('router_comments', ''),
-            "PLC_IP": request.form.get('plc_ip', ''),
-            "HMI_IP": request.form.get('hmi_ip', ''),
-            "ROUTER_IP": request.form.get('router_ip', ''),
-            "SIGNAL_STRENGTH": request.form.get('signal_strength', ''),
-            "SIGNATURE_DATA": request.form.get('sig_prepared_data', '')
-        }
-
-        # Update report fields
-        report.document_title = f"SCADA Migration Site Survey - {context.get('SITE_NAME', submission_id)}"
-        report.project_reference = f"SCADA-{submission_id[:8]}"
-        report.client_name = "Irish Water"
-        report.revision = "R0"
-        report.prepared_by = context.get('SURVEY_COMPLETED_BY', current_user.full_name if current_user.is_authenticated else '')
-        report.updated_at = dt.datetime.utcnow()
-        report.status = 'PENDING'  # Submit for approval
-
-        # Prepare submission data for storage
-        submission_data = {
-            "context": context,
-            "user_email": current_user.email if hasattr(current_user, 'email') else '',
-            "created_at": dt.datetime.now().isoformat(),
-            "updated_at": dt.datetime.now().isoformat(),
-            "report_type": "SCADA_MIGRATION"
-        }
-
-        # Update Site Survey report data
-        site_survey_report.data_json = json.dumps(submission_data)
-        site_survey_report.site_name = context.get('SITE_NAME', '')
-        site_survey_report.site_location = context.get('SITE_LOCATION', '')
-        site_survey_report.survey_completed_by = context.get('SURVEY_COMPLETED_BY', '')
-
-        # Save to database
-        db.session.commit()
-
-        flash("SCADA Migration Site Survey submitted successfully!", "success")
-        
-        return jsonify({
-            "success": True,
-            "message": "SCADA Migration Site Survey submitted successfully!",
-            "submission_id": submission_id,
-            "redirect_url": url_for('status.view_status', submission_id=submission_id)
-        })
-
-    except Exception as e:
-        current_app.logger.error(f"Error in generate_scada_migration: {e}", exc_info=True)
-        flash(f"An error occurred while submitting the survey: {str(e)}", "error")
-        return jsonify({
-            "success": False,
-            "message": f"Error: {str(e)}"
-        }), 500
-
-@main_bp.route('/auto_save_progress', methods=['POST'])
-@login_required
-def auto_save_progress():
-    """Auto-save form progress with CSRF validation"""
-    try:
-        from models import db, Report, SATReport
-
-        # Get submission ID or create new one
-        submission_id = request.form.get("submission_id", "").strip()
-        if not submission_id:
-            submission_id = str(uuid.uuid4())
-
-        # Get form data
-        form_data = request.form.to_dict()
-
-        # Get or create report record
-        report = Report.query.get(submission_id)
-        if not report:
-            report = Report(
-                id=submission_id,
-                type='SAT',
-                status='DRAFT',  # Always start as DRAFT
-                user_email=current_user.email if hasattr(current_user, 'email') else '',
-                approvals_json='[]'
-            )
-            db.session.add(report)
-        # IMPORTANT: Ensure status remains DRAFT for auto-save (not submission)
-        # Only preserve existing non-draft status if it's already PENDING/APPROVED
-        if not report.status or report.status == '':
-            report.status = 'DRAFT'
-        current_app.logger.debug(f"Auto-save: Report {submission_id} status is {report.status}")
-
-        # Get or create SAT report record
-        sat_report = SATReport.query.filter_by(report_id=submission_id).first()
-        if not sat_report:
-            sat_report = SATReport(
-                report_id=submission_id,
-                data_json='{}',
-                scada_image_urls='[]',
-                trends_image_urls='[]',
-                alarm_image_urls='[]'
-            )
-            db.session.add(sat_report)
-
-        # Load existing data
-        existing_data = json.loads(sat_report.data_json) if sat_report.data_json != '{}' else {}
-
         # Build context from current form data
         context = {
             "DOCUMENT_TITLE": form_data.get('document_title', ''),
@@ -1454,6 +717,20 @@ def auto_save_progress():
             "approver_2_email": form_data.get("approver_2_email", ""),
             "approver_3_email": form_data.get("approver_3_email", ""),
         }
+
+        existing_context = migrate_context_tables(existing_data.get('context', {}))
+        for key, value in existing_context.items():
+            if key not in context:
+                context[key] = value
+
+        ui_tables = extract_ui_tables(request.form)
+        for key, value in ui_tables.items():
+            context[key] = value
+
+        doc_tables = build_doc_tables(ui_tables)
+        for key, value in doc_tables.items():
+            if key not in context:
+                context[key] = value
 
         # Update report metadata
         report.document_title = context.get('DOCUMENT_TITLE', '')
@@ -1495,3 +772,7 @@ def auto_save_progress():
             'success': False,
             'message': f'Auto-save failed: {str(e)}'
         }), 500
+
+
+
+

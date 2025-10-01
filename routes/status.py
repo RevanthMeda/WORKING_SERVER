@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, current_
 import os
 import json
 from flask_login import current_user, login_required
+from services.sat_tables import build_doc_tables_from_context, migrate_context_tables
 import datetime as dt
 
 status_bp = Blueprint('status', __name__)
@@ -128,10 +129,11 @@ def download_report(submission_id):
         if not context_data:
             context_data = stored_data
         # --- Prepare context for the report generator ---
-        render_context = {
+        context_for_doc = migrate_context_tables(context_data)
+        context_for_doc.update({
             'DOCUMENT_TITLE': context_data.get('DOCUMENT_TITLE', 'SAT Report'),
             'PROJECT_REFERENCE': context_data.get('PROJECT_REFERENCE', ''),
-            'DOCUMENT_REFERENCE': context_data.get('DOCUMENT_REFERENCE', submission_id),
+            'DOCUMENT_REFERENCE': context_data.get('DOCUMENT_REFERENCE', submission_id) or submission_id,
             'DATE': context_data.get('DATE', ''),
             'CLIENT_NAME': context_data.get('CLIENT_NAME', ''),
             'REVISION': context_data.get('REVISION', '1.0'),
@@ -149,11 +151,12 @@ def download_report(submission_id):
             'CLIENT_APPROVAL_DATE': context_data.get('CLIENT_APPROVAL_DATE', ''),
             'REVISION_DETAILS': context_data.get('REVISION_DETAILS', ''),
             'REVISION_DATE': context_data.get('REVISION_DATE', ''),
-        }
+        })
+        context_for_doc.update(build_doc_tables_from_context(context_data))
 
         from services.html_generator import generate_report_docx
 
-        success = generate_report_docx(render_context, permanent_path)
+        success = generate_report_docx(context_for_doc, permanent_path)
 
         if not success:
             flash('Error generating the SAT report document.', 'error')
@@ -269,3 +272,5 @@ def list_submissions():
         current_app.logger.error(f"Error fetching submissions list: {e}")
         flash('Error loading submissions.', 'error')
         return render_template('submissions_list.html', submissions=[])
+
+

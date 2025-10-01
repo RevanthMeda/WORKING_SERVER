@@ -7,6 +7,7 @@ from docx.oxml.ns import qn
 from docx.oxml.parser import OxmlElement
 from docxtpl import DocxTemplate
 from flask import current_app
+from services.sat_tables import build_doc_tables_from_context, migrate_context_tables
 
 _TEMPLATE_FALLBACK = "templates/SAT_Template.docx"
 _STRING_KEYS = {
@@ -89,12 +90,17 @@ def _build_render_context(context: Dict[str, Any]) -> Dict[str, Any]:
     render_context: Dict[str, Any] = {key: "" for key in _STRING_KEYS}
     render_context.update({key: [] for key in _LIST_KEYS})
 
-    if context:
-        for key, value in context.items():
-            if key in _LIST_KEYS:
-                render_context[key] = value if value is not None else []
-            else:
-                render_context[key] = value if value is not None else ""
+    normalized_context = migrate_context_tables(context or {})
+    doc_tables = build_doc_tables_from_context(context or {})
+
+    for key, value in normalized_context.items():
+        if key in _LIST_KEYS and isinstance(value, list):
+            render_context[key] = value
+        elif key in _STRING_KEYS:
+            render_context[key] = value if value is not None else ""
+
+    for key, value in doc_tables.items():
+        render_context[key] = value if value is not None else []
 
     return render_context
 
@@ -125,4 +131,5 @@ def _apply_document_properties(template: DocxTemplate, context: Dict[str, Any]) 
     update_fields.set(qn("w:val"), "true")
     # add element to settings
     document.settings.element.append(update_fields)
+
 

@@ -4,6 +4,7 @@ from flask_login import login_required, current_user
 from models import db, Report, User, SATReport
 from auth import login_required, role_required
 from utils import setup_approval_workflow_db, create_new_submission_notification, get_unread_count
+from services.sat_tables import migrate_context_tables
 import json
 import uuid
 from datetime import datetime
@@ -80,15 +81,27 @@ def _build_empty_sat_submission():
 
 def _merge_sat_submission_data(base: dict, context: dict) -> dict:
     merged = {key: (list(value) if isinstance(value, list) else value) for key, value in base.items()}
-    for key, value in context.items():
+
+    normalized_context = migrate_context_tables(context or {})
+
+    for key, value in normalized_context.items():
         if value in (None, ""):
             continue
-        if key in _SAT_LIST_FIELDS:
-            if isinstance(value, list):
-                merged[key] = value
+        if key in _SAT_LIST_FIELDS and isinstance(value, list):
+            merged[key] = value
         else:
             merged[key] = value
+
+    for key, value in (context or {}).items():
+        if key in normalized_context:
+            continue
+        if key in _SAT_LIST_FIELDS and isinstance(value, list):
+            merged[key] = value
+        elif value not in (None, "") and key not in merged:
+            merged[key] = value
+
     return merged
+
 
 
 @reports_bp.route('/new')

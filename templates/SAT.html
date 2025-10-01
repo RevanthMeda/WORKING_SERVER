@@ -2183,11 +2183,12 @@
                       <tr><th>S. No.</th><th>Model</th><th>Description</th><th>Remarks</th><th>Action</th></tr>
                     </thead>
                     <tbody id="key-components-body">
-                      {% for r in submission_data.IP_RECORDS %}
+                      {% for component in submission_data.KEY_COMPONENTS %}
                       <tr>
-                        <td><input name="ip_device[]" value="{{ r.Device_Name }}"/></td>
-                        <td><input name="ip_address[]" value="{{ r.IP_Address }}"/></td>
-                        <td><textarea name="ip_comment[]">{{ r.Comment }}</textarea></td>
+                        <td><input name="component_sno[]" value="{{ component.S_No }}"/></td>
+                        <td><input name="component_model[]" value="{{ component.Model }}"/></td>
+                        <td><input name="component_description[]" value="{{ component.Description }}"/></td>
+                        <td><input name="component_remarks[]" value="{{ component.Remarks }}"/></td>
                         <td>
                           <button type="button" class="btn-remove" onclick="removeRow(this)">
                             <i class="fas fa-trash"></i>
@@ -3147,18 +3148,61 @@
   <script>
     // Global variables
     let currentStep = 1;
+    const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+    let heartbeatTimer = null;
+
+    function getCsrfToken() {
+      const csrfInput = document.querySelector('input[name=\"csrf_token\"]');
+      return csrfInput ? csrfInput.value : '';
+    }
+
+    function startSessionHeartbeat() {
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+      }
+      sendSessionHeartbeat();
+      heartbeatTimer = setInterval(sendSessionHeartbeat, HEARTBEAT_INTERVAL_MS);
+    }
+
+    async function sendSessionHeartbeat() {
+      try {
+        const headers = {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        };
+        const csrfToken = getCsrfToken();
+        if (csrfToken) {
+          headers['X-CSRFToken'] = csrfToken;
+        }
+
+        const response = await fetch('/auth/session/heartbeat', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers,
+          body: JSON.stringify({ timestamp: Date.now() })
+        });
+
+        if (response.status === 401) {
+          window.location.href = '/login';
+        }
+      } catch (error) {
+        console.warn('Session heartbeat failed', error);
+      }
+    }
 
     // Initialize the application
     document.addEventListener('DOMContentLoaded', function() {
       console.log('SAT Report Generator initialized');
       initializeForm();
       setupFileInputs(); // Call setupFileInputs here
+      startSessionHeartbeat();
     });
 
     // Refresh CSRF token when user returns to page
     document.addEventListener('visibilitychange', function() {
       if (!document.hidden) {
         refreshCSRFToken();
+          sendSessionHeartbeat();
       }
     });
 
@@ -3166,6 +3210,8 @@
     function goToStep(step) {
       // Auto-save progress before navigating to ensure data isn't lost
       autoSaveProgress();
+      
+      sendSessionHeartbeat();
       
       // Hide current step
       document.getElementById(`step-${currentStep}`).classList.remove('active');
@@ -3330,6 +3376,7 @@
         try {
           // Refresh CSRF token and wait for completion
           await refreshCSRFToken();
+          sendSessionHeartbeat();
           console.log('CSRF token refreshed before submission');
 
           // Now submit the form
@@ -3718,6 +3765,8 @@
             backupData.submission_id = data.submission_id;
           }
           localStorage.setItem('satFormProgress', JSON.stringify(backupData));
+
+          sendSessionHeartbeat();
           
           alert('Progress saved successfully!');
         } else {
@@ -3741,6 +3790,8 @@
       .then(data => {
         if (data.success) {
           console.log('Auto-saved progress at:', data.timestamp);
+
+          sendSessionHeartbeat();
           
           // Update submission_id field if it was created
           if (data.submission_id) {
@@ -4299,6 +4350,13 @@
     <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
 </body>
 </html>
+
+
+
+
+
+
+
 
 
 
