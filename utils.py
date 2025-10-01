@@ -862,5 +862,10 @@ def save_uploaded_file(file, upload_folder):
         print(f"Error saving file: {e}")
         return None
 
+def generate_sat_report(data):
+    """Generate SAT report (placeholder legacy helper)."""
+    current_app.logger.info('generate_sat_report placeholder invoked')
+    return {"success": True, "filename": "SAT_Report_Final.docx"}
+
 
 

@@ -703,6 +703,7 @@ def save_progress():
 
         # Load existing data
         existing_data = json.loads(sat_report.data_json) if sat_report.data_json != '{}' else {}
+        form_data = request.form.to_dict()
         # Build context from current form data
         context = {
             "DOCUMENT_TITLE": form_data.get('document_title', ''),
@@ -755,18 +756,6 @@ def save_progress():
             "updated_at": dt.datetime.now().isoformat(),
             "auto_saved": True  # Mark as auto-saved
         }
-
-        for table_key in TABLE_UI_KEYS:
-            submission_data[table_key] = context.get(table_key, [])
-
-        try:
-            submissions = load_submissions()
-            if isinstance(submissions, list):
-                submissions = {}
-            submissions[submission_id] = submission_data
-            save_submissions(submissions)
-        except Exception as save_error:
-            current_app.logger.debug(f"Auto-save snapshot file update skipped: {save_error}")
 
         for table_key in TABLE_UI_KEYS:
             submission_data[table_key] = context.get(table_key, [])
