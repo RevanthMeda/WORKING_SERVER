@@ -505,13 +505,37 @@ def init_db(app):
         instance_dir = os.path.join(app.config.get('BASE_DIR', os.getcwd()), 'instance')
         os.makedirs(instance_dir, exist_ok=True)
 
+        # Check if we should fall back to SQLite
+        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        
+        # If PostgreSQL connection fails, fall back to SQLite
+        if 'postgresql' in db_uri:
+            try:
+                # Test PostgreSQL connection first
+                from sqlalchemy import create_engine
+                test_engine = create_engine(db_uri)
+                from sqlalchemy import text
+                with test_engine.connect() as conn:
+                    conn.execute(text('SELECT 1'))
+                app.logger.info("PostgreSQL connection successful")
+            except Exception as pg_error:
+                app.logger.warning(f"PostgreSQL connection failed: {pg_error}")
+                app.logger.info("Falling back to SQLite database...")
+                
+                # Fall back to SQLite
+                sqlite_path = os.path.join(instance_dir, 'sat_reports.db')
+                app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{sqlite_path}'
+                app.logger.info(f"Using SQLite database: {sqlite_path}")
+
         db.init_app(app)
 
         with app.app_context():
             # Test database connection
             try:
-                db.engine.connect().close()
-                app.logger.debug("Database connection successful")  # Reduced logging level
+                from sqlalchemy import text
+                with db.engine.connect() as conn:
+                    conn.execute(text('SELECT 1'))
+                app.logger.info(f"Database connection successful: {app.config['SQLALCHEMY_DATABASE_URI']}")
             except Exception as conn_error:
                 app.logger.error(f"Database connection failed: {conn_error}")
                 # Try to create the database file and directories

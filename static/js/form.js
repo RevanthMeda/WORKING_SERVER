@@ -67,32 +67,58 @@
     document.getElementById('welcomePage').style.display = 'block';
   }
 
-  // LOCALSTORAGE STATE PERSISTENCE
+  // FORM STATE PERSISTENCE - Only for edit mode
   const FORM_KEY = 'satFormState';
+  let isEditMode = false;
+  let currentSubmissionId = null;
+  
   function saveState() {
+    // Only save state if we're in edit mode
+    if (!isEditMode) return;
+    
     const form = document.getElementById('satForm');
     if (!form) return;
 
-    const data = {};
+    const data = {
+      submission_id: currentSubmissionId,
+      form_data: {}
+    };
+    
     Array.from(form.elements).forEach(el => {
       if (!el.name || el.type === 'file') return;
       if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return;
-      data[el.name] = el.value;
+      data.form_data[el.name] = el.value;
     });
-    localStorage.setItem(FORM_KEY, JSON.stringify(data));
+    
+    // Only save if we have a submission ID (edit mode)
+    if (currentSubmissionId) {
+      localStorage.setItem(FORM_KEY + '_' + currentSubmissionId, JSON.stringify(data));
+    }
   }
 
   function loadState() {
-    const stored = localStorage.getItem(FORM_KEY);
+    // Only load state if we're in edit mode and have a submission ID
+    if (!isEditMode || !currentSubmissionId) return;
+    
+    const stored = localStorage.getItem(FORM_KEY + '_' + currentSubmissionId);
     if (!stored) return;
 
     const data = JSON.parse(stored);
     const form = document.getElementById('satForm');
-    if (!form) return;
+    if (!form || !data.form_data) return;
 
-    Object.entries(data).forEach(([name, val]) => {
+    Object.entries(data.form_data).forEach(([name, val]) => {
       const el = form.elements[name];
       if (el) el.value = val;
+    });
+  }
+  
+  function clearFormState() {
+    // Clear all form state from localStorage
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith(FORM_KEY)) {
+        localStorage.removeItem(key);
+      }
     });
   }
 
@@ -461,8 +487,8 @@
         // Show success message
         showAlert(data.message, 'success');
         
-        // Clear localStorage to prevent auto-population
-        localStorage.removeItem('satFormState');
+        // Clear form state to prevent auto-population
+        clearFormState();
         
         // Redirect to status page after short delay
         setTimeout(() => {
@@ -709,4 +735,71 @@
 
   }
 
-})();
+  // Initialize form mode detection
+  function initializeFormMode() {
+    // Check if we're in edit mode based on URL parameters or form data
+    const urlParams = new URLSearchParams(window.location.search);
+    const editModeParam = urlParams.get('edit_mode');
+    const submissionIdParam = urlParams.get('submission_id');
+    
+    // Check for edit mode indicators in the template
+    const editModeElement = document.querySelector('[data-edit-mode]');
+    const submissionIdElement = document.querySelector('[data-submission-id]');
+    const isNewReportElement = document.querySelector('[data-is-new-report]');
+    
+    isEditMode = editModeParam === 'true' || 
+                 (editModeElement && editModeElement.dataset.editMode === 'true') ||
+                 window.location.pathname.includes('/sat/wizard') ||
+                 (isNewReportElement && isNewReportElement.dataset.isNewReport === 'false');
+    
+    currentSubmissionId = submissionIdParam || 
+                         (submissionIdElement && submissionIdElement.dataset.submissionId) ||
+                         document.querySelector('input[name="submission_id"]')?.value ||
+                         null;
+    
+    console.log('Form mode initialized:', { isEditMode, currentSubmissionId, url: window.location.pathname });
+    
+    // If this is a new report, clear any existing state
+    if (!isEditMode) {
+      clearFormState();
+      console.log('Cleared form state for new report');
+    }
+  }
+
+  // Initialize when document is loaded
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('Form script loaded');
+    
+    // Initialize form mode first
+    initializeFormMode();
+    
+    setupEventHandlers();
+    setupRichTextEditor();
+    setupSignaturePads();
+    setupAISuggestions();
+    setupBotInterface();
+    
+    // Only load state if in edit mode
+    if (isEditMode) {
+      loadState();
+      console.log('Loaded state for edit mode');
+    } else {
+      console.log('Skipped loading state - creating new report');
+    }
+    
+    // Setup form submission handling
+    const satForm = document.getElementById('satForm');
+    if (satForm) {
+      satForm.addEventListener('submit', handleFormSubmit);
+    }
+
+    // Setup auto-save for form inputs (only in edit mode)
+    if (isEditMode) {
+      const autoSave = debounce(saveState, 500);
+      document.addEventListener('input', autoSave);
+      document.addEventListener('change', autoSave);
+      console.log('Auto-save enabled for edit mode');
+    }
+  });
+
+});

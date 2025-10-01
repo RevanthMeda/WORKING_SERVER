@@ -128,6 +128,7 @@ def new_sat_full():
                              submission_id=submission_id,
                              unread_count=unread_count,
                              is_new_report=True,
+                             edit_mode=False,
                              prefill_source=prefill_source)
     except Exception as e:
         current_app.logger.error(f"Error rendering SAT form: {e}", exc_info=True)
@@ -140,6 +141,7 @@ def new_sat_full():
                              submission_id='',
                              unread_count=0,
                              is_new_report=True,
+                             edit_mode=False,
                              prefill_source=None)
 
 

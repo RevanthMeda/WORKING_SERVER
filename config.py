@@ -56,17 +56,24 @@ class Config:
 
     # Database - Use absolute path for SQLite
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or f'sqlite:///{os.path.join(BASE_DIR, "instance", "sat_reports.db")}'
+    
+    # Ensure instance directory exists
+    INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
+    os.makedirs(INSTANCE_DIR, exist_ok=True)
+    
+    # Use SQLite for development by default, PostgreSQL for production
+    DEFAULT_DB_PATH = os.path.join(INSTANCE_DIR, "sat_reports.db")
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or f'sqlite:///{DEFAULT_DB_PATH}'
 
     # Optimized database settings for performance
-    INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_pre_ping': False,  # Disable for faster startup  
+        'pool_pre_ping': True,  # Enable for better connection handling
         'pool_recycle': 3600,   # Longer pool recycle
-        'pool_size': 10,        # Connection pool size
-        'max_overflow': 20,     # Max overflow connections
+        'pool_size': 5,         # Smaller pool for SQLite
+        'max_overflow': 10,     # Reduced overflow for SQLite
         'pool_timeout': 30,     # Connection timeout
+        'connect_args': {'timeout': 20} if 'sqlite' in os.environ.get('DATABASE_URL', 'sqlite') else {}
     }
 
     # File upload settings

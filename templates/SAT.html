@@ -5,6 +5,14 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SAT Report Generator – Cully Automation</title>
+  
+  <!-- Form mode data attributes -->
+  <div id="form-mode-data" 
+       data-edit-mode="{{ edit_mode|default(false)|tojson }}"
+       data-is-new-report="{{ is_new_report|default(true)|tojson }}"
+       data-submission-id="{{ submission_id|default('')|e }}"
+       style="display: none;">
+  </div>
 
   <!-- CSS Files -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}"/>
