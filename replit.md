@@ -4,6 +4,15 @@ This is a comprehensive Flask-based web application for generating System Accept
 
 ## Recent Updates
 
+### October 1, 2025 - SAT Report State Management Fixes
+- Fixed critical bug where new reports showed previously saved data from localStorage
+- Implemented proper state isolation between new and existing reports using is_new_report flag
+- Added cross-report contamination prevention with submission_id tracking in localStorage
+- Enhanced saveProgress() and autoSaveProgress() to save to backend and update submission_id
+- Added automatic data saving when navigating between form steps (Next/Back buttons)
+- Implemented legacy localStorage cleanup for reports created before submission_id tracking
+- Ensured localStorage backup consistency by including submission_id after server response
+
 ### October 1, 2025 - Replit Environment Setup
 - Configured application for Replit deployment
 - Created main.py entry point for gunicorn server
