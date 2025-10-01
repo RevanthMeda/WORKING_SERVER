@@ -969,7 +969,154 @@ def save_progress():
             )
         else:
             context['IP_RECORDS'] = existing_context.get('IP_RECORDS', [])
+        
+        # Process signal tables
+        if 'digital_s_no[]' in request.form:
+            context['DIGITAL_SIGNALS'] = process_table_rows(
+                request.form,
+                {
+                    'digital_s_no[]': 'S_No',
+                    'digital_rack[]': 'Rack',
+                    'digital_pos[]': 'Pos',
+                    'digital_signal_tag[]': 'Signal_TAG',
+                    'digital_description[]': 'Description',
+                    'digital_result[]': 'Result',
+                    'digital_punch[]': 'Punch',
+                    'digital_verified[]': 'Verified',
+                    'digital_comment[]': 'Comment'
+                }
+            )
+        else:
+            context['DIGITAL_SIGNALS'] = existing_context.get('DIGITAL_SIGNALS', [])
+        
+        if 'analogue_input_s_no[]' in request.form:
+            context['ANALOGUE_INPUT_SIGNALS'] = process_table_rows(
+                request.form,
+                {
+                    'analogue_input_s_no[]': 'S_No',
+                    'analogue_input_rack_no[]': 'Rack_No',
+                    'analogue_input_module_position[]': 'Module_Position',
+                    'analogue_input_signal_tag[]': 'Signal_TAG',
+                    'analogue_input_description[]': 'Description',
+                    'analogue_input_result[]': 'Result',
+                    'analogue_input_punch_item[]': 'Punch_Item',
+                    'analogue_input_verified_by[]': 'Verified_by',
+                    'analogue_input_comment[]': 'Comment'
+                }
+            )
+        else:
+            context['ANALOGUE_INPUT_SIGNALS'] = existing_context.get('ANALOGUE_INPUT_SIGNALS', [])
+        
+        if 'analogue_output_s_no[]' in request.form:
+            context['ANALOGUE_OUTPUT_SIGNALS'] = process_table_rows(
+                request.form,
+                {
+                    'analogue_output_s_no[]': 'S_No',
+                    'analogue_output_rack_no[]': 'Rack_No',
+                    'analogue_output_module_position[]': 'Module_Position',
+                    'analogue_output_signal_tag[]': 'Signal_TAG',
+                    'analogue_output_description[]': 'Description',
+                    'analogue_output_result[]': 'Result',
+                    'analogue_output_punch_item[]': 'Punch_Item',
+                    'analogue_output_verified_by[]': 'Verified_by',
+                    'analogue_output_comment[]': 'Comment'
+                }
+            )
+        else:
+            context['ANALOGUE_OUTPUT_SIGNALS'] = existing_context.get('ANALOGUE_OUTPUT_SIGNALS', [])
+        
+        if 'digital_output_s_no[]' in request.form:
+            context['DIGITAL_OUTPUT_SIGNALS'] = process_table_rows(
+                request.form,
+                {
+                    'digital_output_s_no[]': 'S_No',
+                    'digital_output_rack_no[]': 'Rack_No',
+                    'digital_output_module_position[]': 'Module_Position',
+                    'digital_output_signal_tag[]': 'Signal_TAG',
+                    'digital_output_description[]': 'Description',
+                    'digital_output_result[]': 'Result',
+                    'digital_output_punch_item[]': 'Punch_Item',
+                    'digital_output_verified_by[]': 'Verified_by',
+                    'digital_output_comment[]': 'Comment'
+                }
+            )
+        else:
+            context['DIGITAL_OUTPUT_SIGNALS'] = existing_context.get('DIGITAL_OUTPUT_SIGNALS', [])
+        
+        if 'modbus_digital_address[]' in request.form:
+            context['MODBUS_DIGITAL_SIGNALS'] = process_table_rows(
+                request.form,
+                {
+                    'modbus_digital_address[]': 'Address',
+                    'modbus_digital_description[]': 'Description',
+                    'modbus_digital_remarks[]': 'Remarks',
+                    'modbus_digital_result[]': 'Result',
+                    'modbus_digital_punch_item[]': 'Punch_Item',
+                    'modbus_digital_verified_by[]': 'Verified_by',
+                    'modbus_digital_comment[]': 'Comment'
+                }
+            )
+        else:
+            context['MODBUS_DIGITAL_SIGNALS'] = existing_context.get('MODBUS_DIGITAL_SIGNALS', [])
+        
+        if 'modbus_analogue_address[]' in request.form:
+            context['MODBUS_ANALOGUE_SIGNALS'] = process_table_rows(
+                request.form,
+                {
+                    'modbus_analogue_address[]': 'Address',
+                    'modbus_analogue_description[]': 'Description',
+                    'modbus_analogue_range[]': 'Range',
+                    'modbus_analogue_result[]': 'Result',
+                    'modbus_analogue_punch_item[]': 'Punch_Item',
+                    'modbus_analogue_verified_by[]': 'Verified_by',
+                    'modbus_analogue_comment[]': 'Comment'
+                }
+            )
+        else:
+            context['MODBUS_ANALOGUE_SIGNALS'] = existing_context.get('MODBUS_ANALOGUE_SIGNALS', [])
 
+        # Process image uploads
+        from werkzeug.utils import secure_filename
+        
+        # Create upload directory
+        upload_dir = os.path.join(current_app.config['UPLOAD_ROOT'], submission_id)
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Load existing image URLs from database
+        scada_urls = json.loads(sat_report.scada_image_urls) if sat_report.scada_image_urls else []
+        trends_urls = json.loads(sat_report.trends_image_urls) if sat_report.trends_image_urls else []
+        alarm_urls = json.loads(sat_report.alarm_image_urls) if sat_report.alarm_image_urls else []
+        
+        # Function to save uploaded images
+        def save_uploaded_images(field_name, url_list):
+            """Save uploaded images and add their URLs to the list"""
+            for f in request.files.getlist(field_name):
+                if not f or not f.filename:
+                    continue
+                
+                try:
+                    # Create secure unique filename
+                    fn = secure_filename(f.filename)
+                    uniq_fn = f"{uuid.uuid4().hex}_{fn}"
+                    
+                    # Save file to disk
+                    disk_path = os.path.join(upload_dir, uniq_fn)
+                    f.save(disk_path)
+                    
+                    # Create URL for the file
+                    rel_path = os.path.join("uploads", submission_id, uniq_fn).replace("\\", "/")
+                    url = url_for("static", filename=rel_path)
+                    url_list.append(url)
+                    
+                    current_app.logger.info(f"Saved image: {uniq_fn}, URL: {url}")
+                except Exception as e:
+                    current_app.logger.error(f"Error saving image {f.filename}: {e}", exc_info=True)
+        
+        # Save new uploaded images
+        save_uploaded_images("scada_screenshots[]", scada_urls)
+        save_uploaded_images("trends_screenshots[]", trends_urls)
+        save_uploaded_images("alarm_screenshots[]", alarm_urls)
+        
         # Update report metadata
         report.document_title = context.get('DOCUMENT_TITLE', '')
         report.document_reference = context.get('DOCUMENT_REFERENCE', '')
@@ -985,15 +1132,18 @@ def save_progress():
             "user_email": current_user.email if hasattr(current_user, 'email') else request.form.get("user_email", ""),
             "approvals": existing_data.get("approvals", []),
             "locked": existing_data.get("locked", False),
-            "scada_image_urls": existing_data.get("scada_image_urls", []),
-            "trends_image_urls": existing_data.get("trends_image_urls", []),
-            "alarm_image_urls": existing_data.get("alarm_image_urls", []),
+            "scada_image_urls": scada_urls,
+            "trends_image_urls": trends_urls,
+            "alarm_image_urls": alarm_urls,
             "created_at": existing_data.get("created_at", dt.datetime.now().isoformat()),
             "updated_at": dt.datetime.now().isoformat()
         }
 
         # Update SAT report data
         sat_report.data_json = json.dumps(submission_data)
+        sat_report.scada_image_urls = json.dumps(scada_urls)
+        sat_report.trends_image_urls = json.dumps(trends_urls)
+        sat_report.alarm_image_urls = json.dumps(alarm_urls)
         sat_report.date = context.get('DATE', '')
         sat_report.purpose = context.get('PURPOSE', '')
         sat_report.scope = context.get('SCOPE', '')
