@@ -880,10 +880,95 @@ def save_progress():
             "APPROVED_BY_CLIENT": request.form.get('approved_by_client', ''),
             "PURPOSE": request.form.get("purpose", ""),
             "SCOPE": request.form.get("scope", ""),
+            "approver_1_name": request.form.get("approver_1_name", ""),
             "approver_1_email": request.form.get("approver_1_email", ""),
+            "approver_2_name": request.form.get("approver_2_name", ""),
             "approver_2_email": request.form.get("approver_2_email", ""),
             "approver_3_email": request.form.get("approver_3_email", ""),
         }
+        
+        # Process list fields (table data) - only if they're in the form data
+        # This prevents overwriting existing data when saving from earlier steps
+        
+        # Get existing context data to preserve list fields not in current save
+        existing_context = existing_data.get('context', {})
+        
+        if 'doc_ref[]' in request.form:
+            context['RELATED_DOCUMENTS'] = process_table_rows(
+                request.form,
+                {
+                    'doc_ref[]': 'Document_Reference',
+                    'doc_title[]': 'Document_Title'
+                }
+            )
+        else:
+            context['RELATED_DOCUMENTS'] = existing_context.get('RELATED_DOCUMENTS', [])
+        
+        if 'pre_approval_print_name[]' in request.form:
+            context['PRE_EXECUTION_APPROVAL'] = process_table_rows(
+                request.form,
+                {
+                    'pre_approval_print_name[]': 'Print_Name',
+                    'pre_approval_signature[]': 'Signature',
+                    'pre_approval_date[]': 'Date',
+                    'pre_approval_initial[]': 'Initial',
+                    'pre_approval_company[]': 'Company'
+                }
+            )
+        else:
+            context['PRE_EXECUTION_APPROVAL'] = existing_context.get('PRE_EXECUTION_APPROVAL', [])
+        
+        if 'post_approval_print_name[]' in request.form:
+            context['POST_EXECUTION_APPROVAL'] = process_table_rows(
+                request.form,
+                {
+                    'post_approval_print_name[]': 'Print_Name',
+                    'post_approval_signature[]': 'Signature',
+                    'post_approval_date[]': 'Date',
+                    'post_approval_initial[]': 'Initial',
+                    'post_approval_company[]': 'Company'
+                }
+            )
+        else:
+            context['POST_EXECUTION_APPROVAL'] = existing_context.get('POST_EXECUTION_APPROVAL', [])
+        
+        if 'pretest_item[]' in request.form:
+            context['PRE_TEST_REQUIREMENTS'] = process_table_rows(
+                request.form,
+                {
+                    'pretest_item[]': 'Item',
+                    'pretest_test[]': 'Test',
+                    'pretest_criteria[]': 'Acceptance_Criteria',
+                    'pretest_passfail[]': 'Pass_Fail',
+                    'pretest_comments[]': 'Comments'
+                }
+            )
+        else:
+            context['PRE_TEST_REQUIREMENTS'] = existing_context.get('PRE_TEST_REQUIREMENTS', [])
+        
+        if 'component_tag[]' in request.form:
+            context['KEY_COMPONENTS'] = process_table_rows(
+                request.form,
+                {
+                    'component_tag[]': 'Tag',
+                    'component_description[]': 'Description'
+                }
+            )
+        else:
+            context['KEY_COMPONENTS'] = existing_context.get('KEY_COMPONENTS', [])
+        
+        if 'ip_device[]' in request.form:
+            context['IP_RECORDS'] = process_table_rows(
+                request.form,
+                {
+                    'ip_device[]': 'Device',
+                    'ip_address[]': 'IP_Address',
+                    'ip_subnet[]': 'Subnet',
+                    'ip_gateway[]': 'Gateway'
+                }
+            )
+        else:
+            context['IP_RECORDS'] = existing_context.get('IP_RECORDS', [])
 
         # Update report metadata
         report.document_title = context.get('DOCUMENT_TITLE', '')

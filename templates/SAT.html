@@ -1509,8 +1509,8 @@
                     <select id="approver_1_name_select" name="approver_1_name_select">
                       <option value="">Select Automation Manager...</option>
                     </select>
-                    <input type="hidden" name="approver_1_name" id="approver_1_name" />
-                    <input type="hidden" name="approver_1_email" id="approver_1_email" />
+                    <input type="hidden" name="approver_1_name" id="approver_1_name" value="{{ submission_data.get('approver_1_name', '') }}" />
+                    <input type="hidden" name="approver_1_email" id="approver_1_email" value="{{ submission_data.get('approver_1_email', '') }}" />
                     <label for="approver_1_email_display" style="margin-top: 8px;">Email Address</label>
                     <input type="email" id="approver_1_email_display" readonly
                            placeholder="Email will auto-populate when name is selected"
@@ -1524,8 +1524,8 @@
                     <select id="approver_2_name_select" name="approver_2_name_select">
                       <option value="">Select Project Manager...</option>
                     </select>
-                    <input type="hidden" name="approver_2_name" id="approver_2_name" />
-                    <input type="hidden" name="approver_2_email" id="approver_2_email" />
+                    <input type="hidden" name="approver_2_name" id="approver_2_name" value="{{ submission_data.get('approver_2_name', '') }}" />
+                    <input type="hidden" name="approver_2_email" id="approver_2_email" value="{{ submission_data.get('approver_2_email', '') }}" />
                     <label for="approver_2_email_display" style="margin-top: 8px;">Email Address</label>
                     <input type="email" id="approver_2_email_display" readonly
                            placeholder="Email will auto-populate when name is selected"
@@ -3271,6 +3271,26 @@
 
       // Initialize approval dropdowns
       initializeApprovalDropdowns();
+      
+      // Populate approver display fields when editing
+      const approver1Email = document.getElementById('approver_1_email');
+      const approver2Email = document.getElementById('approver_2_email');
+      
+      if (approver1Email && approver1Email.value) {
+        const display1 = document.getElementById('approver_1_email_display');
+        if (display1) {
+          display1.value = approver1Email.value;
+          display1.style.backgroundColor = '#fff';
+        }
+      }
+      
+      if (approver2Email && approver2Email.value) {
+        const display2 = document.getElementById('approver_2_email_display');
+        if (display2) {
+          display2.value = approver2Email.value;
+          display2.style.backgroundColor = '#fff';
+        }
+      }
 
       // Auto-refresh CSRF token every 10 minutes (more frequent)
       setInterval(refreshCSRFToken, 10 * 60 * 1000);
