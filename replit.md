@@ -4,7 +4,14 @@ This is a comprehensive Flask-based web application for generating System Accept
 
 ## Recent Updates
 
-### October 1, 2025 - Edit Mode Data Display Fixes
+### October 1, 2025 - Comprehensive Save Progress Enhancements
+- **Signal tables now save correctly**: Added processing for all signal tables (Digital Signals, Analogue Input/Output, Digital Output, Modbus Digital/Analogue)
+- **Image uploads implemented**: SCADA, Trends, and Alarm screenshots now save to database with proper file validation
+- **Security improvements**: Added file extension validation, PIL image verification, and image removal handling
+- **Data integrity protection**: All tables use conditional processing to preserve existing data when saving from earlier steps
+- All reported missing sections now save and load correctly in edit mode
+
+### October 1, 2025 - Edit Mode Data Display Fixes  
 - **Fixed Step 2 approver email visibility**: Added value attributes to hidden email/name fields and JavaScript initialization to populate display fields when editing existing reports
 - **Fixed Step 4+ table data visibility**: Updated save_progress route to process and save list/table fields (RELATED_DOCUMENTS, PRE_EXECUTION_APPROVAL, POST_EXECUTION_APPROVAL, PRE_TEST_REQUIREMENTS, KEY_COMPONENTS, IP_RECORDS)
 - **Data integrity protection**: Implemented conditional list field processing that preserves existing data when saving from earlier steps (prevents data loss on partial saves)
