@@ -4,6 +4,12 @@ This is a comprehensive Flask-based web application for generating System Accept
 
 ## Recent Updates
 
+### October 1, 2025 - Edit Mode Data Display Fixes
+- **Fixed Step 2 approver email visibility**: Added value attributes to hidden email/name fields and JavaScript initialization to populate display fields when editing existing reports
+- **Fixed Step 4+ table data visibility**: Updated save_progress route to process and save list/table fields (RELATED_DOCUMENTS, PRE_EXECUTION_APPROVAL, POST_EXECUTION_APPROVAL, PRE_TEST_REQUIREMENTS, KEY_COMPONENTS, IP_RECORDS)
+- **Data integrity protection**: Implemented conditional list field processing that preserves existing data when saving from earlier steps (prevents data loss on partial saves)
+- Edit mode now correctly displays all saved data across all form steps
+
 ### October 1, 2025 - SAT Report State Management Fixes
 - Fixed critical bug where new reports showed previously saved data from localStorage
 - Implemented proper state isolation between new and existing reports using is_new_report flag
