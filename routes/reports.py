@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, make_response
+from functools import wraps
 from flask_login import login_required, current_user
 from models import db, Report, User, SATReport
 from auth import login_required, role_required
@@ -39,6 +40,18 @@ _SAT_LIST_FIELDS = {
     "ALARM_SCREENSHOTS"
 }
 
+
+
+def no_cache(f):
+    """Decorator to prevent caching of routes"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        response = make_response(f(*args, **kwargs))
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+    return decorated_function
 
 
 def _build_empty_sat_submission():
@@ -93,6 +106,7 @@ def new_sat():
     return redirect(url_for('reports.new_sat_full'))
 
 @reports_bp.route('/new/sat/full')
+@no_cache
 @login_required
 @role_required(['Engineer', 'Automation Manager', 'Admin'])
 def new_sat_full():
