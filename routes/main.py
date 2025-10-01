@@ -1077,6 +1077,7 @@ def save_progress():
 
         # Process image uploads
         from werkzeug.utils import secure_filename
+        from PIL import Image
         
         # Create upload directory
         upload_dir = os.path.join(current_app.config['UPLOAD_ROOT'], submission_id)
@@ -1087,11 +1088,21 @@ def save_progress():
         trends_urls = json.loads(sat_report.trends_image_urls) if sat_report.trends_image_urls else []
         alarm_urls = json.loads(sat_report.alarm_image_urls) if sat_report.alarm_image_urls else []
         
-        # Function to save uploaded images
+        # Remove images flagged for deletion
+        handle_image_removals(request.form, "removed_scada_images", scada_urls)
+        handle_image_removals(request.form, "removed_trends_images", trends_urls)
+        handle_image_removals(request.form, "removed_alarm_images", alarm_urls)
+        
+        # Function to save uploaded images with validation
         def save_uploaded_images(field_name, url_list):
-            """Save uploaded images and add their URLs to the list"""
+            """Save uploaded images with security validation and add their URLs to the list"""
             for f in request.files.getlist(field_name):
                 if not f or not f.filename:
+                    continue
+                
+                # Validate file extension
+                if not allowed_file(f.filename):
+                    current_app.logger.warning(f"Rejected file with invalid extension: {f.filename}")
                     continue
                 
                 try:
@@ -1102,6 +1113,16 @@ def save_progress():
                     # Save file to disk
                     disk_path = os.path.join(upload_dir, uniq_fn)
                     f.save(disk_path)
+                    
+                    # Validate it's actually an image using PIL
+                    try:
+                        with Image.open(disk_path) as img:
+                            img.verify()
+                    except Exception as img_error:
+                        # Not a valid image, delete it
+                        os.remove(disk_path)
+                        current_app.logger.warning(f"Rejected invalid image file: {f.filename} - {img_error}")
+                        continue
                     
                     # Create URL for the file
                     rel_path = os.path.join("uploads", submission_id, uniq_fn).replace("\\", "/")
