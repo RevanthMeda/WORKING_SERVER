@@ -3164,6 +3164,9 @@
 
     // Step navigation with enhanced progress states
     function goToStep(step) {
+      // Auto-save progress before navigating to ensure data isn't lost
+      autoSaveProgress();
+      
       // Hide current step
       document.getElementById(`step-${currentStep}`).classList.remove('active');
 
@@ -3218,6 +3221,34 @@
 
     // Form functionality
     function initializeForm() {
+      // Check if this is a new report vs editing an existing one
+      const formModeData = document.getElementById('form-mode-data');
+      if (formModeData) {
+        const isNewReport = JSON.parse(formModeData.getAttribute('data-is-new-report') || 'true');
+        const currentSubmissionId = formModeData.getAttribute('data-submission-id') || '';
+        
+        if (isNewReport) {
+          // Clear localStorage for new reports to ensure clean state
+          console.log('New report detected - clearing localStorage');
+          localStorage.removeItem('satFormProgress');
+          localStorage.removeItem('satFormSubmissionId');
+        } else {
+          // For existing reports, check if localStorage is from a different report
+          const storedSubmissionId = localStorage.getItem('satFormSubmissionId');
+          // Clear localStorage if no stored ID (legacy case) or if it doesn't match current report
+          if (!storedSubmissionId || storedSubmissionId !== currentSubmissionId) {
+            console.log('Different or legacy report detected - clearing stale localStorage');
+            localStorage.removeItem('satFormProgress');
+            localStorage.removeItem('satFormSubmissionId');
+          }
+          // Store current submission ID for future reference
+          if (currentSubmissionId) {
+            localStorage.setItem('satFormSubmissionId', currentSubmissionId);
+          }
+          console.log('Editing existing report:', currentSubmissionId);
+        }
+      }
+      
       // Initialize signature pad if available
       if (typeof SignaturePad !== 'undefined') {
         const canvas = document.getElementById('fixed_signature_canvas');
@@ -3635,16 +3666,49 @@
       // Collect form data
       const formData = new FormData(document.getElementById('satForm'));
 
-      // Save to localStorage as backup
-      const data = {};
-      for (let [key, value] of formData.entries()) {
-        if (key !== 'csrf_token' && key !== 'submission_id') {
-          data[key] = value;
+      // Save to backend
+      fetch('/save_progress', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          console.log('Progress saved to server:', data);
+          
+          // Update submission_id field if it was created
+          if (data.submission_id) {
+            const submissionIdField = document.getElementById('submission_id');
+            if (submissionIdField) {
+              submissionIdField.value = data.submission_id;
+            }
+            // Track submission_id in localStorage to prevent cross-report contamination
+            localStorage.setItem('satFormSubmissionId', data.submission_id);
+          }
+          
+          // Also save to localStorage as backup (including the submission_id)
+          const backupData = {};
+          for (let [key, value] of formData.entries()) {
+            if (key !== 'csrf_token') {
+              backupData[key] = value;
+            }
+          }
+          // Ensure backup includes the latest submission_id
+          if (data.submission_id) {
+            backupData.submission_id = data.submission_id;
+          }
+          localStorage.setItem('satFormProgress', JSON.stringify(backupData));
+          
+          alert('Progress saved successfully!');
+        } else {
+          console.error('Save failed:', data.message);
+          alert('Error saving progress: ' + data.message);
         }
-      }
-      localStorage.setItem('satFormProgress', JSON.stringify(data));
-
-      alert('Progress saved successfully!');
+      })
+      .catch(error => {
+        console.error('Error saving progress:', error);
+        alert('Error saving progress. Please try again.');
+      });
     }
 
     function autoSaveProgress() {
@@ -3656,7 +3720,19 @@
       .then(response => response.json())
       .then(data => {
         if (data.success) {
-          console.log('Auto-saved progress');
+          console.log('Auto-saved progress at:', data.timestamp);
+          
+          // Update submission_id field if it was created
+          if (data.submission_id) {
+            const submissionIdField = document.getElementById('submission_id');
+            if (submissionIdField && !submissionIdField.value) {
+              submissionIdField.value = data.submission_id;
+              // Track submission_id in localStorage to prevent cross-report contamination
+              localStorage.setItem('satFormSubmissionId', data.submission_id);
+              console.log('Updated submission_id:', data.submission_id);
+            }
+          }
+          
           // Optionally update a UI element to show the last saved time
         } else {
           console.error('Auto-save failed:', data.message);
