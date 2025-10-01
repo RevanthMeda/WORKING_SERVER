@@ -494,6 +494,40 @@ def send_approval_link(approver_email, submission_id, stage, subject=None, html_
 
     return send_email(approver_email, subject, html_content)
 
+def send_client_final_document(client_email, submission_id, document_title, extra_message=None):
+    """Notify the client that the final document is ready."""
+    if not client_email:
+        logger.warning("No client email provided for final document notification")
+        return False
+
+    document_title = document_title or 'SAT Report'
+    download_url = url_for('status.download_report', submission_id=submission_id, _external=True)
+    modern_url = url_for('status.download_report_modern', submission_id=submission_id, _external=True)
+    status_url = url_for('status.view_status', submission_id=submission_id, _external=True)
+
+    subject = f"Final {document_title} is ready"
+
+    extra_html = f"<p>{extra_message}</p>" if extra_message else ""
+
+    html_content = f"""
+    <html>
+    <body>
+        <h1>{document_title} Approved</h1>
+        <p>The final version of the report has been approved and is ready for your records.</p>
+        {extra_html}
+        <p>You can download the final document using the links below:</p>
+        <ul>
+            <li><a href="{download_url}">Download Word Document</a></li>
+            <li><a href="{modern_url}">Download Modern Format</a></li>
+            <li><a href="{status_url}">View approval history</a></li>
+        </ul>
+        <p>If you have any questions, please reply to this message.</p>
+    </body>
+    </html>
+    """
+
+    return send_email(client_email, subject, html_content)
+
 def notify_completion(user_email, submission_id):
     """Notify the submitter that all approvals are complete"""
     if not user_email:
@@ -612,6 +646,66 @@ def convert_to_pdf(docx_path):
 
 # --------------------
 # Form processing helpers
+def setup_approval_workflow(submission_id, submissions, approver_emails=None):
+    """Create or update approval workflow stored in submissions.json."""
+    approver_emails = approver_emails or []
+    valid_emails = [email for email in approver_emails if email]
+
+    submission = submissions.get(submission_id, {}) or {}
+    approvals = submission.get('approvals') or []
+
+    if approvals:
+        for idx, approval in enumerate(approvals):
+            if idx < len(valid_emails) and valid_emails[idx]:
+                if approval.get('status', 'pending') == 'pending':
+                    approval['approver_email'] = valid_emails[idx]
+        locked = any(a.get('status') == 'approved' for a in approvals)
+        submission['approvals'] = approvals
+        submissions[submission_id] = submission
+        return approvals, locked
+
+    default_approvers = current_app.config.get('DEFAULT_APPROVERS', [])
+    if not valid_emails and default_approvers:
+        valid_emails = [
+            approver.get('approver_email')
+            for approver in default_approvers
+            if approver.get('approver_email')
+        ]
+        stages = [
+            approver.get('stage') or idx + 1
+            for idx, approver in enumerate(default_approvers)
+        ]
+        titles = [
+            approver.get('title', 'Approver')
+            for approver in default_approvers
+        ]
+    else:
+        stages = list(range(1, len(valid_emails) + 1))
+        titles = ['Approver' for _ in valid_emails]
+
+    if not valid_emails:
+        submission['approvals'] = approvals
+        submissions[submission_id] = submission
+        return approvals, False
+
+    approvals = []
+    for idx, email in enumerate(valid_emails):
+        stage = stages[idx] if idx < len(stages) else idx + 1
+        title = titles[idx] if idx < len(titles) else 'Approver'
+        approvals.append({
+            'stage': stage,
+            'approver_email': email,
+            'title': title,
+            'status': 'pending',
+            'timestamp': None,
+            'signature': None,
+            'comment': ''
+        })
+
+    submission['approvals'] = approvals
+    submissions[submission_id] = submission
+    return approvals, False
+
 def process_table_rows(form_data, field_mappings, *, add_placeholder=True):
     """Process multiple rows of table data from form fields.
 
@@ -729,6 +823,27 @@ def handle_image_removals(form_data, removal_field_name, url_list):
     except Exception as e:
         current_app.logger.error(f"Error handling image removals: {e}")
 
+def get_safe_output_path(filename_hint=None, extension='docx'):
+    """Return a unique, writable path inside the configured output directory."""
+    output_dir = current_app.config.get('OUTPUT_DIR', 'outputs')
+    os.makedirs(output_dir, exist_ok=True)
+
+    if not filename_hint:
+        filename_hint = f"SAT_Report_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+
+    base_name = secure_filename(filename_hint) or f"SAT_Report_{uuid.uuid4().hex}"
+    if not base_name.lower().endswith(f".{extension.lower()}"):
+        base_name = f"{base_name}.{extension}"
+
+    candidate = os.path.join(output_dir, base_name)
+    counter = 1
+    while os.path.exists(candidate):
+        name, ext = os.path.splitext(base_name)
+        candidate = os.path.join(output_dir, f"{name}_{counter}{ext}")
+        counter += 1
+
+    return candidate
+
 def allowed_file(filename):
     """Check if file extension is allowed"""
     allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'docx'}
@@ -747,22 +862,5 @@ def save_uploaded_file(file, upload_folder):
         print(f"Error saving file: {e}")
         return None
 
-def generate_sat_report(data):
-    """Generate SAT report (placeholder)"""
-    print("Generating SAT report...")
-    return {"success": True, "filename": "SAT_Report_Final.docx"}
 
-def get_unread_count():
-    """Get unread notification count for current user"""
-    try:
-        from flask_login import current_user
-        if current_user.is_authenticated:
-            from models import Notification
-            count = Notification.query.filter_by(
-                user_email=current_user.email,
-                read=False
-            ).count()
-            return count
-    except Exception as e:
-        print(f"Error getting unread count: {e}")
-    return 0
+
