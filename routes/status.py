@@ -96,115 +96,50 @@ def view_status(submission_id):
 @status_bp.route('/download/<submission_id>')
 @login_required
 def download_report(submission_id):
-    """Download the generated report"""
+    """Generate and download SAT report directly from database data"""
     try:
-        from models import Report, SATReport
-        import json
+        current_app.logger.info(f"Starting direct download generation for {submission_id}")
         
-        # Verify report exists
-        report = Report.query.filter_by(id=submission_id).first()
-        if not report:
-            flash('Report not found.', 'error')
+        # Import the new direct generator
+        from services.direct_docx_generator import generate_sat_report_direct
+        
+        # Generate the report directly from database data
+        result = generate_sat_report_direct(submission_id)
+        
+        if 'error' in result:
+            current_app.logger.error(f"Direct generation failed: {result['error']}")
+            flash(f"Error generating report: {result['error']}", 'error')
             return redirect(url_for('dashboard.home'))
-
-        sat_report = SATReport.query.filter_by(report_id=report.id).first()
-        if not sat_report:
-            flash('Report data not found.', 'error')
-            return redirect(url_for('dashboard.home'))
         
-        # Try to serve the originally generated file first
-        permanent_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.docx')
+        # Send the generated file
+        file_path = result['path']
+        download_name = result['download_name']
         
-        # Log file path and existence for debugging
-        current_app.logger.info(f"Looking for report file at: {permanent_path}")
-        current_app.logger.info(f"File exists: {os.path.exists(permanent_path)}")
-        if os.path.exists(permanent_path):
-            file_size = os.path.getsize(permanent_path)
-            current_app.logger.info(f"File size: {file_size} bytes")
+        current_app.logger.info(f"Direct generation successful: {file_path}")
         
-        if os.path.exists(permanent_path) and os.path.getsize(permanent_path) > 1000:
-            current_app.logger.info(f"Serving existing report file for {submission_id}")
-            
-            # Build download name
-            try:
-                stored_data = json.loads(sat_report.data_json) if sat_report.data_json else {}
-                context_data = stored_data.get("context", stored_data)
-                project_ref = context_data.get('PROJECT_REFERENCE', '').strip()
-                if not project_ref:
-                    project_ref = submission_id[:8]
-                safe_proj_ref = "".join(c if c.isalnum() or c in ['_', '-'] else "_" for c in project_ref)
-                download_name = f"SAT_{safe_proj_ref}.docx"
-            except:
-                download_name = f"SAT_Report_{submission_id}.docx"
-            
-            # Use the safe file download utility
-            from services.file_download import safe_send_file
-            
-            current_app.logger.info(f"Attempting to send file: {permanent_path} as {download_name}")
-            
-            # Try multiple download strategies to bypass potential IIS issues
-            
-            # Strategy 1: Direct file serving (bypass IIS proxy issues)
-            if request.args.get('direct') == '1':
-                current_app.logger.info("Using direct file serving strategy")
-                try:
-                    with open(permanent_path, 'rb') as f:
-                        file_content = f.read()
-                    
-                    response = Response(
-                        file_content,
-                        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                        headers={
-                            'Content-Disposition': f'attachment; filename="{download_name}"',
-                            'Content-Length': str(len(file_content)),
-                            'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                            'Cache-Control': 'no-cache, no-store, must-revalidate',
-                            'Pragma': 'no-cache',
-                            'Expires': '0',
-                            'Accept-Ranges': 'bytes'
-                        }
-                    )
-                    return response
-                except Exception as e:
-                    current_app.logger.error(f"Direct file serving failed: {e}")
-            
-            # Strategy 2: Force regeneration
-            if request.args.get('regen') == '1':
-                current_app.logger.info("Forcing document regeneration")
-                try:
-                    from services.document_generator import regenerate_document_from_db
-                    regen_result = regenerate_document_from_db(submission_id)
-                    
-                    if 'error' not in regen_result and 'path' in regen_result:
-                        with open(regen_result['path'], 'rb') as f:
-                            file_content = f.read()
-                        
-                        response = Response(
-                            file_content,
-                            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                            headers={
-                                'Content-Disposition': f'attachment; filename="{download_name}"',
-                                'Content-Length': str(len(file_content)),
-                                'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                                'Pragma': 'no-cache',
-                                'Expires': '0'
-                            }
-                        )
-                        return response
-                except Exception as e:
-                    current_app.logger.error(f"Regeneration failed: {e}")
-            
-            # Strategy 3: Standard safe_send_file
-            return safe_send_file(permanent_path, download_name, as_attachment=True)
-        else:
-            # File doesn't exist - inform user to regenerate from form
-            flash('Document file not found. Please edit and re-generate this report from the form.', 'warning')
-            return redirect(url_for('main.edit_sat', submission_id=submission_id))
+        # Read file and create response
+        with open(file_path, 'rb') as f:
+            file_content = f.read()
+        
+        response = Response(
+            file_content,
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            headers={
+                'Content-Disposition': f'attachment; filename="{download_name}"',
+                'Content-Length': str(len(file_content)),
+                'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        )
+        
+        current_app.logger.info(f"Serving directly generated report: {download_name} ({len(file_content)} bytes)")
+        return response
 
     except Exception as e:
         current_app.logger.error(f"Error in download_report for {submission_id}: {e}", exc_info=True)
-        flash('An unexpected error occurred while downloading the report.', 'error')
+        flash('An unexpected error occurred while generating the report.', 'error')
         return redirect(url_for('dashboard.home'))
 
 
@@ -441,6 +376,40 @@ def debug_file(submission_id):
     except Exception as e:
         current_app.logger.error(f"Error in debug_file for {submission_id}: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+
+@status_bp.route('/simple-test/<submission_id>')
+def simple_test(submission_id):
+    """Simple test that doesn't require login - for debugging"""
+    try:
+        permanent_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.docx')
+        
+        if not os.path.exists(permanent_path):
+            return f"File not found at: {permanent_path}"
+        
+        # Simple file info
+        file_size = os.path.getsize(permanent_path)
+        
+        # Check if it's a valid ZIP/DOCX
+        with open(permanent_path, 'rb') as f:
+            header = f.read(4)
+        
+        info = f"""
+        <h2>File Information</h2>
+        <p><strong>File Path:</strong> {permanent_path}</p>
+        <p><strong>File Size:</strong> {file_size} bytes</p>
+        <p><strong>Header:</strong> {header}</p>
+        <p><strong>Is ZIP signature:</strong> {header == b'PK\\x03\\x04'}</p>
+        
+        <h3>Download Links:</h3>
+        <p><a href="/status/download/{submission_id}">New Direct Generator Download</a></p>
+        <p><a href="/status/download-modern/{submission_id}">Modern Download (Old System)</a></p>
+        """
+        
+        return info
+        
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 
 @status_bp.route('/list')
