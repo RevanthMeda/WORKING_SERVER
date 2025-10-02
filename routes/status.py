@@ -142,31 +142,7 @@ def download_report(submission_id):
             
             current_app.logger.info(f"Attempting to send file: {permanent_path} as {download_name}")
             
-            response = safe_send_file(permanent_path, download_name, as_attachment=True)
-            
-            # Check if the response is an error (JSON response)
-            if hasattr(response, 'status_code') and response.status_code != 200:
-                current_app.logger.error(f"File download failed for {submission_id}, attempting to regenerate...")
-                
-                # Try to regenerate the document from database data
-                try:
-                    from services.document_generator import regenerate_document_from_db
-                    regen_result = regenerate_document_from_db(submission_id)
-                    
-                    if 'error' not in regen_result and 'path' in regen_result:
-                        current_app.logger.info(f"Successfully regenerated document for {submission_id}")
-                        regenerated_response = safe_send_file(regen_result['path'], download_name, as_attachment=True)
-                        
-                        if not (hasattr(regenerated_response, 'status_code') and regenerated_response.status_code != 200):
-                            return regenerated_response
-                    
-                except Exception as regen_error:
-                    current_app.logger.error(f"Failed to regenerate document: {regen_error}")
-                
-                flash('Error downloading report file. The file may be corrupted. Please regenerate the report from the form.', 'error')
-                return redirect(url_for('main.edit_sat', submission_id=submission_id))
-            
-            return response
+            return safe_send_file(permanent_path, download_name, as_attachment=True)
         else:
             # File doesn't exist - inform user to regenerate from form
             flash('Document file not found. Please edit and re-generate this report from the form.', 'warning')
@@ -207,6 +183,62 @@ def download_report_modern(submission_id):
         current_app.logger.error(f'Error sending modern report for {submission_id}: {exc}', exc_info=True)
         flash('Error downloading report.', 'error')
         return redirect(url_for('status.view_status', submission_id=submission_id))
+
+
+@status_bp.route('/test-docx/<submission_id>')
+@login_required
+def test_docx(submission_id):
+    """Test endpoint to verify DOCX file can be opened"""
+    try:
+        from models import Report
+        import zipfile
+        
+        # Only allow for admin users or in development
+        if not (current_user.role == 'Admin' or current_app.config.get('DEBUG', False)):
+            flash('Access denied.', 'error')
+            return redirect(url_for('dashboard.home'))
+        
+        # Verify report exists
+        report = Report.query.filter_by(id=submission_id).first()
+        if not report:
+            return jsonify({'error': 'Report not found'}), 404
+
+        permanent_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.docx')
+        
+        if not os.path.exists(permanent_path):
+            return jsonify({'error': 'File not found', 'path': permanent_path}), 404
+        
+        # Test if it's a valid ZIP/DOCX file
+        try:
+            with zipfile.ZipFile(permanent_path, 'r') as zip_file:
+                file_list = zip_file.namelist()
+                has_word_files = any(f.startswith('word/') for f in file_list)
+                has_content_types = '[Content_Types].xml' in file_list
+                
+                test_results = {
+                    'file_path': permanent_path,
+                    'file_size': os.path.getsize(permanent_path),
+                    'is_valid_zip': True,
+                    'file_count': len(file_list),
+                    'has_word_files': has_word_files,
+                    'has_content_types': has_content_types,
+                    'is_valid_docx': has_word_files and has_content_types,
+                    'sample_files': file_list[:10]  # First 10 files
+                }
+                
+        except zipfile.BadZipFile:
+            test_results = {
+                'file_path': permanent_path,
+                'file_size': os.path.getsize(permanent_path),
+                'is_valid_zip': False,
+                'error': 'File is not a valid ZIP/DOCX file'
+            }
+        
+        return jsonify(test_results)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in test_docx for {submission_id}: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 
 @status_bp.route('/debug-file/<submission_id>')

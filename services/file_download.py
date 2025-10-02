@@ -126,12 +126,39 @@ def safe_send_file(file_path: str, download_name: Optional[str] = None,
         
         current_app.logger.info(f"Sending file: {file_path} as {download_name} (MIME: {mime_type})")
         
-        return send_file(
-            file_path,
-            as_attachment=as_attachment,
-            download_name=download_name,
-            mimetype=mime_type
-        )
+        # Try Flask's send_file first
+        try:
+            response = send_file(
+                file_path,
+                as_attachment=as_attachment,
+                download_name=download_name,
+                mimetype=mime_type
+            )
+            current_app.logger.info(f"Flask send_file successful for {file_path}")
+            return response
+        except Exception as send_file_error:
+            current_app.logger.error(f"Flask send_file failed for {file_path}: {send_file_error}")
+            
+            # Fallback: create response manually
+            current_app.logger.info(f"Attempting manual file response for {file_path}")
+            
+            with open(file_path, 'rb') as f:
+                file_content = f.read()
+            
+            response = Response(
+                file_content,
+                mimetype=mime_type,
+                headers={
+                    'Content-Disposition': f'attachment; filename="{download_name}"',
+                    'Content-Length': str(len(file_content)),
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            )
+            
+            current_app.logger.info(f"Manual file response created for {file_path} ({len(file_content)} bytes)")
+            return response
         
     except Exception as e:
         current_app.logger.error(f"Error sending file {file_path}: {str(e)}", exc_info=True)
