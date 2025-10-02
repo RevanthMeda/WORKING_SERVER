@@ -143,7 +143,6 @@ def generate():
     try:
         # Log request details for debugging
         current_app.logger.info(f"Generate request from: {request.remote_addr}")
-        current_app.logger.info(f"Request headers: {request.headers}")
         current_app.logger.info(f"Request form data keys: {list(request.form.keys())}")
 
 
