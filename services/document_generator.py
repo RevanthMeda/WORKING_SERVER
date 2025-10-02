@@ -71,27 +71,35 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
         combined_tables = dict(legacy_tables)
         combined_tables.update(ui_tables)
 
-        # Build rendering context
+        # Helper to sanitize values - convert None to empty string and ensure strings
+        def sanitize_value(value):
+            if value is None:
+                return ""
+            if isinstance(value, str):
+                return value
+            return str(value)
+        
+        # Build rendering context with sanitized values
         render_context = {
-            "DOCUMENT_TITLE": context_data.get('DOCUMENT_TITLE', ''),
-            "PROJECT_REFERENCE": context_data.get('PROJECT_REFERENCE', ''),
-            "DOCUMENT_REFERENCE": context_data.get('DOCUMENT_REFERENCE', ''),
-            "DATE": context_data.get('DATE', ''),
-            "CLIENT_NAME": context_data.get('CLIENT_NAME', ''),
-            "REVISION": context_data.get('REVISION', ''),
-            "REVISION_DETAILS": context_data.get('REVISION_DETAILS', ''),
-            "REVISION_DATE": context_data.get('REVISION_DATE', ''),
-            "PREPARED_BY": context_data.get('PREPARED_BY', ''),
+            "DOCUMENT_TITLE": sanitize_value(context_data.get('DOCUMENT_TITLE', '')),
+            "PROJECT_REFERENCE": sanitize_value(context_data.get('PROJECT_REFERENCE', '')),
+            "DOCUMENT_REFERENCE": sanitize_value(context_data.get('DOCUMENT_REFERENCE', '')),
+            "DATE": sanitize_value(context_data.get('DATE', '')),
+            "CLIENT_NAME": sanitize_value(context_data.get('CLIENT_NAME', '')),
+            "REVISION": sanitize_value(context_data.get('REVISION', '')),
+            "REVISION_DETAILS": sanitize_value(context_data.get('REVISION_DETAILS', '')),
+            "REVISION_DATE": sanitize_value(context_data.get('REVISION_DATE', '')),
+            "PREPARED_BY": sanitize_value(context_data.get('PREPARED_BY', '')),
             "SIG_PREPARED": "",  # Signatures are not regenerated
             "SIG_PREPARED_BY": "",
-            "REVIEWED_BY_TECH_LEAD": context_data.get('REVIEWED_BY_TECH_LEAD', ''),
+            "REVIEWED_BY_TECH_LEAD": sanitize_value(context_data.get('REVIEWED_BY_TECH_LEAD', '')),
             "SIG_REVIEW_TECH": "",
-            "REVIEWED_BY_PM": context_data.get('REVIEWED_BY_PM', ''),
+            "REVIEWED_BY_PM": sanitize_value(context_data.get('REVIEWED_BY_PM', '')),
             "SIG_REVIEW_PM": "",
-            "APPROVED_BY_CLIENT": context_data.get('APPROVED_BY_CLIENT', ''),
+            "APPROVED_BY_CLIENT": sanitize_value(context_data.get('APPROVED_BY_CLIENT', '')),
             "SIG_APPROVAL_CLIENT": "",
-            "PURPOSE": context_data.get('PURPOSE', ''),
-            "SCOPE": context_data.get('SCOPE', ''),
+            "PURPOSE": sanitize_value(context_data.get('PURPOSE', '')),
+            "SCOPE": sanitize_value(context_data.get('SCOPE', '')),
             "SCADA_IMAGES": scada_image_objects,
             "TRENDS_IMAGES": trends_image_objects,
             "ALARM_IMAGES": alarm_image_objects,
@@ -103,10 +111,21 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
             "SIG_APPROVER_3": "",
         }
 
-        # Add table data
+        # Add table data with sanitization
+        def sanitize_table_data(data):
+            """Recursively sanitize table data to remove None values"""
+            if data is None:
+                return []
+            if isinstance(data, list):
+                return [sanitize_table_data(item) for item in data]
+            if isinstance(data, dict):
+                return {k: sanitize_value(v) if not isinstance(v, (list, dict)) else sanitize_table_data(v) 
+                        for k, v in data.items()}
+            return data
+        
         for key, value in doc_tables.items():
             if key not in render_context:
-                render_context[key] = value
+                render_context[key] = sanitize_table_data(value)
 
         # Render template
         current_app.logger.info("Starting document rendering from database...")
