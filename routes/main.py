@@ -495,8 +495,24 @@ def generate():
         # Save to database
         db.session.commit()
 
-        # Render the DOCX template
-        doc.render(context)
+        # Render the DOCX template with error handling
+        try:
+            current_app.logger.info("Starting document rendering...")
+            current_app.logger.debug(f"Context keys: {list(context.keys())}")
+            
+            # Check for problematic values in context
+            for key, value in context.items():
+                if value is None:
+                    current_app.logger.warning(f"Context key '{key}' has None value")
+                elif isinstance(value, (list, dict)) and not value:
+                    current_app.logger.debug(f"Context key '{key}' is empty {type(value).__name__}")
+            
+            doc.render(context)
+            current_app.logger.info("Document rendering completed successfully")
+        except Exception as render_error:
+            current_app.logger.error(f"Error rendering document template: {render_error}", exc_info=True)
+            flash(f"Error generating document: {str(render_error)}", "error")
+            return redirect(url_for('index'))
 
         # Build a timestamped filename and save to the OS temp directory
         import tempfile
@@ -504,8 +520,23 @@ def generate():
         filename = f"SAT_Report_{timestamp}.docx"
         temp_path = os.path.join(tempfile.gettempdir(), filename)
 
-        doc.save(temp_path)
-        current_app.logger.info(f"Document saved to temp path: {temp_path}")
+        try:
+            doc.save(temp_path)
+            current_app.logger.info(f"Document saved to temp path: {temp_path}")
+            
+            # Verify the file exists and has content
+            if not os.path.exists(temp_path):
+                raise Exception(f"Document file was not created at {temp_path}")
+            
+            file_size = os.path.getsize(temp_path)
+            if file_size < 1000:  # A valid docx should be at least a few KB
+                raise Exception(f"Document file is too small ({file_size} bytes), likely corrupt")
+            
+            current_app.logger.info(f"Document file verified: {file_size} bytes")
+        except Exception as save_error:
+            current_app.logger.error(f"Error saving document: {save_error}", exc_info=True)
+            flash(f"Error saving document: {str(save_error)}", "error")
+            return redirect(url_for('index'))
 
         # Save to a permanent, submission-specific location
         try:
