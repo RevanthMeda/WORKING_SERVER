@@ -798,30 +798,46 @@ def setup_approval_workflow_db(report, approver_emails=None):
     return approvals, locked
 
 def handle_image_removals(form_data, removal_field_name, url_list):
-    """Handle removal of images marked for deletion"""
+    """Handle removal of images marked for deletion and their physical files."""
     try:
-        # Get list of images to remove from form data
-        removed_images = form_data.getlist(removal_field_name)
+        removed_images_str = form_data.get(removal_field_name)
+        if not removed_images_str:
+            return
 
-        for image_url in removed_images:
-            if image_url and image_url in url_list:
-                # Remove from URL list
-                url_list.remove(image_url)
-
-                # Extract filename from URL and remove physical file
+        removed_urls = [url.strip() for url in removed_images_str.split(',') if url.strip()]
+        
+        # Create a copy of url_list to iterate over while modifying the original
+        for url in list(url_list):
+            if url in removed_urls:
+                url_list.remove(url)
                 try:
-                    # Parse URL to get relative path
-                    if '/static/' in image_url:
-                        relative_path = image_url.split('/static/')[-1]
-                        file_path = os.path.join(current_app.static_folder, relative_path)
-                        if os.path.exists(file_path):
-                            os.remove(file_path)
-                            current_app.logger.info(f"Removed image file: {file_path}")
-                except Exception as file_error:
-                    current_app.logger.warning(f"Could not remove physical file for {image_url}: {file_error}")
+                    # Correctly derive the filesystem path from the URL
+                    # URL is like: /static/uploads/<submission_id>/<filename>
+                    if '/static/uploads/' in url:
+                        # Path relative to the 'static' directory
+                        relative_path = url.split('/static/')[1]
+                        
+                        # Build the absolute path
+                        file_path = os.path.join(current_app.config['BASE_DIR'], 'static', relative_path)
+                        
+                        # Normalize the path to handle different OS separators
+                        file_path = os.path.normpath(file_path)
+                        
+                        # Security check: ensure the path is within the UPLOAD_ROOT
+                        upload_root = current_app.config['UPLOAD_ROOT']
+                        if os.path.abspath(file_path).startswith(os.path.abspath(upload_root)):
+                            if os.path.exists(file_path):
+                                os.remove(file_path)
+                                current_app.logger.info(f"Successfully deleted image: {file_path}")
+                            else:
+                                current_app.logger.warning(f"Image file not found for deletion: {file_path}")
+                        else:
+                            current_app.logger.error(f"Security alert: Attempted to delete file outside of upload root: {file_path}")
+                except Exception as e:
+                    current_app.logger.error(f"Error deleting file for URL {url}: {e}", exc_info=True)
 
     except Exception as e:
-        current_app.logger.error(f"Error handling image removals: {e}")
+        current_app.logger.error(f"Error in handle_image_removals: {e}", exc_info=True)
 
 def get_safe_output_path(filename_hint=None, extension='docx'):
     """Return a unique, writable path inside the configured output directory."""

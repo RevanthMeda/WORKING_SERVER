@@ -748,6 +748,9 @@ def save_progress():
         trends_urls = _normalize_url_list(existing_data.get('trends_image_urls') or (json.loads(sat_report.trends_image_urls) if sat_report.trends_image_urls else []))
         alarm_urls = _normalize_url_list(existing_data.get('alarm_image_urls') or (json.loads(sat_report.alarm_image_urls) if sat_report.alarm_image_urls else []))
 
+        # Handle removal of images marked for deletion in the form
+        # The `handle_image_removals` function processes the comma-separated
+        # string of URLs from the `removed_scada_screenshots` field.
         handle_image_removals(request.form, 'removed_scada_screenshots', scada_urls)
         handle_image_removals(request.form, 'removed_trends_screenshots', trends_urls)
         handle_image_removals(request.form, 'removed_alarm_screenshots', alarm_urls)
