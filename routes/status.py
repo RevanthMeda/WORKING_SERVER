@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, current_app, send_file, Response, Response
+from flask import Blueprint, render_template, redirect, url_for, flash, current_app, Response, jsonify, request
 import os
 import json
 from flask_login import current_user, login_required
@@ -142,6 +142,60 @@ def download_report(submission_id):
             
             current_app.logger.info(f"Attempting to send file: {permanent_path} as {download_name}")
             
+            # Try multiple download strategies to bypass potential IIS issues
+            
+            # Strategy 1: Direct file serving (bypass IIS proxy issues)
+            if request.args.get('direct') == '1':
+                current_app.logger.info("Using direct file serving strategy")
+                try:
+                    with open(permanent_path, 'rb') as f:
+                        file_content = f.read()
+                    
+                    response = Response(
+                        file_content,
+                        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        headers={
+                            'Content-Disposition': f'attachment; filename="{download_name}"',
+                            'Content-Length': str(len(file_content)),
+                            'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache',
+                            'Expires': '0',
+                            'Accept-Ranges': 'bytes'
+                        }
+                    )
+                    return response
+                except Exception as e:
+                    current_app.logger.error(f"Direct file serving failed: {e}")
+            
+            # Strategy 2: Force regeneration
+            if request.args.get('regen') == '1':
+                current_app.logger.info("Forcing document regeneration")
+                try:
+                    from services.document_generator import regenerate_document_from_db
+                    regen_result = regenerate_document_from_db(submission_id)
+                    
+                    if 'error' not in regen_result and 'path' in regen_result:
+                        with open(regen_result['path'], 'rb') as f:
+                            file_content = f.read()
+                        
+                        response = Response(
+                            file_content,
+                            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                            headers={
+                                'Content-Disposition': f'attachment; filename="{download_name}"',
+                                'Content-Length': str(len(file_content)),
+                                'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                'Pragma': 'no-cache',
+                                'Expires': '0'
+                            }
+                        )
+                        return response
+                except Exception as e:
+                    current_app.logger.error(f"Regeneration failed: {e}")
+            
+            # Strategy 3: Standard safe_send_file
             return safe_send_file(permanent_path, download_name, as_attachment=True)
         else:
             # File doesn't exist - inform user to regenerate from form
@@ -183,6 +237,101 @@ def download_report_modern(submission_id):
         current_app.logger.error(f'Error sending modern report for {submission_id}: {exc}', exc_info=True)
         flash('Error downloading report.', 'error')
         return redirect(url_for('status.view_status', submission_id=submission_id))
+
+
+@status_bp.route('/diagnose/<submission_id>')
+@login_required
+def diagnose_download(submission_id):
+    """Comprehensive diagnosis of download issues"""
+    try:
+        from models import Report
+        import zipfile
+        import hashlib
+        
+        # Only allow for admin users or in development
+        if not (current_user.role == 'Admin' or current_app.config.get('DEBUG', False)):
+            flash('Access denied.', 'error')
+            return redirect(url_for('dashboard.home'))
+        
+        # Verify report exists
+        report = Report.query.filter_by(id=submission_id).first()
+        if not report:
+            return jsonify({'error': 'Report not found'}), 404
+
+        permanent_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.docx')
+        
+        if not os.path.exists(permanent_path):
+            return jsonify({'error': 'File not found', 'path': permanent_path}), 404
+        
+        diagnosis = {
+            'file_path': permanent_path,
+            'file_size': os.path.getsize(permanent_path),
+            'tests': {}
+        }
+        
+        # Test 1: File signature
+        with open(permanent_path, 'rb') as f:
+            first_bytes = f.read(50)
+            diagnosis['tests']['file_signature'] = {
+                'first_4_bytes': first_bytes[:4].hex(),
+                'is_zip_signature': first_bytes.startswith(b'PK\x03\x04'),
+                'first_50_bytes_hex': first_bytes.hex()
+            }
+        
+        # Test 2: ZIP file validation
+        try:
+            with zipfile.ZipFile(permanent_path, 'r') as zip_file:
+                file_list = zip_file.namelist()
+                diagnosis['tests']['zip_validation'] = {
+                    'is_valid_zip': True,
+                    'file_count': len(file_list),
+                    'has_word_directory': any(f.startswith('word/') for f in file_list),
+                    'has_content_types': '[Content_Types].xml' in file_list,
+                    'has_document_xml': 'word/document.xml' in file_list,
+                    'sample_files': file_list[:10]
+                }
+        except Exception as e:
+            diagnosis['tests']['zip_validation'] = {
+                'is_valid_zip': False,
+                'error': str(e)
+            }
+        
+        # Test 3: File hash (to check for corruption)
+        with open(permanent_path, 'rb') as f:
+            file_hash = hashlib.md5(f.read()).hexdigest()
+            diagnosis['tests']['file_integrity'] = {
+                'md5_hash': file_hash,
+                'file_readable': True
+            }
+        
+        # Test 4: Try to read as DOCX with python-docx
+        try:
+            from docx import Document
+            doc = Document(permanent_path)
+            diagnosis['tests']['docx_library'] = {
+                'can_open_with_python_docx': True,
+                'paragraph_count': len(doc.paragraphs),
+                'table_count': len(doc.tables)
+            }
+        except Exception as e:
+            diagnosis['tests']['docx_library'] = {
+                'can_open_with_python_docx': False,
+                'error': str(e)
+            }
+        
+        # Test 5: Content type detection
+        import mimetypes
+        detected_type, _ = mimetypes.guess_type(permanent_path)
+        diagnosis['tests']['mime_detection'] = {
+            'detected_type': detected_type,
+            'expected_type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        }
+        
+        return jsonify(diagnosis)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in diagnose_download for {submission_id}: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 
 @status_bp.route('/test-docx/<submission_id>')
