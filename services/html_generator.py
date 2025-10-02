@@ -60,8 +60,7 @@ def generate_report_docx(context: Dict[str, Any], output_path: str) -> bool:
     try:
         template_path = _resolve_template_path()
         tpl = DocxTemplate(template_path)
-        render_context = _build_render_context(context)
-        tpl.render(render_context)
+        tpl.render(context)
 
         _apply_document_properties(tpl, context)
 
