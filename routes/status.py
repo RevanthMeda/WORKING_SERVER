@@ -138,7 +138,7 @@ def download_report(submission_id):
                 download_name = f"SAT_Report_{submission_id}.docx"
             
             # Use the safe file download utility
-            from utils.file_download import safe_send_file
+            from services.file_download import safe_send_file
             
             current_app.logger.info(f"Attempting to send file: {permanent_path} as {download_name}")
             
@@ -176,7 +176,7 @@ def download_report_modern(submission_id):
         return redirect(url_for('status.view_status', submission_id=submission_id))
 
     try:
-        from utils.file_download import safe_send_file
+        from services.file_download import safe_send_file
         
         response = safe_send_file(result['path'], result['download_name'], as_attachment=True)
         
