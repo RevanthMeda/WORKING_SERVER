@@ -62,7 +62,7 @@ def edit_submission(submission_id):
 
 
 try:
-    from utils import (load_submissions, save_submissions, send_edit_link,
+    from utils import (load_submissions, save_submissions, send_edit_link, send_approval_link,
                   setup_approval_workflow, setup_approval_workflow_db, process_table_rows, handle_image_removals,
                   allowed_file, save_uploaded_file, generate_sat_report as create_docx_from_template)
 except ImportError as e:
@@ -77,28 +77,7 @@ def get_unread_count():
     # Replace with actual implementation if available
     return 0
 
-def send_approval_link(email, submission_id, stage):
-    """Send approval link to approver"""
-    try:
-        from flask import url_for
-        from utils import send_email
 
-        approval_url = url_for('approval.approve_submission', submission_id=submission_id, stage=stage, _external=True)
-        subject = f"SAT Report Approval Required - Stage {stage}"
-        body = f"""
-        You have been assigned to review and approve a SAT report.
-
-        Please click the following link to review and approve:
-        {approval_url}
-
-        Submission ID: {submission_id}
-        Stage: {stage}
-        """
-
-        return send_email(email, subject, body)
-    except Exception as e:
-        current_app.logger.error(f"Error sending approval link: {e}")
-        return False
 
 def create_approval_notification(approver_email, submission_id, stage, document_title):
     """Create approval notification"""
