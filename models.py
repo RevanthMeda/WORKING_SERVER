@@ -646,6 +646,16 @@ def init_db(app):
                     app.logger.info("Database tables created successfully")
                 else:
                     app.logger.debug(f"Database tables already exist: {len(existing_tables)} tables found")
+                    required_tables = { 'storage_configs': StorageConfig.__table__, 'storage_settings_audit': StorageSettingsAudit.__table__ }
+                    missing = [name for name in required_tables if name not in existing_tables]
+                    if missing:
+                        for table_name in missing:
+                            try:
+                                required_tables[table_name].create(db.engine, checkfirst=True)
+                                app.logger.info(f"Created missing table: {table_name}")
+                            except Exception as table_create_error:
+                                app.logger.error(f"Failed to create table {table_name}: {table_create_error}", exc_info=True)
+                                raise
             except Exception as table_error:
                 app.logger.error(f"Error checking/creating tables: {table_error}")
                 return False

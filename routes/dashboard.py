@@ -117,8 +117,8 @@ def admin():
     # Calculate user statistics with optimized single query
     user_stats = db.session.query(
         func.count(User.id).label('total'),
-        func.sum(case([(User.status == 'Active', 1)], else_=0)).label('active'),
-        func.sum(case([(User.status == 'Pending', 1)], else_=0)).label('pending')
+        func.sum(case((User.status == 'Active', 1), else_=0)).label('active'),
+        func.sum(case((User.status == 'Pending', 1), else_=0)).label('pending')
     ).first()
     
     total_users = user_stats.total or 0
