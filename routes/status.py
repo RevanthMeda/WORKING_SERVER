@@ -115,6 +115,13 @@ def download_report(submission_id):
         # Try to serve the originally generated file first
         permanent_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.docx')
         
+        # Log file path and existence for debugging
+        current_app.logger.info(f"Looking for report file at: {permanent_path}")
+        current_app.logger.info(f"File exists: {os.path.exists(permanent_path)}")
+        if os.path.exists(permanent_path):
+            file_size = os.path.getsize(permanent_path)
+            current_app.logger.info(f"File size: {file_size} bytes")
+        
         if os.path.exists(permanent_path) and os.path.getsize(permanent_path) > 1000:
             current_app.logger.info(f"Serving existing report file for {submission_id}")
             
@@ -130,12 +137,19 @@ def download_report(submission_id):
             except:
                 download_name = f"SAT_Report_{submission_id}.docx"
             
-            with open(permanent_path, 'rb') as f:
-                return Response(
-                    f.read(),
-                    mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                    headers={                        'Content-Disposition': f'attachment; filename={download_name}'                    }
-                )
+            # Use the safe file download utility
+            from utils.file_download import safe_send_file
+            
+            current_app.logger.info(f"Attempting to send file: {permanent_path} as {download_name}")
+            
+            response = safe_send_file(permanent_path, download_name, as_attachment=True)
+            
+            # Check if the response is an error (JSON response)
+            if hasattr(response, 'status_code') and response.status_code != 200:
+                flash('Error downloading report file. The file may be corrupted. Please regenerate the report.', 'error')
+                return redirect(url_for('main.edit_sat', submission_id=submission_id))
+            
+            return response
         else:
             # File doesn't exist - inform user to regenerate from form
             flash('Document file not found. Please edit and re-generate this report from the form.', 'warning')
@@ -162,12 +176,16 @@ def download_report_modern(submission_id):
         return redirect(url_for('status.view_status', submission_id=submission_id))
 
     try:
-        return send_file(
-            result['path'],
-            as_attachment=True,
-            download_name=result['download_name'],
-            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        )
+        from utils.file_download import safe_send_file
+        
+        response = safe_send_file(result['path'], result['download_name'], as_attachment=True)
+        
+        # Check if the response is an error (JSON response)
+        if hasattr(response, 'status_code') and response.status_code != 200:
+            flash('Error downloading modern report. The file may be corrupted.', 'error')
+            return redirect(url_for('status.view_status', submission_id=submission_id))
+        
+        return response
     except Exception as exc:  # noqa: BLE001 - provide user-facing feedback
         current_app.logger.error(f'Error sending modern report for {submission_id}: {exc}', exc_info=True)
         flash('Error downloading report.', 'error')
