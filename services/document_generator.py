@@ -111,21 +111,37 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
             "SIG_APPROVER_3": "",
         }
 
-        # Add table data with sanitization
-        def sanitize_table_data(data):
-            """Recursively sanitize table data to remove None values"""
+        # Add table data with sanitization and key normalization
+        def normalize_table_keys(data):
+            """Normalize table data to handle space variations in keys and ensure no None values"""
             if data is None:
                 return []
             if isinstance(data, list):
-                return [sanitize_table_data(item) for item in data]
-            if isinstance(data, dict):
-                return {k: sanitize_value(v) if not isinstance(v, (list, dict)) else sanitize_table_data(v) 
-                        for k, v in data.items()}
+                normalized_list = []
+                for item in data:
+                    if isinstance(item, dict):
+                        # Create normalized dict with multiple key variations to match template
+                        normalized_dict = {}
+                        for k, v in item.items():
+                            clean_key = k.strip()
+                            value = sanitize_value(v)
+                            # Add the key in multiple formats to match template variations
+                            normalized_dict[clean_key] = value  # Clean version
+                            normalized_dict[k] = value  # Original version
+                            if ' ' in clean_key:
+                                # Also add with leading/trailing spaces that might be in template
+                                normalized_dict[f" {clean_key}"] = value
+                                normalized_dict[f"{clean_key} "] = value
+                                normalized_dict[f" {clean_key} "] = value
+                        normalized_list.append(normalized_dict)
+                    else:
+                        normalized_list.append(item)
+                return normalized_list
             return data
         
         for key, value in doc_tables.items():
             if key not in render_context:
-                render_context[key] = sanitize_table_data(value)
+                render_context[key] = normalize_table_keys(value)
 
         # Render template
         current_app.logger.info("Starting document rendering from database...")
