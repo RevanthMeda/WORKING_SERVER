@@ -38,28 +38,28 @@ def approve_submission(submission_id, stage):
                     else:
                         current_app.logger.error(f"No SAT report data found for {submission_id}")
                         flash("Submission data not found", "error")
-                        return redirect(url_for('main.index'))
+                        return redirect(url_for('index'))
                 else:
                     current_app.logger.error(f"No report found for {submission_id}")
                     flash("Submission not found", "error")
-                    return redirect(url_for('main.index'))
+                    return redirect(url_for('index'))
             except Exception as e:
                 current_app.logger.error(f"Error loading from database: {e}")
                 flash("Error loading submission data", "error")
-                return redirect(url_for('main.index'))
+                return redirect(url_for('index'))
         else:
             submission_data = submissions.get(submission_id)
         
         if not submission_data:
             flash("Submission not found", "error")
-            return redirect(url_for('main.index'))
+            return redirect(url_for('index'))
 
         approvals = submission_data.get("approvals", [])
         current_stage = next((a for a in approvals if a["stage"] == stage), None)
         
         if not current_stage:
             flash("Approval stage not found", "error")
-            return redirect(url_for('main.index'))
+            return redirect(url_for('index'))
             
         # If already approved, show status page
         if current_stage["status"] == "approved":
@@ -537,7 +537,7 @@ def approve_submission(submission_id, stage):
     except Exception as e:
         current_app.logger.error(f"Error in approve_submission: {e}", exc_info=True)
         flash(f"An error occurred during the approval process: {str(e)}", "error")
-        return redirect(url_for('main.index'))
+        return redirect(url_for('index'))
 
 @approval_bp.route('/reject/<submission_id>/<int:stage>', methods=['POST'])
 def reject_submission(submission_id, stage):
@@ -548,14 +548,14 @@ def reject_submission(submission_id, stage):
         
         if not submission_data:
             flash("Submission not found", "error")
-            return redirect(url_for('main.index'))
+            return redirect(url_for('index'))
 
         approvals = submission_data.get("approvals", [])
         current_stage = next((a for a in approvals if a["stage"] == stage), None)
         
         if not current_stage:
             flash("Approval stage not found", "error")
-            return redirect(url_for('main.index'))
+            return redirect(url_for('index'))
             
         # Only pending approvals can be rejected
         if current_stage["status"] != "pending":

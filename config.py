@@ -151,6 +151,7 @@ class Config:
     # Template file for SAT reports
     TEMPLATE_FILE = os.getenv('TEMPLATE_FILE', 'templates/SAT_Template.docx')
     OUTPUT_FILE = os.getenv('OUTPUT_FILE', 'outputs/SAT_Report_Final.docx')
+    SUBMISSIONS_FILE = os.path.join(BASE_DIR, 'data', 'submissions.json')
 
     # Feature Flags
     ENABLE_EMAIL_NOTIFICATIONS = os.getenv('ENABLE_EMAIL_NOTIFICATIONS', 'True').lower() == 'true'

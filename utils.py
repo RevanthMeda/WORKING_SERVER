@@ -239,10 +239,7 @@ def create_new_submission_notification(admin_emails, submission_id, document_tit
 
 # Updated function to use the new file lock
 def load_submissions():
-    """Load submissions data with improved file locking to prevent race conditions"""
-    from flask import current_app
-
-    submissions_file = current_app.config['SUBMISSIONS_FILE']
+    submissions_file = current_app.config.get('SUBMISSIONS_FILE', os.path.join(current_app.root_path, 'data', 'submissions.json'))
 
     # If file doesn't exist, return empty dict
     if not os.path.exists(submissions_file):
