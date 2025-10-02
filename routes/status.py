@@ -96,13 +96,12 @@ def view_status(submission_id):
 @status_bp.route('/download/<submission_id>')
 @login_required
 def download_report(submission_id):
-    """Download the generated report"""
+    """Download the generated report - regenerates from latest database data"""
     try:
-        # Define paths
-        permanent_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.docx')
-
-        # --- Create download name ---
         from models import Report, SATReport
+        from services.document_generator import regenerate_document_from_db
+        
+        # Verify report exists
         report = Report.query.filter_by(id=submission_id).first()
         if not report:
             flash('Report not found.', 'error')
@@ -113,28 +112,22 @@ def download_report(submission_id):
             flash('Report data not found.', 'error')
             return redirect(url_for('dashboard.home'))
         
-        try:
-            stored_data = json.loads(sat_report.data_json) if sat_report.data_json else {}
-        except json.JSONDecodeError:
-            stored_data = {}
-
-        context_data = stored_data.get("context", {})
-        if not context_data:
-            context_data = stored_data
-
-        project_number = context_data.get('PROJECT_REFERENCE', '').strip()
-        if not project_number:
-            project_number = submission_id[:8]
-            
-        safe_proj_num = "".join(c if c.isalnum() or c in ['_', '-'] else "_" for c in project_number)
-        download_name = f"SAT_{safe_proj_num}.docx"
-
-        # Serve the file
-        if not os.path.exists(permanent_path) or os.path.getsize(permanent_path) == 0:
-            flash('Error: Generated document is empty or corrupted.', 'error')
+        current_app.logger.info(f"Regenerating document for download: {submission_id}")
+        
+        # Generate fresh document from database data using template with images
+        result = regenerate_document_from_db(submission_id)
+        if 'error' in result:
+            current_app.logger.error(f"Error generating report: {result['error']}")
+            flash(f"Error generating document: {result['error']}", 'error')
             return redirect(url_for('status.view_status', submission_id=submission_id))
 
-        return send_file(permanent_path, as_attachment=True, download_name=download_name)
+        # Serve the freshly generated file
+        return send_file(
+            result['path'],
+            as_attachment=True,
+            download_name=result['download_name'],
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
 
     except Exception as e:
         current_app.logger.error(f"Error in download_report for {submission_id}: {e}", exc_info=True)
