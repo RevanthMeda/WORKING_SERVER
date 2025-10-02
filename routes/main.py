@@ -323,7 +323,7 @@ def generate():
 
                         # 1) Add public URL for edit-mode preview
                         # Use posix-style paths for URLs (forward slashes)
-                        rel_path = os.path.join("uploads", submission_id, uniq_fn).replace("\", "/")
+                        rel_path = os.path.join("uploads", submission_id, uniq_fn).replace("\\", "/")
                         url = url_for("static", filename=rel_path)
                         url_list.append(url)
                         current_app.logger.info(f"Added image URL: {url}")
