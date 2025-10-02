@@ -1076,7 +1076,7 @@
     /* File Upload Preview */
     .file-preview-container {
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
       gap: 16px;
       margin-top: 16px;
     }
@@ -1117,6 +1117,191 @@
 
     .image-preview .remove-image-btn:hover {
       background: rgba(255, 0, 0, 1);
+    }
+
+    .file-upload-group {
+      position: relative;
+    }
+
+    .file-upload-dropzone {
+      margin-top: 12px;
+      padding: 16px;
+      border: 2px dashed rgba(90, 127, 163, 0.35);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.6);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .file-upload-dropzone:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(123, 165, 199, 0.35);
+    }
+
+    .file-upload-dropzone:hover,
+    .file-upload-dropzone.is-dragover {
+      border-color: var(--cully-navy);
+      background: rgba(123, 165, 199, 0.1);
+      color: var(--cully-navy);
+    }
+
+    .file-upload-dropzone i {
+      font-size: 1.5rem;
+    }
+
+    .file-upload-dropzone-text {
+      display: flex;
+      flex-direction: column;
+      font-size: 0.9rem;
+      gap: 2px;
+    }
+
+    .file-preview-existing {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .file-preview-existing[hidden] {
+      display: none !important;
+    }
+
+    .file-queue {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+      width: 100%;
+    }
+
+    .file-queue-empty {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      background: rgba(155, 182, 206, 0.12);
+      border: 1px dashed rgba(90, 127, 163, 0.35);
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .file-queue-item {
+      display: flex;
+      gap: 12px;
+      padding: 12px;
+      background: var(--cully-white);
+      border: 1px solid rgba(30, 58, 138, 0.1);
+      border-radius: 10px;
+      box-shadow: var(--cully-shadow);
+      align-items: flex-start;
+    }
+
+    .file-queue-thumb {
+      width: 56px;
+      height: 56px;
+      border-radius: 8px;
+      background: var(--cully-bg-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .file-queue-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .file-queue-thumb i {
+      color: var(--cully-navy);
+      font-size: 1.5rem;
+    }
+
+    .file-queue-meta {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .file-queue-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      word-break: break-word;
+    }
+
+    .file-queue-details {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .file-progress {
+      height: 6px;
+      background: rgba(90, 127, 163, 0.15);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .file-progress-value {
+      height: 100%;
+      width: 0;
+      background: var(--cully-gradient);
+      transition: width 0.2s ease;
+    }
+
+    .file-status {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--cully-navy);
+    }
+
+    .file-status--processing {
+      color: #d97706;
+    }
+
+    .file-status--ready {
+      color: var(--cully-success);
+    }
+
+    .file-status--error {
+      color: var(--admin-danger);
+    }
+
+    .file-error {
+      font-size: 0.8rem;
+      color: var(--admin-danger);
+    }
+
+    .file-queue-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .file-remove-btn {
+      border: none;
+      background: rgba(239, 68, 68, 0.12);
+      color: #ef4444;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .file-remove-btn:hover,
+    .file-remove-btn:focus {
+      background: rgba(239, 68, 68, 0.2);
     }
 
     /* Mobile Responsiveness */
@@ -2726,16 +2911,26 @@
                 <span>SCADA Verification Screenshots</span>
               </div>
               <div class="card-body">
-                <div class="form-group">
+                <div class="form-group file-upload-group" data-upload-scope="scada">
                   <label for="scada-input">Upload SCADA Verification Images:</label>
-                  <input type="file" id="scada-input" name="scada_screenshots[]" accept="image/*" multiple>
-                  <div id="scada-file-list" class="file-preview-container">
-                    {% for img_url in submission_data.SCADA_SCREENSHOTS %}
-                    <div class="image-preview">
-                      <img src="{{ img_url }}" alt="SCADA Verification">
-                      <button type="button" class="remove-image-btn" onclick="removeExistingImage('{{ img_url }}', 'removed_scada_screenshots')">X</button>
+                  <input type="file" id="scada-input" class="file-upload-input" name="scada_screenshots[]" accept="image/*" multiple>
+                  <div class="file-upload-dropzone" data-dropzone-for="scada-input" tabindex="0" role="button" aria-label="Drop SCADA verification images here or press Enter to browse">
+                    <i class="fas fa-cloud-arrow-up" aria-hidden="true"></i>
+                    <span class="file-upload-dropzone-text">
+                      <strong>Add supporting images</strong>
+                      <span>Drop files or click to browse</span>
+                    </span>
+                  </div>
+                  <div id="scada-file-list" class="file-preview-container" data-upload-preview>
+                    <div class="file-preview-existing" data-existing-previews>
+                      {% for img_url in submission_data.SCADA_SCREENSHOTS %}
+                      <div class="image-preview">
+                        <img src="{{ img_url }}" alt="SCADA Verification">
+                        <button type="button" class="remove-image-btn" onclick="removeExistingImage('{{ img_url }}', 'removed_scada_screenshots', event)">X</button>
+                      </div>
+                      {% endfor %}
                     </div>
-                    {% endfor %}
+                    <div class="file-queue" id="scada-queue" data-upload-queue aria-live="polite"></div>
                   </div>
                   <input type="hidden" name="removed_scada_screenshots" id="removed_scada_screenshots" value="">
                 </div>
@@ -2748,16 +2943,26 @@
                 <span>Trends Testing Screenshots</span>
               </div>
               <div class="card-body">
-                <div class="form-group">
+                <div class="form-group file-upload-group" data-upload-scope="trends">
                   <label for="trends-input">Upload Trends Testing Images:</label>
-                  <input type="file" id="trends-input" name="trends_screenshots[]" accept="image/*" multiple>
-                  <div id="trends-file-list" class="file-preview-container">
-                    {% for img_url in submission_data.TRENDS_SCREENSHOTS %}
-                    <div class="image-preview">
-                      <img src="{{ img_url }}" alt="Trends Testing">
-                      <button type="button" class="remove-image-btn" onclick="removeExistingImage('{{ img_url }}', 'removed_trends_screenshots')">X</button>
+                  <input type="file" id="trends-input" class="file-upload-input" name="trends_screenshots[]" accept="image/*" multiple>
+                  <div class="file-upload-dropzone" data-dropzone-for="trends-input" tabindex="0" role="button" aria-label="Drop trends testing images here or press Enter to browse">
+                    <i class="fas fa-cloud-arrow-up" aria-hidden="true"></i>
+                    <span class="file-upload-dropzone-text">
+                      <strong>Add supporting images</strong>
+                      <span>Drop files or click to browse</span>
+                    </span>
+                  </div>
+                  <div id="trends-file-list" class="file-preview-container" data-upload-preview>
+                    <div class="file-preview-existing" data-existing-previews>
+                      {% for img_url in submission_data.TRENDS_SCREENSHOTS %}
+                      <div class="image-preview">
+                        <img src="{{ img_url }}" alt="Trends Testing">
+                        <button type="button" class="remove-image-btn" onclick="removeExistingImage('{{ img_url }}', 'removed_trends_screenshots', event)">X</button>
+                      </div>
+                      {% endfor %}
                     </div>
-                    {% endfor %}
+                    <div class="file-queue" id="trends-queue" data-upload-queue aria-live="polite"></div>
                   </div>
                   <input type="hidden" name="removed_trends_screenshots" id="removed_trends_screenshots" value="">
                 </div>
@@ -2770,16 +2975,26 @@
                 <span>SCADA/SMS Alarms Screenshots</span>
               </div>
               <div class="card-body">
-                <div class="form-group">
+                <div class="form-group file-upload-group" data-upload-scope="alarm">
                   <label for="alarm-input">Upload SCADA/SMS Alarm Images:</label>
-                  <input type="file" id="alarm-input" name="alarm_screenshots[]" accept="image/*" multiple>
-                  <div id="alarm-file-list" class="file-preview-container">
-                    {% for img_url in submission_data.ALARM_SCREENSHOTS %}
-                    <div class="image-preview">
-                      <img src="{{ img_url }}" alt="SCADA/SMS Alarms">
-                      <button type="button" class="remove-image-btn" onclick="removeExistingImage('{{ img_url }}', 'removed_alarm_screenshots')">X</button>
+                  <input type="file" id="alarm-input" class="file-upload-input" name="alarm_screenshots[]" accept="image/*" multiple>
+                  <div class="file-upload-dropzone" data-dropzone-for="alarm-input" tabindex="0" role="button" aria-label="Drop SCADA/SMS alarm images here or press Enter to browse">
+                    <i class="fas fa-cloud-arrow-up" aria-hidden="true"></i>
+                    <span class="file-upload-dropzone-text">
+                      <strong>Add supporting images</strong>
+                      <span>Drop files or click to browse</span>
+                    </span>
+                  </div>
+                  <div id="alarm-file-list" class="file-preview-container" data-upload-preview>
+                    <div class="file-preview-existing" data-existing-previews>
+                      {% for img_url in submission_data.ALARM_SCREENSHOTS %}
+                      <div class="image-preview">
+                        <img src="{{ img_url }}" alt="SCADA/SMS Alarms">
+                        <button type="button" class="remove-image-btn" onclick="removeExistingImage('{{ img_url }}', 'removed_alarm_screenshots', event)">X</button>
+                      </div>
+                      {% endfor %}
                     </div>
-                    {% endfor %}
+                    <div class="file-queue" id="alarm-queue" data-upload-queue aria-live="polite"></div>
                   </div>
                   <input type="hidden" name="removed_alarm_screenshots" id="removed_alarm_screenshots" value="">
                 </div>
@@ -4244,65 +4459,320 @@
       return '';
     }
 
+    const uploadManagers = {};
+
+    const uploadManagers = {};
+
     // Setup file input handlers and previews
     function setupFileInputs() {
-      // Setup file inputs with image preview
-      setupFileInput('scada-input', 'scada-file-list');
-      setupFileInput('trends-input', 'trends-file-list');
-      setupFileInput('alarm-input', 'alarm-file-list');
-    }
+      const configs = [
+        { scope: 'scada', inputId: 'scada-input', previewContainerId: 'scada-file-list', queueContainerId: 'scada-queue' },
+        { scope: 'trends', inputId: 'trends-input', previewContainerId: 'trends-file-list', queueContainerId: 'trends-queue' },
+        { scope: 'alarm', inputId: 'alarm-input', previewContainerId: 'alarm-file-list', queueContainerId: 'alarm-queue' }
+      ];
 
-    // Generic function to handle file input and display previews
-    function setupFileInput(inputId, previewContainerId) {
-      const input = document.getElementById(inputId);
-      const previewContainer = document.getElementById(previewContainerId);
-
-      if (!input || !previewContainer) {
-        console.error(`File input or preview container not found for input ID: ${inputId}`);
-        return;
-      }
-
-      input.addEventListener('change', function(event) {
-        const files = event.target.files;
-        const previewContainer = document.getElementById(previewContainerId);
-
-        // Clear previous previews for this input
-        previewContainer.innerHTML = '';
-
-        // Add new previews
-        Array.from(files).forEach(file => {
-          const reader = new FileReader();
-          reader.onload = function(e) {
-            const previewElement = document.createElement('div');
-            previewElement.classList.add('image-preview');
-
-            const img = document.createElement('img');
-            img.src = e.target.result;
-            img.alt = file.name;
-            previewElement.appendChild(img);
-
-            // Add remove button
-            const removeBtn = document.createElement('button');
-            removeBtn.type = 'button';
-            removeBtn.classList.add('remove-image-btn');
-            removeBtn.innerHTML = 'X';
-            // Remove the file from the FileList if the button is clicked
-            removeBtn.onclick = function() {
-              previewElement.remove();
-              // This is a bit tricky with FileLists, usually you'd reconstruct or manage state
-              // For now, we'll rely on server-side handling of actual uploads
-            };
-            previewElement.appendChild(removeBtn);
-
-            previewContainer.appendChild(previewElement);
-          }
-          reader.readAsDataURL(file);
-        });
+      configs.forEach((config) => {
+        const manager = createUploadManager(config);
+        if (manager) {
+          uploadManagers[config.scope] = manager;
+        }
       });
     }
 
+    function createUploadManager({ scope, inputId, previewContainerId, queueContainerId }) {
+      const input = document.getElementById(inputId);
+      const previewContainer = document.getElementById(previewContainerId);
+      const queueContainer = document.getElementById(queueContainerId);
+      const dropzone = document.querySelector(`[data-dropzone-for="${inputId}"]`);
+
+      if (!input || !previewContainer || !queueContainer) {
+        console.warn(`Upload manager skipped for ${scope}: missing required elements.`);
+        return null;
+      }
+
+      const items = [];
+      const supportsDataTransfer = typeof window.DataTransfer !== 'undefined';
+      const existingWrapper = previewContainer.querySelector('[data-existing-previews]');
+      if (existingWrapper && !existingWrapper.children.length) {
+        existingWrapper.setAttribute('hidden', '');
+      }
+
+      function addFiles(list) {
+        const files = Array.from(list || []);
+        if (!files.length) {
+          return;
+        }
+
+        let added = false;
+        files.forEach((file) => {
+          const signature = createFileSignature(file);
+          if (items.some((item) => item.signature === signature)) {
+            return;
+          }
+
+          const uploadItem = {
+            id: (window.crypto && typeof window.crypto.randomUUID === 'function')
+              ? window.crypto.randomUUID()
+              : `upload-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            file,
+            signature,
+            status: 'pending',
+            progress: 0,
+            preview: '',
+            error: null,
+            createdAt: Date.now()
+          };
+
+          items.push(uploadItem);
+          readPreview(uploadItem);
+          added = true;
+        });
+
+        if (added) {
+          syncFileInput();
+          renderQueue();
+        }
+      }
+
+      function readPreview(item) {
+        const reader = new FileReader();
+        reader.onprogress = (event) => {
+          if (event.lengthComputable && event.total) {
+            const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+            if (percent > item.progress) {
+              item.progress = percent;
+              if (item.status === 'pending') {
+                item.status = 'processing';
+              }
+              renderQueue();
+            }
+          }
+        };
+        reader.onload = () => {
+          item.preview = reader.result;
+          item.status = 'ready';
+          item.progress = 100;
+          renderQueue();
+        };
+        reader.onerror = () => {
+          item.error = 'Preview generation failed';
+          item.status = 'error';
+          item.progress = 0;
+          renderQueue();
+        };
+        reader.readAsDataURL(item.file);
+      }
+
+      function renderQueue() {
+        queueContainer.innerHTML = '';
+
+        if (!items.length) {
+          const emptyState = document.createElement('div');
+          emptyState.className = 'file-queue-empty';
+          emptyState.textContent = 'No new files added yet.';
+          queueContainer.appendChild(emptyState);
+          return;
+        }
+
+        items.forEach((item) => {
+          queueContainer.appendChild(buildQueueItem(item));
+        });
+      }
+
+      function buildQueueItem(item) {
+        const node = document.createElement('div');
+        node.className = 'file-queue-item';
+        node.dataset.uploadId = item.id;
+
+        const thumb = document.createElement('div');
+        thumb.className = 'file-queue-thumb';
+        if (item.preview) {
+          const img = document.createElement('img');
+          img.src = `${item.preview}#${item.createdAt}`;
+          img.alt = `${item.file.name} preview`;
+          thumb.appendChild(img);
+        } else {
+          thumb.innerHTML = '<i class="fas fa-image" aria-hidden="true"></i>';
+        }
+
+        const meta = document.createElement('div');
+        meta.className = 'file-queue-meta';
+
+        const name = document.createElement('span');
+        name.className = 'file-queue-name';
+        name.textContent = item.file.name;
+        meta.appendChild(name);
+
+        const details = document.createElement('span');
+        details.className = 'file-queue-details';
+        details.textContent = `${formatBytes(item.file.size)} | ${getStatusLabel(item)}`;
+        meta.appendChild(details);
+
+        const progressBar = document.createElement('div');
+        progressBar.className = 'file-progress';
+        progressBar.setAttribute('role', 'progressbar');
+        progressBar.setAttribute('aria-valuemin', '0');
+        progressBar.setAttribute('aria-valuemax', '100');
+        progressBar.setAttribute('aria-valuenow', String(item.progress));
+        const progressValue = document.createElement('div');
+        progressValue.className = 'file-progress-value';
+        progressValue.style.width = `${item.progress}%`;
+        progressBar.appendChild(progressValue);
+        meta.appendChild(progressBar);
+
+        const status = document.createElement('span');
+        status.className = `file-status file-status--${item.status}`;
+        status.textContent = getStatusLabel(item);
+        meta.appendChild(status);
+
+        if (item.error) {
+          const error = document.createElement('span');
+          error.className = 'file-error';
+          error.textContent = item.error;
+          meta.appendChild(error);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'file-queue-actions';
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'file-remove-btn';
+        removeBtn.setAttribute('aria-label', `Remove ${item.file.name}`);
+        removeBtn.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i>';
+        removeBtn.addEventListener('click', () => removeItem(item.id));
+        actions.appendChild(removeBtn);
+
+        node.appendChild(thumb);
+        node.appendChild(meta);
+        node.appendChild(actions);
+
+        return node;
+      }
+
+      function removeItem(id) {
+        const index = items.findIndex((item) => item.id === id);
+        if (index === -1) {
+          return;
+        }
+
+        items.splice(index, 1);
+        syncFileInput();
+        renderQueue();
+      }
+
+      function syncFileInput() {
+        if (!supportsDataTransfer) {
+          console.warn('DataTransfer API not supported; multi-select persistence may be limited.');
+          return;
+        }
+
+        const dataTransfer = new DataTransfer();
+        items
+          .filter((item) => item.status !== 'error')
+          .forEach((item) => {
+            dataTransfer.items.add(item.file);
+          });
+        input.files = dataTransfer.files;
+      }
+
+      function handleDragEnter(event) {
+        event.preventDefault();
+        if (dropzone) {
+          dropzone.classList.add('is-dragover');
+        }
+      }
+
+      function handleDragLeave(event) {
+        event.preventDefault();
+        if (dropzone) {
+          dropzone.classList.remove('is-dragover');
+        }
+      }
+
+      function handleDrop(event) {
+        event.preventDefault();
+        if (dropzone) {
+          dropzone.classList.remove('is-dragover');
+        }
+        if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length) {
+          addFiles(event.dataTransfer.files);
+        }
+      }
+
+      input.addEventListener('change', (event) => addFiles(event.target.files));
+
+      if (dropzone) {
+        ['dragenter', 'dragover'].forEach((type) => dropzone.addEventListener(type, handleDragEnter));
+        ['dragleave', 'dragend'].forEach((type) => dropzone.addEventListener(type, handleDragLeave));
+        dropzone.addEventListener('drop', handleDrop);
+        dropzone.addEventListener('click', () => input.click());
+        dropzone.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            input.click();
+          }
+        });
+      }
+
+      previewContainer.addEventListener('dragover', (event) => event.preventDefault());
+      previewContainer.addEventListener('drop', handleDrop);
+
+      renderQueue();
+
+      return {
+        add: addFiles,
+        remove: removeItem,
+        getFiles: () => items.map((item) => item.file),
+        clear: () => {
+          items.length = 0;
+          syncFileInput();
+          renderQueue();
+        }
+      };
+    }
+
+    function createFileSignature(file) {
+      return [file.name, file.size, file.lastModified].join(':');
+    }
+
+    function getStatusLabel(item) {
+      if (item.error) {
+        return 'Error';
+      }
+
+      if (item.status === 'processing') {
+        return 'Analyzing';
+      }
+
+      if (item.status === 'ready') {
+        return 'Ready';
+      }
+
+      return 'Pending';
+    }
+
+    function formatBytes(bytes) {
+      if (bytes === 0) {
+        return '0 B';
+      }
+      if (!bytes) {
+        return '0 B';
+      }
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let size = bytes;
+      let unitIndex = 0;
+      while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex += 1;
+      }
+      const precision = unitIndex === 0 ? 0 : 1;
+      return `${size.toFixed(precision)} ${units[unitIndex]}`;
+    }
+
+
     // Function to remove existing images
-    function removeExistingImage(imageUrl, removedFieldName) {
+    function removeExistingImage(imageUrl, removedFieldName, evt) {
       const removedField = document.getElementById(removedFieldName);
       let removedList = removedField.value ? removedField.value.split(',') : [];
 
@@ -4311,10 +4781,16 @@
         removedField.value = removedList.join(',');
       }
 
-      // Hide the image preview
-      const imagePreview = event.target.closest('.image-preview');
-      if (imagePreview) {
-        imagePreview.style.display = 'none';
+      const activeEvent = evt || window.event;
+      if (activeEvent) {
+        const imagePreview = activeEvent.target.closest('.image-preview');
+        if (imagePreview) {
+          imagePreview.remove();
+          const wrapper = imagePreview.parentElement;
+          if (wrapper && wrapper.hasAttribute('data-existing-previews') && !wrapper.querySelector('.image-preview')) {
+            wrapper.setAttribute('hidden', '');
+          }
+        }
       }
     }
 

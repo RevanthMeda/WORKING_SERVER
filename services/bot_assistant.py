@@ -1,4 +1,7 @@
+import csv
+import hashlib
 import io
+import os
 import re
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -9,6 +12,16 @@ try:
     from openpyxl import load_workbook
 except ImportError:  # pragma: no cover - handled gracefully at runtime
     load_workbook = None
+
+try:
+    from PIL import Image
+except ImportError:  # pragma: no cover - optional dependency
+    Image = None
+
+try:
+    import requests
+except ImportError:  # pragma: no cover - optional dependency
+    requests = None
 
 from models import Report, SATReport
 from services.ai_assistant import analyze_user_intent
@@ -963,6 +976,10 @@ def _perform_external_research(query: str, context: Dict[str, Any]) -> Tuple[Lis
     clean_query = _collapse_whitespace(query)
     if not clean_query:
         return [], ['I need a topic to research.']
+
+    if requests is None:
+        warnings.append('External research requires the requests package.')
+        return [], warnings
 
     app = current_app._get_current_object()
     if not app.config.get('ASSISTANT_ALLOW_EXTERNAL', True):
