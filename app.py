@@ -454,6 +454,7 @@ def create_app(config_name='default'):
         from routes.ai import ai_bp
         from routes.edit import edit_bp
         from routes.mcp import mcp_bp
+        from routes.test_download import test_download_bp
         
         # Import new RESTful API
         from api import api_bp as restful_api_bp
@@ -481,6 +482,7 @@ def create_app(config_name='default'):
         app.register_blueprint(edit_bp, url_prefix='/edit')
         app.register_blueprint(ai_bp)
         app.register_blueprint(mcp_bp)
+        app.register_blueprint(test_download_bp)
         
         # Register new RESTful API at /api/v1
         app.register_blueprint(restful_api_bp)
@@ -735,4 +737,3 @@ if __name__ == '__main__':
         print(f"Server startup failed: {e}")
         traceback.print_exc()
         sys.exit(1)
-
