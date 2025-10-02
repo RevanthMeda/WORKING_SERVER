@@ -29,6 +29,7 @@ from config.secrets import init_secrets_management
 from middleware import init_security_middleware
 from middleware_optimized import init_optimized_middleware
 from session_manager import session_manager
+from services.storage_manager import StorageSettingsService, StorageSettingsError
 
 # Initialize CSRF protection globally
 csrf = CSRFProtect()
@@ -98,8 +99,22 @@ def create_app(config_name='default'):
         if not db_initialized:
             app.logger.warning("Database initialization returned False")
 
+
         init_auth(app)
-        
+
+        try:
+            settings = StorageSettingsService.sync_app_config(app)
+            app.logger.info(
+                "Storage settings loaded for org=%s environment=%s (version=%s)",
+                settings.org_id,
+                settings.environment,
+                settings.version,
+            )
+        except StorageSettingsError as storage_error:
+            app.logger.error(f"Failed to load storage settings: {storage_error}")
+        except Exception as unexpected_storage_error:
+            app.logger.error(f"Unexpected error while loading storage settings: {unexpected_storage_error}")
+
         # Initialize migration system
         from database import (
             init_migrations, init_database_performance, 

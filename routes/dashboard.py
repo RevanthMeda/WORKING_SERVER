@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, make_response, session
 from flask_login import login_required, current_user
 from auth_utils import admin_required, role_required
-from models import db, User, Report, SATReport
+from models import db, User, Report, SATReport, StorageConfig, StorageSettingsAudit
 from datetime import datetime
 
 from sqlalchemy.orm import joinedload
@@ -9,6 +9,13 @@ from sqlalchemy import and_, or_, func, case
 import json
 from functools import wraps
 from services.dashboard_stats import get_cached_dashboard_stats, compute_and_cache_dashboard_stats
+from services.storage_manager import (
+    StorageSettingsService,
+    StorageSettingsError,
+    StorageSettingsValidationError,
+    StorageSettingsConcurrencyError,
+)
+
 
 EMPTY_DASHBOARD_STATS = {
     'draft': 0,
@@ -19,6 +26,46 @@ EMPTY_DASHBOARD_STATS = {
     'requests_approved': 0,
     'total_reports': 0,
 }
+
+
+def _get_storage_settings_payload():
+    """Return storage settings, audit history, and optional error message."""
+    compression_profiles = current_app.config.get('IMAGE_COMPRESSION_PROFILES', {}) or {}
+    fallback_settings = {
+        'org_id': 'default',
+        'environment': current_app.config.get('ENV', 'production'),
+        'upload_root': current_app.config.get('UPLOAD_ROOT_RAW', current_app.config.get('UPLOAD_ROOT', 'static/uploads')),
+        'image_storage_limit_gb': current_app.config.get('IMAGE_STORAGE_LIMIT_GB', 50),
+        'active_quality': compression_profiles.get('active_quality', 95),
+        'approved_quality': compression_profiles.get('approved_quality', 80),
+        'archive_quality': compression_profiles.get('archive_quality', 65),
+        'preferred_formats': current_app.config.get('IMAGE_PREFERRED_FORMATS', ['jpeg', 'png', 'webp']),
+        'version': 1,
+    }
+
+    try:
+        settings_obj = StorageSettingsService.load_settings()
+        storage_dict = settings_obj.to_dict()
+        storage_config = StorageConfig.query.filter_by(
+            org_id=settings_obj.org_id,
+            environment=settings_obj.environment,
+        ).first()
+        audits = []
+        if storage_config:
+            audits = [
+                entry.to_dict()
+                for entry in StorageSettingsAudit.query.filter_by(storage_config_id=storage_config.id)
+                .order_by(StorageSettingsAudit.created_at.desc())
+                .limit(20)
+                .all()
+            ]
+        return storage_dict, audits, None
+    except StorageSettingsError as exc:
+        current_app.logger.error("Storage settings retrieval failed: %s", exc)
+        return fallback_settings, [], str(exc)
+    except Exception as exc:
+        current_app.logger.error("Unexpected error retrieving storage settings: %s", exc, exc_info=True)
+        return fallback_settings, [], str(exc)
 
 
 def no_cache(f):
@@ -130,7 +177,8 @@ def admin():
 
     # Get settings
     company_logo = SystemSettings.get_setting('company_logo', 'static/cully.png')
-    storage_location = SystemSettings.get_setting('default_storage_location', '/outputs/')
+    storage_settings, storage_audit_entries, _ = _get_storage_settings_payload()
+    storage_location = storage_settings.get('upload_root')
 
     return render_template('admin_dashboard.html',
                          users=users,
@@ -140,6 +188,8 @@ def admin():
                          db_status=db_connected,
                          pending_users_list=pending_users_list,
                          storage_location=storage_location,
+                         storage_settings=storage_settings,
+                         storage_audit_entries=storage_audit_entries,
                          company_logo=company_logo,
                          recent_reports=recent_reports)
 
@@ -821,24 +871,70 @@ def api_admin_reports():
         current_app.logger.error(f"Error fetching reports: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
-@dashboard_bp.route('/dashboard/api/admin/settings')
+@dashboard_bp.route('/dashboard/api/admin/settings', methods=['GET', 'POST'])
 @admin_required
 def api_admin_settings():
-    """API endpoint for system settings"""
-    try:
-        storage_location = SystemSettings.get_setting('default_storage_location', '/outputs/')
-        company_logo = SystemSettings.get_setting('company_logo', 'static/cully.png')
+    """API endpoint for storage system settings management."""
+    from models import SystemSettings
 
-        return jsonify({
-            'success': True,
-            'settings': {
-                'storage_location': storage_location,
-                'company_logo': company_logo
-            }
-        })
-    except Exception as e:
-        current_app.logger.error(f"Error fetching settings: {e}")
-        return jsonify({'success': False, 'error': str(e)})
+    if request.method == 'GET':
+        storage_settings, audits, error = _get_storage_settings_payload()
+        company_logo = SystemSettings.get_setting('company_logo', 'static/cully.png')
+        response = {
+            'success': error is None,
+            'settings': storage_settings,
+            'audits': audits,
+            'company_logo': company_logo,
+        }
+        if error:
+            response['error'] = error
+        return jsonify(response)
+
+    data = request.get_json(silent=True) or {}
+    allowed_keys = {
+        'upload_root',
+        'image_storage_limit_gb',
+        'active_quality',
+        'approved_quality',
+        'archive_quality',
+        'preferred_formats',
+    }
+    payload = {key: data.get(key) for key in allowed_keys if key in data}
+    expected_version = data.get('version')
+
+    try:
+        updated = StorageSettingsService.update_settings(
+            payload=payload,
+            actor_email=current_user.email,
+            actor_id=getattr(current_user, 'id', None),
+            expected_version=expected_version,
+            ip_address=request.remote_addr,
+        ).to_dict()
+        storage_config = StorageConfig.query.filter_by(
+            org_id=updated['org_id'],
+            environment=updated['environment'],
+        ).first()
+        audits = []
+        if storage_config:
+            audits = [
+                entry.to_dict()
+                for entry in StorageSettingsAudit.query.filter_by(storage_config_id=storage_config.id)
+                .order_by(StorageSettingsAudit.created_at.desc())
+                .limit(20)
+                .all()
+            ]
+        return jsonify({'success': True, 'settings': updated, 'audits': audits})
+    except StorageSettingsValidationError as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 400
+    except StorageSettingsConcurrencyError as exc:
+        return jsonify({'success': False, 'error': str(exc), 'code': 'conflict'}), 409
+    except StorageSettingsError as exc:
+        current_app.logger.error('Storage settings update failed: %s', exc)
+        return jsonify({'success': False, 'error': str(exc)}), 500
+    except Exception as exc:
+        current_app.logger.error('Unexpected error updating storage settings: %s', exc, exc_info=True)
+        return jsonify({'success': False, 'error': 'Unexpected error occurred'}), 500
+
 
 @dashboard_bp.route('/dashboard/api/admin/stats')
 @admin_required

@@ -67,6 +67,95 @@ class SystemSettings(db.Model):
         db.session.commit()
         return setting
 
+
+class StorageConfig(db.Model):
+    __tablename__ = 'storage_configs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.String(64), nullable=False, default='default')
+    environment = db.Column(db.String(32), nullable=False, default='production')
+    upload_root = db.Column(db.String(255), nullable=False, default='static/uploads')
+    image_storage_limit_gb = db.Column(db.Float, nullable=False, default=50.0)
+    active_quality = db.Column(db.Integer, nullable=False, default=95)
+    approved_quality = db.Column(db.Integer, nullable=False, default=80)
+    archive_quality = db.Column(db.Integer, nullable=False, default=65)
+    preferred_formats = db.Column(db.Text, nullable=False, default='["jpeg","png","webp"]')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = db.Column(db.String(120), nullable=True)
+    version = db.Column(db.Integer, nullable=False, default=1)
+
+    __table_args__ = (
+        db.UniqueConstraint('org_id', 'environment', name='uq_storage_config_scope'),
+    )
+
+    def to_dict(self):
+        preferred = []
+        try:
+            preferred = json.loads(self.preferred_formats) if self.preferred_formats else []
+        except Exception:
+            preferred = []
+        return {
+            'org_id': self.org_id,
+            'environment': self.environment,
+            'upload_root': self.upload_root,
+            'image_storage_limit_gb': self.image_storage_limit_gb,
+            'active_quality': self.active_quality,
+            'approved_quality': self.approved_quality,
+            'archive_quality': self.archive_quality,
+            'preferred_formats': preferred,
+            'version': self.version,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'updated_by': self.updated_by,
+        }
+
+    @classmethod
+    def get_or_create(cls, org_id='default', environment='production'):
+        instance = cls.query.filter_by(org_id=org_id, environment=environment).one_or_none()
+        if instance:
+            return instance
+        instance = cls(org_id=org_id, environment=environment)
+        db.session.add(instance)
+        db.session.commit()
+        return instance
+
+    def apply_updates(self, data):
+        fields = ['upload_root', 'image_storage_limit_gb', 'active_quality', 'approved_quality', 'archive_quality']
+        for field in fields:
+            if field in data:
+                setattr(self, field, data[field])
+        if 'preferred_formats' in data:
+            preferred = data['preferred_formats'] or []
+            self.preferred_formats = json.dumps(preferred)
+        self.version = (self.version or 0) + 1
+
+
+class StorageSettingsAudit(db.Model):
+    __tablename__ = 'storage_settings_audit'
+
+    id = db.Column(db.Integer, primary_key=True)
+    storage_config_id = db.Column(db.Integer, db.ForeignKey('storage_configs.id'), nullable=False)
+    actor_email = db.Column(db.String(120), nullable=False)
+    actor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    action = db.Column(db.String(50), nullable=False)
+    changes_json = db.Column(db.Text, nullable=False)
+    ip_address = db.Column(db.String(45), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    storage_config = db.relationship('StorageConfig', backref=db.backref('audit_entries', lazy='dynamic'))
+    actor = db.relationship('User', backref=db.backref('storage_setting_audits', lazy='dynamic'))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'storage_config_id': self.storage_config_id,
+            'actor_email': self.actor_email,
+            'action': self.action,
+            'changes': json.loads(self.changes_json) if self.changes_json else {},
+            'ip_address': self.ip_address,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
 class Report(db.Model):
     __tablename__ = 'reports'
 

@@ -28,6 +28,38 @@ class SATReport(Report):
     client_name: str
     project_reference: str
     
+class StorageConfig:
+    org_id: str
+    environment: str
+    upload_root: str
+    image_storage_limit_gb: float
+    active_quality: int
+    approved_quality: int
+    archive_quality: int
+    preferred_formats: str
+    version: int
+
+    @classmethod
+    def get_or_create(cls, org_id: str = ..., environment: str = ...) -> "StorageConfig": ...
+
+    def apply_updates(self, data: Dict[str, object]) -> None: ...
+
+    def to_dict(self) -> Dict[str, object]: ...
+
+
+class StorageSettingsAudit:
+    storage_config_id: int
+    actor_email: str
+    actor_id: int | None
+    action: str
+    changes_json: str
+    ip_address: str | None
+
+    def __init__(self, **kwargs: object) -> None: ...
+
+    def to_dict(self) -> Dict[str, object]: ...
+
+
 class FDSReport(Report):
     pass
 

@@ -3,11 +3,23 @@ Pytest configuration and shared fixtures for the SAT Report Generator test suite
 """
 import os
 import tempfile
+import importlib.util
+from pathlib import Path
+
 import pytest
 from flask import Flask
 from models import db, User, Report, SATReport
 from app import create_app
-from config import Config
+
+CONFIG_SPEC = importlib.util.spec_from_file_location(
+    'config_module',
+    Path(__file__).resolve().parents[1] / 'config.py'
+)
+if CONFIG_SPEC is None or CONFIG_SPEC.loader is None:
+    raise RuntimeError('Unable to load base config module for tests')
+config_module = importlib.util.module_from_spec(CONFIG_SPEC)
+CONFIG_SPEC.loader.exec_module(config_module)
+Config = config_module.Config
 
 
 class TestConfig(Config):
@@ -15,6 +27,7 @@ class TestConfig(Config):
     TESTING = True
     WTF_CSRF_ENABLED = False
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    SQLALCHEMY_ENGINE_OPTIONS = {}
     SECRET_KEY = 'test-secret-key'
     UPLOAD_FOLDER = tempfile.mkdtemp()
     OUTPUT_DIR = tempfile.mkdtemp()

@@ -298,6 +298,236 @@
             margin-bottom: 1rem;
         }
     }
+
+    .storage-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 1rem;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .storage-settings-btn {
+        background: var(--cully-blue);
+        color: var(--cully-white);
+        border: none;
+        border-radius: 999px;
+        padding: 0.65rem 1.5rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition-smooth);
+    }
+
+    .storage-settings-btn:hover {
+        background: var(--cully-navy);
+        transform: translateY(-1px);
+    }
+
+    .storage-version-pill {
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 0.35rem 0.85rem;
+        border-radius: 999px;
+        background: rgba(59, 130, 246, 0.12);
+        color: var(--cully-navy);
+    }
+
+    .storage-audit {
+        margin-top: 1.75rem;
+    }
+
+    .storage-audit h4 {
+        margin: 0 0 1rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--cully-dark);
+    }
+
+    .storage-audit-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .storage-audit-list li {
+        background: var(--cully-white);
+        border-radius: 12px;
+        padding: 0.9rem 1.1rem;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+    }
+
+    .storage-audit-list li.empty {
+        text-align: center;
+        color: var(--cully-gray);
+        font-style: italic;
+    }
+
+    .storage-audit-list .audit-meta {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--cully-navy);
+    }
+
+    .storage-audit-list .audit-details {
+        margin-top: 0.45rem;
+        display: grid;
+        gap: 0.35rem;
+    }
+
+    .storage-audit-list .audit-change {
+        font-size: 0.9rem;
+        color: var(--cully-dark);
+    }
+
+    .storage-audit-list .audit-change strong {
+        font-weight: 600;
+        color: var(--cully-navy);
+    }
+
+    .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1050;
+        padding: 1.5rem;
+    }
+
+    .modal-backdrop[hidden] {
+        display: none;
+    }
+
+    body.modal-open {
+        overflow: hidden;
+    }
+
+    .storage-modal {
+        background: var(--cully-white);
+        border-radius: 20px;
+        width: min(560px, 100%);
+        box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
+        padding: 1.75rem;
+        position: relative;
+    }
+
+    .storage-modal__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.25rem;
+    }
+
+    .storage-modal__title {
+        font-size: 1.35rem;
+        font-weight: 600;
+        margin: 0;
+        color: var(--cully-dark);
+    }
+
+    .storage-modal__close {
+        background: transparent;
+        border: none;
+        font-size: 1.5rem;
+        color: var(--cully-gray);
+        cursor: pointer;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .storage-modal__form {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .storage-modal__form label {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--cully-gray);
+        display: block;
+        margin-bottom: 0.35rem;
+    }
+
+    .storage-modal__form input {
+        width: 100%;
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        border-radius: 10px;
+        padding: 0.6rem 0.75rem;
+        font-size: 0.95rem;
+        transition: border-color 0.2s ease;
+    }
+
+    .storage-modal__form input:focus {
+        outline: none;
+        border-color: var(--cully-blue);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+
+    .storage-modal__form .input-columns {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .storage-modal__footer {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        margin-top: 1rem;
+    }
+
+    .storage-modal__footer button {
+        border: none;
+        border-radius: 999px;
+        padding: 0.65rem 1.5rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .storage-modal__footer .btn-cancel {
+        background: rgba(15, 23, 42, 0.05);
+        color: var(--cully-dark);
+    }
+
+    .storage-modal__footer .btn-submit {
+        background: var(--cully-blue);
+        color: var(--cully-white);
+    }
+
+    .storage-modal__footer .btn-submit:hover {
+        background: var(--cully-navy);
+    }
+
+    .storage-modal__footer .btn-cancel:hover {
+        background: rgba(15, 23, 42, 0.12);
+    }
+
+    .storage-modal__alert {
+        padding: 0.65rem 0.75rem;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        display: none;
+    }
+
+    .storage-modal__alert.is-visible {
+        display: block;
+    }
+
+    .storage-modal__alert.is-error {
+        background: rgba(248, 113, 113, 0.15);
+        color: #b91c1c;
+    }
+
+    .storage-modal__alert.is-success {
+        background: rgba(134, 239, 172, 0.2);
+        color: #047857;
+    }
 </style>
 {% endblock %}
 
@@ -452,19 +682,368 @@
     </div>
 </div>
 
-<div class="widget-card" style="margin-top: 2rem;">
+<div class="widget-card storage-settings-card" style="margin-top: 2rem;">
     <div class="widget-header">
         <h3 class="widget-title"><i class="fas fa-sliders-h"></i> Platform Configuration</h3>
     </div>
     <div class="system-info">
         <div class="info-row">
-            <span class="info-label">Storage Location</span>
-            <span class="info-value">{{ storage_location }}</span>
+            <span class="info-label">Upload Root</span>
+            <span class="info-value" id="storage-upload-root">{{ storage_settings.upload_root }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Storage Limit</span>
+            <span class="info-value" id="storage-limit">{{ '%.2f'|format(storage_settings.image_storage_limit_gb) }} GB</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Compression Profiles</span>
+            <span class="info-value" id="storage-profiles">
+                Active {{ storage_settings.active_quality }}% | Approved {{ storage_settings.approved_quality }}% | Archive {{ storage_settings.archive_quality }}%
+            </span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Preferred Formats</span>
+            <span class="info-value" id="storage-formats">
+                {{ storage_settings.preferred_formats|join(', ') if storage_settings.preferred_formats else 'N/A' }}
+            </span>
         </div>
         <div class="info-row">
             <span class="info-label">Company Branding</span>
             <span class="info-value">{{ company_logo }}</span>
         </div>
     </div>
+    <div class="storage-actions">
+        <button type="button" class="storage-settings-btn" id="open-storage-settings">Update Storage Settings</button>
+        <span class="storage-version-pill" id="storage-version-pill">Version {{ storage_settings.version }}</span>
+    </div>
+    <div class="storage-audit">
+        <h4>Recent Changes</h4>
+        <ul class="storage-audit-list" id="storage-audit-list">
+            {% if storage_audit_entries %}
+                {% for entry in storage_audit_entries %}
+                    <li>
+                        <div class="audit-meta">{{ entry['created_at']|default('') }} - {{ entry['actor_email'] }}</div>
+                        {% if entry['changes'] %}
+                            <div class="audit-details">
+                                {% for field, change in entry['changes'].items() %}
+                                    <div class="audit-change"><strong>{{ field|replace('_', ' ')|title }}</strong>: {{ change['before'] }} -> {{ change['after'] }}</div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="audit-details">No field-level changes recorded.</div>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            {% else %}
+                <li class="empty">No storage updates have been recorded yet.</li>
+            {% endif %}
+        </ul>
+    </div>
 </div>
+
+<div class="modal-backdrop" id="storage-settings-modal" hidden>
+    <div class="storage-modal" role="dialog" aria-modal="true" aria-labelledby="storage-settings-title">
+        <div class="storage-modal__header">
+            <h3 class="storage-modal__title" id="storage-settings-title">Update Storage Settings</h3>
+            <button type="button" class="storage-modal__close" data-close>&times;</button>
+        </div>
+        <div class="storage-modal__alert" id="storage-settings-alert"></div>
+        <form class="storage-modal__form" id="storage-settings-form">
+            <input type="hidden" name="version" id="storage-settings-version" value="{{ storage_settings.version }}">
+            <div class="form-field">
+                <label for="storage-upload-root-input">Upload Root</label>
+                <input type="text" id="storage-upload-root-input" name="upload_root" required value="{{ storage_settings.upload_root }}">
+            </div>
+            <div class="form-field">
+                <label for="storage-limit-input">Storage Limit (GB)</label>
+                <input type="number" id="storage-limit-input" name="image_storage_limit_gb" min="0.1" step="0.1" required value="{{ '%.2f'|format(storage_settings.image_storage_limit_gb) }}">
+            </div>
+            <div class="input-columns">
+                <div class="form-field">
+                    <label for="storage-active-quality-input">Active Quality (%)</label>
+                    <input type="number" id="storage-active-quality-input" name="active_quality" min="1" max="100" required value="{{ storage_settings.active_quality }}">
+                </div>
+                <div class="form-field">
+                    <label for="storage-approved-quality-input">Approved Quality (%)</label>
+                    <input type="number" id="storage-approved-quality-input" name="approved_quality" min="1" max="100" required value="{{ storage_settings.approved_quality }}">
+                </div>
+                <div class="form-field">
+                    <label for="storage-archive-quality-input">Archive Quality (%)</label>
+                    <input type="number" id="storage-archive-quality-input" name="archive_quality" min="1" max="100" required value="{{ storage_settings.archive_quality }}">
+                </div>
+            </div>
+            <div class="form-field">
+                <label for="storage-formats-input">Preferred Formats (comma separated)</label>
+                <input type="text" id="storage-formats-input" name="preferred_formats" value="{{ storage_settings.preferred_formats|join(', ') if storage_settings.preferred_formats else '' }}">
+            </div>
+            <div class="storage-modal__footer">
+                <button type="button" class="btn-cancel" data-close>Cancel</button>
+                <button type="submit" class="btn-submit">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const modal = document.getElementById('storage-settings-modal');
+    const openButton = document.getElementById('open-storage-settings');
+    if (!modal || !openButton) {
+        return;
+    }
+
+    const body = document.body;
+    const alertBox = document.getElementById('storage-settings-alert');
+    const form = document.getElementById('storage-settings-form');
+    const submitButton = form.querySelector('.btn-submit');
+    const versionField = document.getElementById('storage-settings-version');
+    const uploadRootInput = document.getElementById('storage-upload-root-input');
+    const limitInput = document.getElementById('storage-limit-input');
+    const activeInput = document.getElementById('storage-active-quality-input');
+    const approvedInput = document.getElementById('storage-approved-quality-input');
+    const archiveInput = document.getElementById('storage-archive-quality-input');
+    const formatsInput = document.getElementById('storage-formats-input');
+
+    const uploadRootDisplay = document.getElementById('storage-upload-root');
+    const limitDisplay = document.getElementById('storage-limit');
+    const profilesDisplay = document.getElementById('storage-profiles');
+    const formatsDisplay = document.getElementById('storage-formats');
+    const versionDisplay = document.getElementById('storage-version-pill');
+    const auditListEl = document.getElementById('storage-audit-list');
+
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    const csrfToken = csrfMeta ? csrfMeta.content : '';
+
+    function normaliseSettings(value) {
+        return value && typeof value === 'object' ? value : {};
+    }
+
+    let storageSettings = normaliseSettings({{ storage_settings|tojson }});
+    const initialAudits = {{ storage_audit_entries|tojson }};
+    let auditEntries = Array.isArray(initialAudits) ? initialAudits : [];
+
+    function escapeHtml(value) {
+        const text = String(value ?? '');
+        const escapeMap = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        };
+        return text.replace(/[&<>"']/g, function (chr) {
+            return escapeMap[chr] || chr;
+        });
+    }
+
+    function setAlert(message, variant) {
+        if (!alertBox) {
+            return;
+        }
+        alertBox.classList.remove('is-visible', 'is-error', 'is-success');
+        if (!message) {
+            alertBox.textContent = '';
+            return;
+        }
+        alertBox.textContent = message;
+        alertBox.classList.add('is-visible');
+        alertBox.classList.add(variant === 'error' ? 'is-error' : 'is-success');
+    }
+
+    function formatLimit(limit) {
+        const numeric = Number(limit);
+        return Number.isFinite(numeric) ? numeric.toFixed(2) + ' GB' : 'N/A';
+    }
+
+    function formatProfiles(settings) {
+        const active = settings.active_quality ?? 'N/A';
+        const approved = settings.approved_quality ?? 'N/A';
+        const archive = settings.archive_quality ?? 'N/A';
+        return 'Active ' + active + '% | Approved ' + approved + '% | Archive ' + archive + '%';
+    }
+
+    function formatFormats(settings) {
+        if (!settings || !Array.isArray(settings.preferred_formats) || !settings.preferred_formats.length) {
+            return 'N/A';
+        }
+        return settings.preferred_formats.join(', ');
+    }
+
+    function renderSummary(settings) {
+        if (!settings) {
+            return;
+        }
+        if (uploadRootDisplay) {
+            uploadRootDisplay.textContent = settings.upload_root || 'N/A';
+        }
+        if (limitDisplay) {
+            limitDisplay.textContent = formatLimit(settings.image_storage_limit_gb);
+        }
+        if (profilesDisplay) {
+            profilesDisplay.textContent = formatProfiles(settings);
+        }
+        if (formatsDisplay) {
+            formatsDisplay.textContent = formatFormats(settings);
+        }
+        if (versionDisplay && settings.version !== undefined) {
+            versionDisplay.textContent = 'Version ' + settings.version;
+        }
+    }
+
+    function renderAudits(entries) {
+        if (!auditListEl) {
+            return;
+        }
+        if (!entries || !entries.length) {
+            auditListEl.innerHTML = '<li class="empty">No storage updates have been recorded yet.</li>';
+            return;
+        }
+        const items = entries.map(function (entry) {
+            const timestamp = entry.created_at ? entry.created_at.replace('T', ' ').slice(0, 19) : '';
+            const actor = entry.actor_email || 'system';
+            const changes = entry.changes && typeof entry.changes === 'object' ? entry.changes : {};
+            const changeRows = Object.keys(changes).map(function (field) {
+                const change = changes[field] || {};
+                const before = change.before !== undefined ? change.before : '';
+                const after = change.after !== undefined ? change.after : '';
+                const label = field.replace(/_/g, ' ');
+                return '<div class="audit-change"><strong>' + escapeHtml(label) + '</strong>: ' + escapeHtml(before) + ' -> ' + escapeHtml(after) + '</div>';
+            });
+            const details = changeRows.length ? '<div class="audit-details">' + changeRows.join('') + '</div>' : '<div class="audit-details">No field-level changes recorded.</div>';
+            return '<li><div class="audit-meta">' + escapeHtml(timestamp) + ' - ' + escapeHtml(actor) + '</div>' + details + '</li>';
+        });
+        auditListEl.innerHTML = items.join('');
+    }
+
+    function fillForm(settings) {
+        const data = normaliseSettings(settings);
+        if (uploadRootInput) {
+            uploadRootInput.value = data.upload_root || '';
+        }
+        if (limitInput) {
+            const numeric = Number(data.image_storage_limit_gb);
+            limitInput.value = Number.isFinite(numeric) ? numeric.toFixed(2) : '';
+        }
+        if (activeInput) {
+            activeInput.value = data.active_quality ?? '';
+        }
+        if (approvedInput) {
+            approvedInput.value = data.approved_quality ?? '';
+        }
+        if (archiveInput) {
+            archiveInput.value = data.archive_quality ?? '';
+        }
+        if (formatsInput) {
+            formatsInput.value = Array.isArray(data.preferred_formats) ? data.preferred_formats.join(', ') : '';
+        }
+        if (versionField) {
+            versionField.value = data.version ?? '';
+        }
+    }
+
+    function openModal() {
+        setAlert('');
+        fillForm(storageSettings);
+        modal.removeAttribute('hidden');
+        body.classList.add('modal-open');
+        if (uploadRootInput) {
+            uploadRootInput.focus();
+        }
+    }
+
+    function closeModal() {
+        modal.setAttribute('hidden', 'hidden');
+        body.classList.remove('modal-open');
+        setAlert('');
+    }
+
+    async function refreshSettings() {
+        try {
+            const response = await fetch('/dashboard/api/admin/settings');
+            if (!response.ok) {
+                return;
+            }
+            const payload = await response.json();
+            if (!payload || !payload.settings) {
+                return;
+            }
+            storageSettings = normaliseSettings(payload.settings);
+            auditEntries = Array.isArray(payload.audits) ? payload.audits : [];
+            renderSummary(storageSettings);
+            renderAudits(auditEntries);
+            fillForm(storageSettings);
+        } catch (error) {
+            console.error('Failed to refresh storage settings', error);
+        }
+    }
+
+    function handleBackdropClick(event) {
+        if (event.target === modal || event.target.hasAttribute('data-close')) {
+            closeModal();
+        }
+    }
+
+    openButton.addEventListener('click', openModal);
+    modal.addEventListener('click', handleBackdropClick);
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !modal.hasAttribute('hidden')) {
+            closeModal();
+        }
+    });
+
+    form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        setAlert('');
+        submitButton.disabled = true;
+
+        const payload = {
+            upload_root: uploadRootInput ? uploadRootInput.value.trim() : '',
+            image_storage_limit_gb: limitInput ? limitInput.value : '',
+            active_quality: activeInput ? activeInput.value : '',
+            approved_quality: approvedInput ? approvedInput.value : '',
+            archive_quality: archiveInput ? archiveInput.value : '',
+            preferred_formats: formatsInput && formatsInput.value ? formatsInput.value.split(',').map(function (item) { return item.trim(); }).filter(Boolean) : [],
+            version: versionField ? Number(versionField.value) : undefined,
+        };
+
+        try {
+            const response = await fetch('/dashboard/api/admin/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify(payload),
+            });
+            const result = await response.json();
+            if (response.ok && result && result.success) {
+                storageSettings = normaliseSettings(result.settings);
+                auditEntries = Array.isArray(result.audits) ? result.audits : [];
+                renderSummary(storageSettings);
+                renderAudits(auditEntries);
+                fillForm(storageSettings);
+                setAlert('Storage settings updated successfully.', 'success');
+                setTimeout(closeModal, 900);
+            } else if (response.status === 409 || (result && result.code === 'conflict')) {
+                await refreshSettings();
+                const message = result && result.error ? result.error : 'Settings were updated by another administrator. Latest values loaded.';
+                setAlert(message, 'error');
+            } else if (result && result.error) {
+                setAlert(result.error, 'error');
+            } else {
+                setAlert('Could not update settings. Please try again.', 'error');
+            }
+        } catch (error) {
+            console.error('Failed to update storage settings', error);
+            setAlert('Unexpected error while saving settings. Please try again.', 'error');
+        } finally {
+            submitButton.disabled = false;
+        }
+    });
+
+    renderSummary(storageSettings);
+    renderAudits(auditEntries);
+})();
+</script>
+
 {% endblock %}
