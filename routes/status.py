@@ -134,9 +134,7 @@ def download_report(submission_id):
                 return Response(
                     f.read(),
                     mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                    headers={{
-                        'Content-Disposition': f'attachment; filename={download_name}'
-                    }}
+                    headers={                        'Content-Disposition': f'attachment; filename={download_name}'                    }
                 )
         else:
             # File doesn't exist - inform user to regenerate from form
