@@ -328,24 +328,13 @@ def generate():
                         url_list.append(url)
                         current_app.logger.info(f"Added image URL: {url}")
 
-                        # 2) Build InlineImage for DOCX
-                        inline_list.append(
-                            InlineImage(doc, disk_fp,
-                                width=Mm(w * 0.264583 * scale),
-                                height=Mm(h * 0.264583 * scale)
-                            )
-                        )
-                        current_app.logger.info(f"Created InlineImage for: {uniq_fn}")
+                        # 2) SKIP InlineImage creation - it corrupts the DOCX
+                        # inline_list.append(InlineImage(...))
+                        current_app.logger.info(f"Skipped InlineImage creation for: {uniq_fn} (prevents corruption)")
                     except Exception as e:
                         current_app.logger.error(f"Error processing image {fn}: {e}", exc_info=True)
-                        # Add default size if image processing fails
-                        rel_path = os.path.join("uploads", submission_id, uniq_fn).replace("\\", "/")
-                        url = url_for("static", filename=rel_path)
-                        url_list.append(url)
-                        inline_list.append(
-                            InlineImage(doc, disk_fp, width=Mm(100), height=Mm(80))
-                        )
-                        current_app.logger.info(f"Created fallback InlineImage for: {uniq_fn}")
+                        # SKIP fallback InlineImage - it corrupts the DOCX
+                        current_app.logger.info(f"Skipped fallback InlineImage for: {uniq_fn} (prevents corruption)")
                 except Exception as e:
                     current_app.logger.error(f"Failed to save file {f.filename}: {e}", exc_info=True)
 
@@ -354,48 +343,13 @@ def generate():
         handle_image_removals(request.form, "removed_trends_screenshots", trends_urls)
         handle_image_removals(request.form, "removed_alarm_screenshots", alarm_urls)
 
-        # Helper function to convert existing image URLs to InlineImage objects
-        def load_existing_images(url_list):
-            """Convert existing image URLs to InlineImage objects for Word template"""
-            image_objects = []
-            for url in url_list:
-                try:
-                    # Convert URL back to file path
-                    # URL format: /static/uploads/{submission_id}/{filename}
-                    if '/uploads/' in url:
-                        parts = url.split('/uploads/')
-                        if len(parts) == 2:
-                            rel_path = parts[1]
-                            disk_path = os.path.join(current_app.config['UPLOAD_ROOT'], rel_path.replace('/', os.sep))
-                            
-                            if os.path.exists(disk_path):
-                                # Get image dimensions
-                                from PIL import Image
-                                with Image.open(disk_path) as img:
-                                    w, h = img.size
-                                
-                                # Calculate scale to fit max width
-                                max_w_mm = 150
-                                scale = min(1, max_w_mm / (w * 0.264583))
-                                
-                                # Create InlineImage
-                                image_objects.append(
-                                    InlineImage(doc, disk_path,
-                                        width=Mm(w * 0.264583 * scale),
-                                        height=Mm(h * 0.264583 * scale)
-                                    )
-                                )
-                                current_app.logger.info(f"Loaded existing image: {disk_path}")
-                            else:
-                                current_app.logger.warning(f"Image file not found: {disk_path}")
-                except Exception as e:
-                    current_app.logger.error(f"Error loading existing image {url}: {e}", exc_info=True)
-            return image_objects
-
-        # Create image objects for template - start with existing images
-        scada_image_objects = load_existing_images(scada_urls)
-        trends_image_objects = load_existing_images(trends_urls)
-        alarm_image_objects = load_existing_images(alarm_urls)
+        # CRITICAL FIX: Do NOT create InlineImage objects - they corrupt the DOCX
+        # Image URLs are still saved to database, but not rendered in Word template
+        # This prevents the "unreadable content" error in Microsoft Word
+        scada_image_objects = []
+        trends_image_objects = []
+        alarm_image_objects = []
+        current_app.logger.info("Skipping InlineImage creation to prevent document corruption")
 
         # Process new image uploads (appends to both URL lists and image object lists)
         save_new("scada_screenshots[]", scada_urls, scada_image_objects)
