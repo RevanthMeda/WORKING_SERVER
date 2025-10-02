@@ -96,10 +96,10 @@ def view_status(submission_id):
 @status_bp.route('/download/<submission_id>')
 @login_required
 def download_report(submission_id):
-    """Download the generated report - regenerates from latest database data"""
+    """Download the generated report"""
     try:
         from models import Report, SATReport
-        from services.document_generator import regenerate_document_from_db
+        import json
         
         # Verify report exists
         report = Report.query.filter_by(id=submission_id).first()
@@ -112,22 +112,34 @@ def download_report(submission_id):
             flash('Report data not found.', 'error')
             return redirect(url_for('dashboard.home'))
         
-        current_app.logger.info(f"Regenerating document for download: {submission_id}")
+        # Try to serve the originally generated file first
+        permanent_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.docx')
         
-        # Generate fresh document from database data using template with images
-        result = regenerate_document_from_db(submission_id)
-        if 'error' in result:
-            current_app.logger.error(f"Error generating report: {result['error']}")
-            flash(f"Error generating document: {result['error']}", 'error')
-            return redirect(url_for('status.view_status', submission_id=submission_id))
-
-        # Serve the freshly generated file
-        return send_file(
-            result['path'],
-            as_attachment=True,
-            download_name=result['download_name'],
-            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        )
+        if os.path.exists(permanent_path) and os.path.getsize(permanent_path) > 1000:
+            current_app.logger.info(f"Serving existing report file for {submission_id}")
+            
+            # Build download name
+            try:
+                stored_data = json.loads(sat_report.data_json) if sat_report.data_json else {}
+                context_data = stored_data.get("context", stored_data)
+                project_ref = context_data.get('PROJECT_REFERENCE', '').strip()
+                if not project_ref:
+                    project_ref = submission_id[:8]
+                safe_proj_ref = "".join(c if c.isalnum() or c in ['_', '-'] else "_" for c in project_ref)
+                download_name = f"SAT_{safe_proj_ref}.docx"
+            except:
+                download_name = f"SAT_Report_{submission_id}.docx"
+            
+            return send_file(
+                permanent_path,
+                as_attachment=True,
+                download_name=download_name,
+                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+        else:
+            # File doesn't exist - inform user to regenerate from form
+            flash('Document file not found. Please edit and re-generate this report from the form.', 'warning')
+            return redirect(url_for('main.edit_sat', submission_id=submission_id))
 
     except Exception as e:
         current_app.logger.error(f"Error in download_report for {submission_id}: {e}", exc_info=True)
