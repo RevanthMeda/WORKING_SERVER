@@ -5,7 +5,8 @@ from models import db, Report, SATReport, CullyStatistics
 from auth import login_required
 import json
 from services.sat_tables import extract_ui_tables, build_doc_tables, migrate_context_tables, TABLE_CONFIG
-TABLE_UI_KEYS = [cfg['ui_section'] for cfg in TABLE_CONFIG]
+EXTRA_IMAGE_KEYS = ['SCADA_SCREENSHOTS', 'TRENDS_SCREENSHOTS', 'ALARM_SCREENSHOTS']
+TABLE_UI_KEYS = [cfg['ui_section'] for cfg in TABLE_CONFIG] + EXTRA_IMAGE_KEYS
 import os
 import uuid
 import datetime as dt
@@ -433,9 +434,13 @@ def generate():
             "SIG_APPROVER_2": SIG_APPROVER_2,
             "SIG_APPROVER_3": SIG_APPROVER_3,
         }
-        for key, value in doc_tables.items():
-            context[key] = value
+        context['SCADA_SCREENSHOTS'] = scada_urls
+        context['TRENDS_SCREENSHOTS'] = trends_urls
+        context['ALARM_SCREENSHOTS'] = alarm_urls
 
+        for key, value in doc_tables.items():
+            if key not in context:
+                context[key] = value
         # For storage, remove the InlineImage objects recursively
         context_to_store = dict(context)
         for key, value in combined_tables.items():
@@ -730,6 +735,77 @@ def save_progress():
             if key not in context:
                 context[key] = value
 
+        upload_root = current_app.config.get('UPLOAD_ROOT', os.path.join(current_app.static_folder, 'uploads'))
+        upload_dir = os.path.join(upload_root, submission_id)
+        os.makedirs(upload_dir, exist_ok=True)
+
+        def _normalize_url_list(value):
+            if isinstance(value, list):
+                return value
+            if isinstance(value, str):
+                try:
+                    parsed = json.loads(value)
+                    if isinstance(parsed, list):
+                        return parsed
+                except Exception:
+                    pass
+                return [value] if value else []
+            if not value:
+                return []
+            try:
+                return list(value)
+            except TypeError:
+                return []
+
+        scada_urls = _normalize_url_list(existing_data.get('scada_image_urls') or (json.loads(sat_report.scada_image_urls) if sat_report.scada_image_urls else []))
+        trends_urls = _normalize_url_list(existing_data.get('trends_image_urls') or (json.loads(sat_report.trends_image_urls) if sat_report.trends_image_urls else []))
+        alarm_urls = _normalize_url_list(existing_data.get('alarm_image_urls') or (json.loads(sat_report.alarm_image_urls) if sat_report.alarm_image_urls else []))
+
+        handle_image_removals(request.form, 'removed_scada_images', scada_urls)
+        handle_image_removals(request.form, 'removed_trends_images', trends_urls)
+        handle_image_removals(request.form, 'removed_alarm_images', alarm_urls)
+
+        from werkzeug.utils import secure_filename
+        from PIL import Image
+
+        def save_uploaded_images(field_name, url_list):
+            for storage in request.files.getlist(field_name):
+                if not storage or not storage.filename:
+                    continue
+                if not allowed_file(storage.filename):
+                    current_app.logger.debug(f"Skipped file with invalid extension: {storage.filename}")
+                    continue
+                try:
+                    filename = secure_filename(storage.filename)
+                    unique_name = f"{uuid.uuid4().hex}_{filename}"
+                    disk_path = os.path.join(upload_dir, unique_name)
+                    storage.save(disk_path)
+
+                    try:
+                        with Image.open(disk_path) as img:
+                            img.verify()
+                    except Exception as img_error:
+                        current_app.logger.warning(f"Invalid image uploaded ({storage.filename}): {img_error}")
+                        try:
+                            os.remove(disk_path)
+                        except Exception:
+                            pass
+                        continue
+
+                    rel_path = os.path.join('uploads', submission_id, unique_name).replace('\\', '/')
+                    url = url_for('static', filename=rel_path)
+                    url_list.append(url)
+                except Exception as upload_error:
+                    current_app.logger.error(f"Error saving uploaded image {storage.filename}: {upload_error}", exc_info=True)
+
+        save_uploaded_images('scada_screenshots[]', scada_urls)
+        save_uploaded_images('trends_screenshots[]', trends_urls)
+        save_uploaded_images('alarm_screenshots[]', alarm_urls)
+
+        context['SCADA_SCREENSHOTS'] = scada_urls
+        context['TRENDS_SCREENSHOTS'] = trends_urls
+        context['ALARM_SCREENSHOTS'] = alarm_urls
+
         ui_tables = extract_ui_tables(request.form)
         for key, value in ui_tables.items():
             context[key] = value
@@ -749,9 +825,9 @@ def save_progress():
             "user_email": current_user.email if hasattr(current_user, 'email') else form_data.get("user_email", ""),
             "approvals": existing_data.get("approvals", []),
             "locked": existing_data.get("locked", False),
-            "scada_image_urls": existing_data.get("scada_image_urls", []),
-            "trends_image_urls": existing_data.get("trends_image_urls", []),
-            "alarm_image_urls": existing_data.get("alarm_image_urls", []),
+            "scada_image_urls": scada_urls,
+            "trends_image_urls": trends_urls,
+            "alarm_image_urls": alarm_urls,
             "created_at": existing_data.get("created_at", dt.datetime.now().isoformat()),
             "updated_at": dt.datetime.now().isoformat(),
             "auto_saved": True  # Mark as auto-saved
@@ -771,6 +847,9 @@ def save_progress():
 
         # Update SAT report data
         sat_report.data_json = json.dumps(submission_data)
+        sat_report.scada_image_urls = json.dumps(scada_urls)
+        sat_report.trends_image_urls = json.dumps(trends_urls)
+        sat_report.alarm_image_urls = json.dumps(alarm_urls)
         sat_report.date = context.get('DATE', '')
         sat_report.purpose = context.get('PURPOSE', '')
         sat_report.scope = context.get('SCOPE', '')
@@ -780,7 +859,7 @@ def save_progress():
 
         return jsonify({
             'success': True,
-            'message': 'Auto-save completed',
+            'message': 'Progress saved successfully',
             'submission_id': submission_id,
             'timestamp': dt.datetime.now().isoformat()
         })
@@ -791,6 +870,13 @@ def save_progress():
             'success': False,
             'message': f'Auto-save failed: {str(e)}'
         }), 500
+
+@main_bp.route('/auto_save_progress', methods=['POST'])
+@login_required
+def auto_save_progress():
+    """Auto-save wrapper that reuses save_progress logic."""
+    return save_progress()
+
 
 
 
