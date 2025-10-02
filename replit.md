@@ -4,6 +4,13 @@ This is a comprehensive Flask-based web application for generating System Accept
 
 ## Recent Updates
 
+### October 2, 2025 - Word Document Corruption Fix
+- **Fixed critical document generation bug**: Existing images from database weren't being converted to InlineImage objects for Word template rendering
+- **Added load_existing_images() helper**: Converts stored image URLs back to file paths and creates properly scaled InlineImage objects
+- **Improved error handling**: Added comprehensive logging and validation around document rendering and saving
+- **Path handling**: Properly handles cross-platform path separators and URL-to-path conversion
+- Generated Word documents now correctly include all images (both existing and newly uploaded) without corruption
+
 ### October 1, 2025 - Comprehensive Save Progress Enhancements
 - **Signal tables now save correctly**: Added processing for all signal tables (Digital Signals, Analogue Input/Output, Digital Output, Modbus Digital/Analogue)
 - **Image uploads implemented**: SCADA, Trends, and Alarm screenshots now save to database with proper file validation
