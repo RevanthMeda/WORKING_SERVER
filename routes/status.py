@@ -146,7 +146,24 @@ def download_report(submission_id):
             
             # Check if the response is an error (JSON response)
             if hasattr(response, 'status_code') and response.status_code != 200:
-                flash('Error downloading report file. The file may be corrupted. Please regenerate the report.', 'error')
+                current_app.logger.error(f"File download failed for {submission_id}, attempting to regenerate...")
+                
+                # Try to regenerate the document from database data
+                try:
+                    from services.document_generator import regenerate_document_from_db
+                    regen_result = regenerate_document_from_db(submission_id)
+                    
+                    if 'error' not in regen_result and 'path' in regen_result:
+                        current_app.logger.info(f"Successfully regenerated document for {submission_id}")
+                        regenerated_response = safe_send_file(regen_result['path'], download_name, as_attachment=True)
+                        
+                        if not (hasattr(regenerated_response, 'status_code') and regenerated_response.status_code != 200):
+                            return regenerated_response
+                    
+                except Exception as regen_error:
+                    current_app.logger.error(f"Failed to regenerate document: {regen_error}")
+                
+                flash('Error downloading report file. The file may be corrupted. Please regenerate the report from the form.', 'error')
                 return redirect(url_for('main.edit_sat', submission_id=submission_id))
             
             return response
@@ -190,6 +207,59 @@ def download_report_modern(submission_id):
         current_app.logger.error(f'Error sending modern report for {submission_id}: {exc}', exc_info=True)
         flash('Error downloading report.', 'error')
         return redirect(url_for('status.view_status', submission_id=submission_id))
+
+
+@status_bp.route('/debug-file/<submission_id>')
+@login_required
+def debug_file(submission_id):
+    """Debug endpoint to inspect file contents"""
+    try:
+        from models import Report, SATReport
+        import json
+        
+        # Only allow for admin users or in development
+        if not (current_user.role == 'Admin' or current_app.config.get('DEBUG', False)):
+            flash('Access denied.', 'error')
+            return redirect(url_for('dashboard.home'))
+        
+        # Verify report exists
+        report = Report.query.filter_by(id=submission_id).first()
+        if not report:
+            return jsonify({'error': 'Report not found'}), 404
+
+        permanent_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.docx')
+        
+        if not os.path.exists(permanent_path):
+            return jsonify({'error': 'File not found', 'path': permanent_path}), 404
+        
+        # Read first 2048 bytes to inspect content
+        with open(permanent_path, 'rb') as f:
+            first_bytes = f.read(2048)
+            
+        # Try to decode as text to see if it's HTML
+        try:
+            text_content = first_bytes.decode('utf-8', errors='ignore')
+            is_text = True
+        except:
+            text_content = "Binary content"
+            is_text = False
+        
+        file_info = {
+            'file_path': permanent_path,
+            'file_size': os.path.getsize(permanent_path),
+            'first_4_bytes': first_bytes[:4],
+            'first_4_bytes_hex': first_bytes[:4].hex(),
+            'is_text_content': is_text,
+            'first_200_chars': text_content[:200] if is_text else "Binary data",
+            'contains_html': '<html' in text_content.lower() or '<!doctype' in text_content.lower() if is_text else False,
+            'contains_pk_signature': first_bytes.startswith(b'PK\x03\x04'),
+        }
+        
+        return jsonify(file_info)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in debug_file for {submission_id}: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 
 @status_bp.route('/list')

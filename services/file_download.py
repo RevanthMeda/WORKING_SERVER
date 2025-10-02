@@ -69,8 +69,28 @@ def validate_file_integrity(file_path: str) -> Tuple[bool, str]:
         try:
             with open(file_path, 'rb') as f:
                 header = f.read(4)
+                current_app.logger.info(f"File header for {file_path}: {header}")
+                
                 if header != b'PK\x03\x04':  # ZIP/DOCX file signature
-                    return False, "File is not a valid DOCX document"
+                    # Check if it might be HTML content
+                    f.seek(0)
+                    first_1024_bytes = f.read(1024)
+                    try:
+                        text_content = first_1024_bytes.decode('utf-8', errors='ignore')
+                        current_app.logger.error(f"File {file_path} appears to contain text/HTML content: {text_content[:200]}...")
+                        if '<html' in text_content.lower() or '<!doctype' in text_content.lower():
+                            return False, "File contains HTML content instead of DOCX data"
+                    except:
+                        pass
+                    
+                    return False, f"File is not a valid DOCX document (header: {header})"
+                
+                # Additional validation - check for ZIP central directory
+                f.seek(-22, 2)  # Go to end of file minus 22 bytes (ZIP end record)
+                end_record = f.read(22)
+                if not end_record.startswith(b'PK\x05\x06'):
+                    current_app.logger.warning(f"File {file_path} missing ZIP end record")
+                
         except Exception as e:
             return False, f"Error reading file: {str(e)}"
     
