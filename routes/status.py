@@ -130,11 +130,14 @@ def download_report(submission_id):
             except:
                 download_name = f"SAT_Report_{submission_id}.docx"
             
-            return send_file(
-                permanent_path,
-                as_attachment=True,
-                download_name=download_name
-            )
+            with open(permanent_path, 'rb') as f:
+                return Response(
+                    f.read(),
+                    mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    headers={{
+                        'Content-Disposition': f'attachment; filename={download_name}'
+                    }}
+                )
         else:
             # File doesn't exist - inform user to regenerate from form
             flash('Document file not found. Please edit and re-generate this report from the form.', 'warning')
