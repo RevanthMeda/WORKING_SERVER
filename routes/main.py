@@ -529,7 +529,8 @@ def generate():
             ai_email_response = requests.post(
                 url_for('ai.generate_email', _external=True),
                 json={'submission_id': submission_id},
-                headers={'Content-Type': 'application/json'}
+                headers={'Content-Type': 'application/json'},
+                verify=False
             )
             if ai_email_response.status_code == 200:
                 email_content = ai_email_response.json()
@@ -550,9 +551,7 @@ def generate():
                 sent = send_approval_link(
                     first_email,
                     submission_id,
-                    first_stage["stage"],
-                    subject=email_subject,
-                    html_content=email_body
+                    first_stage["stage"]
                 )
                 current_app.logger.info(f"Approval email to {first_email}: {sent}")
 
