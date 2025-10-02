@@ -71,15 +71,16 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
         combined_tables = dict(legacy_tables)
         combined_tables.update(ui_tables)
 
-        # Helper to sanitize values - convert None to empty string and ensure strings
+        # Helper to sanitize values - convert None to empty string
+        # Note: docxtpl automatically handles XML escaping, so we don't need to do it manually
         def sanitize_value(value):
             if value is None:
                 return ""
             if isinstance(value, str):
-                return value
+                return value.strip()  # Remove leading/trailing whitespace
             return str(value)
         
-        # Build rendering context with sanitized values
+        # Build rendering context with sanitized values - include ALL template fields
         render_context = {
             "DOCUMENT_TITLE": sanitize_value(context_data.get('DOCUMENT_TITLE', '')),
             "PROJECT_REFERENCE": sanitize_value(context_data.get('PROJECT_REFERENCE', '')),
@@ -90,6 +91,9 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
             "REVISION_DETAILS": sanitize_value(context_data.get('REVISION_DETAILS', '')),
             "REVISION_DATE": sanitize_value(context_data.get('REVISION_DATE', '')),
             "PREPARED_BY": sanitize_value(context_data.get('PREPARED_BY', '')),
+            "PREPARER_DATE": "",  # Date fields for signature section
+            "TECH_LEAD_DATE": "",
+            "PM_DATE": "",
             "SIG_PREPARED": "",  # Signatures are not regenerated
             "SIG_PREPARED_BY": "",
             "REVIEWED_BY_TECH_LEAD": sanitize_value(context_data.get('REVIEWED_BY_TECH_LEAD', '')),
@@ -100,42 +104,37 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
             "SIG_APPROVAL_CLIENT": "",
             "PURPOSE": sanitize_value(context_data.get('PURPOSE', '')),
             "SCOPE": sanitize_value(context_data.get('SCOPE', '')),
-            "SCADA_IMAGES": scada_image_objects,
-            "TRENDS_IMAGES": trends_image_objects,
-            "ALARM_IMAGES": alarm_image_objects,
-            "SCADA_SCREENSHOTS": scada_urls,
-            "TRENDS_SCREENSHOTS": trends_urls,
-            "ALARM_SCREENSHOTS": alarm_urls,
+            "SCADA_IMAGES": scada_image_objects if scada_image_objects else [],
+            "TRENDS_IMAGES": trends_image_objects if trends_image_objects else [],
+            "ALARM_IMAGES": alarm_image_objects if alarm_image_objects else [],
+            "SCADA_SCREENSHOTS": scada_urls if scada_urls else [],
+            "TRENDS_SCREENSHOTS": trends_urls if trends_urls else [],
+            "ALARM_SCREENSHOTS": alarm_urls if alarm_urls else [],
             "SIG_APPROVER_1": "",
             "SIG_APPROVER_2": "",
             "SIG_APPROVER_3": "",
         }
 
-        # Add table data with sanitization and key normalization
+        # Add table data with sanitization
         def normalize_table_keys(data):
-            """Normalize table data to handle space variations in keys and ensure no None values"""
+            """Normalize table data to ensure no None values and handle common key variations"""
             if data is None:
                 return []
             if isinstance(data, list):
                 normalized_list = []
                 for item in data:
                     if isinstance(item, dict):
-                        # Create normalized dict with multiple key variations to match template
+                        # Create normalized dict with sanitized values and key variations
                         normalized_dict = {}
                         for k, v in item.items():
-                            clean_key = k.strip()
                             value = sanitize_value(v)
-                            # Add the key in multiple formats to match template variations
-                            normalized_dict[clean_key] = value  # Clean version
-                            normalized_dict[k] = value  # Original version
-                            if ' ' in clean_key:
-                                # Also add with leading/trailing spaces that might be in template
-                                normalized_dict[f" {clean_key}"] = value
-                                normalized_dict[f"{clean_key} "] = value
-                                normalized_dict[f" {clean_key} "] = value
+                            # Add both original and trimmed versions of the key
+                            normalized_dict[k] = value
+                            if k != k.strip():
+                                normalized_dict[k.strip()] = value
                         normalized_list.append(normalized_dict)
                     else:
-                        normalized_list.append(item)
+                        normalized_list.append(sanitize_value(item))
                 return normalized_list
             return data
         
