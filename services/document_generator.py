@@ -12,7 +12,7 @@ from docx.shared import Mm
 from PIL import Image
 
 from models import Report, SATReport
-from services.sat_tables import extract_ui_tables, build_doc_tables, migrate_context_tables, TABLE_UI_KEYS
+from services.sat_tables import extract_ui_tables, build_doc_tables, migrate_context_tables, TABLE_CONFIG
 
 
 def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
@@ -58,9 +58,10 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
 
         current_app.logger.info(f"Loaded {len(scada_image_objects)} SCADA, {len(trends_image_objects)} Trends, {len(alarm_image_objects)} Alarm images")
 
-        # Build table data
+        # Build table data - extract all UI section keys from TABLE_CONFIG
         ui_tables = {}
-        for table_key in TABLE_UI_KEYS:
+        for config in TABLE_CONFIG:
+            table_key = config['ui_section']
             table_data = context_data.get(table_key, [])
             if table_data:
                 ui_tables[table_key] = table_data
