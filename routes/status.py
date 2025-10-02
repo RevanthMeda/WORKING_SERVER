@@ -133,8 +133,7 @@ def download_report(submission_id):
             return send_file(
                 permanent_path,
                 as_attachment=True,
-                download_name=download_name,
-                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                download_name=download_name
             )
         else:
             # File doesn't exist - inform user to regenerate from form
