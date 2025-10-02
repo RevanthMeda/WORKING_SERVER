@@ -377,9 +377,9 @@ def generate():
                     current_app.logger.error(f"Failed to save file {f.filename}: {e}", exc_info=True)
 
         # Remove images flagged for deletion
-        handle_image_removals(request.form, "removed_scada_images", scada_urls)
-        handle_image_removals(request.form, "removed_trends_images", trends_urls)
-        handle_image_removals(request.form, "removed_alarm_images", alarm_urls)
+        handle_image_removals(request.form, "removed_scada_screenshots", scada_urls)
+        handle_image_removals(request.form, "removed_trends_screenshots", trends_urls)
+        handle_image_removals(request.form, "removed_alarm_screenshots", alarm_urls)
 
         # Create image objects for template
         scada_image_objects = []
@@ -509,19 +509,6 @@ def generate():
             save_submissions(submissions)
         except Exception as save_error:
             current_app.logger.info(f"Could not persist final snapshot to file: {save_error}")
-        for table_key in TABLE_UI_KEYS:
-            submission_data[table_key] = context.get(table_key, [])
-
-        try:
-            submissions = load_submissions()
-            if isinstance(submissions, list):
-                submissions = {}
-            submissions[submission_id] = submission_data
-            save_submissions(submissions)
-        except Exception as save_error:
-            current_app.logger.warning(f"Could not persist progress snapshot to file: {save_error}")
-
-
         # Update SAT report data
         sat_report.data_json = json.dumps(submission_data)
         sat_report.date = context_to_store.get('DATE', '')
@@ -761,9 +748,9 @@ def save_progress():
         trends_urls = _normalize_url_list(existing_data.get('trends_image_urls') or (json.loads(sat_report.trends_image_urls) if sat_report.trends_image_urls else []))
         alarm_urls = _normalize_url_list(existing_data.get('alarm_image_urls') or (json.loads(sat_report.alarm_image_urls) if sat_report.alarm_image_urls else []))
 
-        handle_image_removals(request.form, 'removed_scada_images', scada_urls)
-        handle_image_removals(request.form, 'removed_trends_images', trends_urls)
-        handle_image_removals(request.form, 'removed_alarm_images', alarm_urls)
+        handle_image_removals(request.form, 'removed_scada_screenshots', scada_urls)
+        handle_image_removals(request.form, 'removed_trends_screenshots', trends_urls)
+        handle_image_removals(request.form, 'removed_alarm_screenshots', alarm_urls)
 
         from werkzeug.utils import secure_filename
         from PIL import Image
