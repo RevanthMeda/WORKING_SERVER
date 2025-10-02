@@ -98,17 +98,10 @@ def view_status(submission_id):
 def download_report(submission_id):
     """Download the generated report"""
     try:
-        # ... (database retrieval code remains the same)
-
-        # Generate fresh report using python-docx template layout
-        current_app.logger.info(f"Generating fresh report for submission {submission_id} using python-docx")
         # Define paths
         permanent_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.docx')
 
-        # Remove existing files if they exist
-        if os.path.exists(permanent_path):
-            os.remove(permanent_path)
-
+        # --- Create download name ---
         from models import Report, SATReport
         report = Report.query.filter_by(id=submission_id).first()
         if not report:
@@ -119,7 +112,7 @@ def download_report(submission_id):
         if not sat_report:
             flash('Report data not found.', 'error')
             return redirect(url_for('dashboard.home'))
-
+        
         try:
             stored_data = json.loads(sat_report.data_json) if sat_report.data_json else {}
         except json.JSONDecodeError:
@@ -128,41 +121,7 @@ def download_report(submission_id):
         context_data = stored_data.get("context", {})
         if not context_data:
             context_data = stored_data
-        # --- Prepare context for the report generator ---
-        context_for_doc = migrate_context_tables(context_data)
-        context_for_doc.update({
-            'DOCUMENT_TITLE': context_data.get('DOCUMENT_TITLE', 'SAT Report'),
-            'PROJECT_REFERENCE': context_data.get('PROJECT_REFERENCE', ''),
-            'DOCUMENT_REFERENCE': context_data.get('DOCUMENT_REFERENCE', submission_id) or submission_id,
-            'DATE': context_data.get('DATE', ''),
-            'CLIENT_NAME': context_data.get('CLIENT_NAME', ''),
-            'REVISION': context_data.get('REVISION', '1.0'),
-            'PREPARED_BY': context_data.get('PREPARED_BY', ''),
-            'SIG_PREPARED': context_data.get('SIG_PREPARED', ''),
-            'PREPARER_DATE': context_data.get('PREPARER_DATE', ''),
-            'REVIEWED_BY_TECH_LEAD': context_data.get('REVIEWED_BY_TECH_LEAD', ''),
-            'SIG_REVIEW_TECH': context_data.get('SIG_REVIEW_TECH', ''),
-            'TECH_LEAD_DATE': context_data.get('TECH_LEAD_DATE', ''),
-            'REVIEWED_BY_PM': context_data.get('REVIEWED_BY_PM', ''),
-            'SIG_REVIEW_PM': context_data.get('SIG_REVIEW_PM', ''),
-            'PM_DATE': context_data.get('PM_DATE', ''),
-            'APPROVED_BY_CLIENT': context_data.get('APPROVED_BY_CLIENT', ''),
-            'SIG_APPROVAL_CLIENT': context_data.get('SIG_APPROVAL_CLIENT', ''),
-            'CLIENT_APPROVAL_DATE': context_data.get('CLIENT_APPROVAL_DATE', ''),
-            'REVISION_DETAILS': context_data.get('REVISION_DETAILS', ''),
-            'REVISION_DATE': context_data.get('REVISION_DATE', ''),
-        })
-        context_for_doc.update(build_doc_tables_from_context(context_data))
 
-        from services.html_generator import generate_report_docx
-
-        success = generate_report_docx(context_for_doc, permanent_path)
-
-        if not success:
-            flash('Error generating the SAT report document.', 'error')
-            return redirect(url_for('status.view_status', submission_id=submission_id))
-
-        # --- Create download name ---
         project_number = context_data.get('PROJECT_REFERENCE', '').strip()
         if not project_number:
             project_number = submission_id[:8]

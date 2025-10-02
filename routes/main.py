@@ -507,13 +507,17 @@ def generate():
         doc.save(temp_path)
         current_app.logger.info(f"Document saved to temp path: {temp_path}")
 
-        # Try to copy to permanent location
+        # Save to a permanent, submission-specific location
         try:
-            permanent = os.path.abspath(current_app.config['OUTPUT_FILE'])
-            shutil.copyfile(temp_path, permanent)
-            current_app.logger.info(f"Also copied report to outputs: {permanent}")
+            output_dir = current_app.config['OUTPUT_DIR']
+            os.makedirs(output_dir, exist_ok=True)
+            permanent_path = os.path.join(output_dir, f'SAT_Report_{submission_id}_Final.docx')
+            shutil.copyfile(temp_path, permanent_path)
+            current_app.logger.info(f"Copied report to permanent location: {permanent_path}")
+        except KeyError:
+            current_app.logger.warning("OUTPUT_DIR not configured. Skipping permanent save.")
         except Exception as e:
-            current_app.logger.warning(f"Could not copy to outputs folder: {e}")
+            current_app.logger.warning(f"Could not copy to permanent outputs folder: {e}")
 
         # AI Email Content Generation
         email_subject = None
