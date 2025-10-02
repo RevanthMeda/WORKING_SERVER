@@ -1,4 +1,3 @@
-
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
 from flask_login import current_user
 from models import db, Report, SATReport, Notification
@@ -61,7 +60,8 @@ def edit_submission(submission_id):
 
 
 try:
-    from utils import (load_submissions, save_submissions, send_edit_link, send_approval_link,
+    from utils import (
+                   load_submissions, save_submissions, send_edit_link, send_approval_link,
                    setup_approval_workflow_db, handle_image_removals,
                   allowed_file)
 except ImportError as e:
@@ -323,18 +323,22 @@ def generate():
 
                         # 1) Add public URL for edit-mode preview
                         # Use posix-style paths for URLs (forward slashes)
-                        rel_path = os.path.join("uploads", submission_id, uniq_fn).replace("\\", "/")
+                        rel_path = os.path.join("uploads", submission_id, uniq_fn).replace("\", "/")
                         url = url_for("static", filename=rel_path)
                         url_list.append(url)
                         current_app.logger.info(f"Added image URL: {url}")
 
-                        # 2) SKIP InlineImage creation - it corrupts the DOCX
-                        # inline_list.append(InlineImage(...))
-                        current_app.logger.info(f"Skipped InlineImage creation for: {uniq_fn} (prevents corruption)")
+                        # 2) Create InlineImage and handle potential corruption
+                        try:
+                            current_app.logger.info(f"Attempting to create InlineImage with path: {disk_fp}")
+                            inline_image = InlineImage(doc, disk_fp, width=Mm(150))
+                            inline_list.append(inline_image)
+                            current_app.logger.info(f"Successfully created InlineImage for: {uniq_fn}")
+                        except Exception as e:
+                            current_app.logger.error(f"Error creating InlineImage for {fn}: {e}", exc_info=True)
                     except Exception as e:
                         current_app.logger.error(f"Error processing image {fn}: {e}", exc_info=True)
-                        # SKIP fallback InlineImage - it corrupts the DOCX
-                        current_app.logger.info(f"Skipped fallback InlineImage for: {uniq_fn} (prevents corruption)")
+
                 except Exception as e:
                     current_app.logger.error(f"Failed to save file {f.filename}: {e}", exc_info=True)
 
@@ -343,13 +347,9 @@ def generate():
         handle_image_removals(request.form, "removed_trends_screenshots", trends_urls)
         handle_image_removals(request.form, "removed_alarm_screenshots", alarm_urls)
 
-        # CRITICAL FIX: Do NOT create InlineImage objects - they corrupt the DOCX
-        # Image URLs are still saved to database, but not rendered in Word template
-        # This prevents the "unreadable content" error in Microsoft Word
         scada_image_objects = []
         trends_image_objects = []
         alarm_image_objects = []
-        current_app.logger.info("Skipping InlineImage creation to prevent document corruption")
 
         # Process new image uploads (appends to both URL lists and image object lists)
         save_new("scada_screenshots[]", scada_urls, scada_image_objects)
@@ -387,7 +387,6 @@ def generate():
             "REVIEWED_BY_TECH_LEAD": request.form.get('reviewed_by_tech_lead', ''),
             "SIG_REVIEW_TECH": SIG_REVIEW_TECH,
             "REVIEWED_BY_PM": request.form.get('reviewed_by_pm', ''),
-            "SIG_REVIEW_PM": SIG_REVIEW_PM,
             "APPROVED_BY_CLIENT": request.form.get('approved_by_client', ''),
             "SIG_APPROVAL_CLIENT": SIG_APPROVAL_CLIENT,
             "PURPOSE": request.form.get("purpose", ""),
@@ -865,10 +864,3 @@ def save_progress():
 def auto_save_progress():
     """Auto-save wrapper that reuses save_progress logic."""
     return save_progress()
-
-
-
-
-
-
-
