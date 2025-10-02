@@ -397,3 +397,68 @@ class FileStatsResource(Resource):
             'allowed_extensions': list(get_file_manager().allowed_extensions),
             'max_file_size_mb': get_file_manager().max_file_size // (1024 * 1024)
         }, 200
+
+@files_ns.route('/delete_image')
+class DeleteImageResource(Resource):
+    """Delete image by URL."""
+
+    @enhanced_login_required
+    def post(self):
+        """Delete an image file based on its URL."""
+        data = request.get_json()
+        image_url = data.get('image_url')
+
+        if not image_url:
+            return {'success': False, 'message': 'Image URL is required'}, 400
+
+        try:
+            # The URL is expected to be a path like /uploads/screenshots/some_image.png
+            # Based on the configuration, this is relative to the 'static' folder.
+            
+            # Sanitize the image_url to prevent directory traversal attacks
+            if not image_url.startswith('/uploads/'):
+                get_audit_logger().log_security_event(
+                    'invalid_image_delete_request',
+                    severity='high',
+                    details={'image_url': image_url, 'reason': 'Invalid URL prefix'}
+                )
+                return {'success': False, 'message': 'Invalid image URL'}, 400
+
+            # Get the relative path from the URL, stripping the leading '/'
+            relative_path = image_url.lstrip('/')
+            
+            # Get the absolute path to the static folder
+            static_folder_path = os.path.join(current_app.root_path, 'static')
+            
+            # Construct the full path to the image
+            file_path = os.path.join(static_folder_path, relative_path)
+            
+            # Normalize the path to prevent traversal attacks
+            normalized_path = os.path.normpath(file_path)
+            
+            # Security check: ensure the path is within the static folder
+            if not normalized_path.startswith(os.path.normpath(static_folder_path)):
+                get_audit_logger().log_security_event(
+                    'directory_traversal_attempt',
+                    severity='high',
+                    details={'image_url': image_url, 'resolved_path': normalized_path}
+                )
+                return {'success': False, 'message': 'Directory traversal attempt detected'}, 403
+
+            if os.path.exists(normalized_path):
+                os.remove(normalized_path)
+                get_audit_logger().log_data_access(
+                    action='delete',
+                    resource_type='file',
+                    resource_id=image_url,
+                    details={'path': normalized_path}
+                )
+                return {'success': True, 'message': 'Image deleted successfully'}, 200
+            else:
+                # Log if the file was not found, as it might indicate an issue
+                app_logger.warning(f"Attempted to delete a non-existent image: {normalized_path}")
+                return {'success': False, 'message': 'Image not found'}, 404
+
+        except Exception as e:
+            app_logger.error(f"Error deleting image {image_url}: {str(e)}")
+            return {'success': False, 'message': 'An unexpected error occurred'}, 500
