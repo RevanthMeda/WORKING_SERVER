@@ -1,7 +1,7 @@
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify, send_file
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
 from flask_login import current_user
-from models import db, Report, SATReport, CullyStatistics
+from models import db, Report, SATReport, Notification
 from auth import login_required
 import json
 from services.sat_tables import extract_ui_tables, build_doc_tables, migrate_context_tables, TABLE_CONFIG
@@ -10,7 +10,6 @@ TABLE_UI_KEYS = [cfg['ui_section'] for cfg in TABLE_CONFIG] + EXTRA_IMAGE_KEYS
 import os
 import uuid
 import datetime as dt
-from datetime import datetime
 
 main_bp = Blueprint('main', __name__)
 
@@ -63,8 +62,8 @@ def edit_submission(submission_id):
 
 try:
     from utils import (load_submissions, save_submissions, send_edit_link, send_approval_link,
-                  setup_approval_workflow, setup_approval_workflow_db, process_table_rows, handle_image_removals,
-                  allowed_file, save_uploaded_file, generate_sat_report as create_docx_from_template)
+                   setup_approval_workflow_db, handle_image_removals,
+                  allowed_file)
 except ImportError as e:
     print(f"Warning: Could not import utils: {e}")
     generate_sat_report = None
@@ -82,7 +81,6 @@ def get_unread_count():
 def create_approval_notification(approver_email, submission_id, stage, document_title):
     """Create approval notification"""
     try:
-        from models import Notification, db
 
         notification = Notification(
             user_email=approver_email,
@@ -101,7 +99,6 @@ def create_approval_notification(approver_email, submission_id, stage, document_
 def create_new_submission_notification(admin_emails, submission_id, document_title, submitter_email):
     """Create new submission notification for admins"""
     try:
-        from models import Notification, db
 
         for email in admin_emails:
             notification = Notification(
@@ -149,8 +146,6 @@ def generate():
         current_app.logger.info(f"Request headers: {request.headers}")
         current_app.logger.info(f"Request form data keys: {list(request.form.keys())}")
 
-        # Import database models
-        from models import db, Report, SATReport
 
         # Retrieve submission id and current report
         submission_id = request.form.get("submission_id", "").strip()

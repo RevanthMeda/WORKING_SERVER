@@ -3,25 +3,22 @@ import json
 import logging
 import smtplib
 from email.message import EmailMessage
-from PIL import Image
 from docx import Document
 from docx.oxml import parse_xml
 from flask import current_app, url_for
 import time
-import re
 from werkzeug.utils import secure_filename
 import uuid
 import platform
 import tempfile
-import shutil
 from contextlib import contextmanager
 from datetime import datetime
+from models import Notification
 
 # Added get_unread_count from app.py to resolve circular import
 def get_unread_count(user_email=None):
     """Get unread notifications count for a user"""
     try:
-        from models import Notification
         from flask_login import current_user
 
         if not user_email and current_user.is_authenticated:
@@ -43,9 +40,11 @@ def get_unread_count(user_email=None):
 try:
     import pythoncom
     import win32com.client
-    WINDOWS_COM_AVAILABLE = True
+    windows_com_available = True
 except ImportError:
-    WINDOWS_COM_AVAILABLE = False
+    windows_com_available = False
+    pythoncom = None
+    win32com = None
 
 logger = logging.getLogger(__name__)
 
@@ -133,9 +132,9 @@ def file_lock(filename, mode='r', timeout=30, delay=0.05):
         while True:
             try:
                 if is_exclusive:
-                    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)  # type: ignore
                 else:
-                    fcntl.flock(f, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                    fcntl.flock(f, fcntl.LOCK_SH | fcntl.LOCK_NB)  # type: ignore
                 break  # Lock acquired
             except IOError:
                 # Could not acquire lock, wait and retry
@@ -149,13 +148,12 @@ def file_lock(filename, mode='r', timeout=30, delay=0.05):
             yield f
         finally:
             # Unlock and close the file
-            fcntl.flock(f, fcntl.LOCK_UN)
+            fcntl.flock(f, fcntl.LOCK_UN)  # type: ignore
             f.close()
 
 
 def create_approval_notification(approver_email, submission_id, stage, document_title):
     """Create notification for approval request"""
-    from models import Notification
     from flask import url_for
 
     title = f"Approval Required - Stage {stage}"
@@ -173,7 +171,6 @@ def create_approval_notification(approver_email, submission_id, stage, document_
 
 def create_status_update_notification(user_email, submission_id, status, document_title, approver_name=""):
     """Create notification for status update"""
-    from models import Notification
     from flask import url_for
 
     if status == "approved":
@@ -203,7 +200,6 @@ def create_status_update_notification(user_email, submission_id, status, documen
 
 def create_completion_notification(user_email, submission_id, document_title):
     """Create notification for report completion"""
-    from models import Notification
     from flask import url_for
 
     title = "Report Completed"
@@ -221,7 +217,6 @@ def create_completion_notification(user_email, submission_id, document_title):
 
 def create_new_submission_notification(admin_emails, submission_id, document_title, submitter_email):
     """Create notification for new submission (for admins)"""
-    from models import Notification
     from flask import url_for
 
     title = "New Report Submitted"
@@ -343,7 +338,16 @@ def send_email(to_email, subject, html_content, text_content=None):
     logger.info(f"Attempting to send email to {to_email}")
 
     # Get fresh email configuration (prevents password caching)
-    from config import Config
+    import importlib.util
+    import os
+    config_file_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config.py')
+    spec = importlib.util.spec_from_file_location("config_module", config_file_path)
+    if not (spec and spec.loader):
+        logger.error("Could not load config.py from root to get SMTP credentials.")
+        return False
+    config_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config_module)
+    Config = config_module.Config
     credentials = Config.get_smtp_credentials()
     
     smtp_server = credentials['server']
@@ -395,46 +399,6 @@ def send_email(to_email, subject, html_content, text_content=None):
 
 
 
-def create_completion_notification(user_email, submission_id, document_title):
-    """Create notification for completion"""
-    try:
-        from models import Notification
-
-        title = "Report Completed"
-        message = f"Your SAT Report '{document_title}' has been fully approved and completed."
-
-        return Notification.create_notification(
-            user_email=user_email,
-            title=title,
-            message=message,
-            notification_type='completion',
-            submission_id=submission_id
-        )
-    except Exception as e:
-        current_app.logger.error(f"Failed to create completion notification: {e}")
-        return False
-
-def create_new_submission_notification(admin_emails, submission_id, document_title, submitter_email):
-    """Create new submission notification for admins"""
-    try:
-        from models import Notification
-
-        for admin_email in admin_emails:
-            title = "New Report Submitted"
-            message = f"New SAT Report '{document_title}' submitted by {submitter_email}."
-
-            Notification.create_notification(
-                user_email=admin_email,
-                title=title,
-                message=message,
-                notification_type='new_submission',
-                submission_id=submission_id
-            )
-        return True
-    except Exception as e:
-        current_app.logger.error(f"Failed to create submission notification: {e}")
-        return False
-
 def send_edit_link(user_email, submission_id, subject=None, html_content=None):
     """Send an email with the edit link for a submission"""
     if not user_email:
@@ -450,9 +414,9 @@ def send_edit_link(user_email, submission_id, subject=None, html_content=None):
         <body>
             <h1>SAT Report System</h1>
             <p>Thank you for submitting your SAT report. You can edit your submission by clicking the link below:</p>
-            <p><a href=\"{edit_url}\">{edit_url}</a></p>
+            <p><a href=\"{edit_url}\"> {edit_url}</a></p>
             <p>You can also check the status of your submission at any time:</p>
-            <p><a href=\"{status_url}\">{status_url}</a></p>
+            <p><a href="{status_url}">{status_url}</a></p>
             <p>This edit link will remain active until the first approval stage is complete.</p>
         </body>
         </html>
@@ -484,10 +448,10 @@ def send_approval_link(approver_email, submission_id, stage, subject=None, html_
             <h1>SAT Report Approval Request</h1>
             <p>A SAT report requires your approval as the {approver_title}.</p>
             <p>Please review and approve the report by clicking the link below:</p>
-            <p><a href=\"{approval_url}\">{approval_url}</a></p>
+            <p><a href="{approval_url}">{approval_url}</a></p>
             <p>This is approval stage {stage} of the workflow.</p>
             <p>You can also view the current status of this submission:</p>
-            <p><a href=\"{status_url}\">{status_url}</a></p>
+            <p><a href="{status_url}">{status_url}</a></p>
         </body>
         </html>
         """
@@ -593,7 +557,7 @@ def enable_autofit_tables(docx_path, target_keywords):
 
 def update_toc(doc_path):
     """Update the table of contents in a Word document using COM automation"""
-    if not WINDOWS_COM_AVAILABLE:
+    if not windows_com_available:
         logger.warning("Windows COM automation not available - skipping TOC update")
         return
 
@@ -620,7 +584,7 @@ def convert_to_pdf(docx_path):
         logger.warning("PDF export is disabled in configuration")
         return None
 
-    if not WINDOWS_COM_AVAILABLE:
+    if not windows_com_available:
         logger.warning("Windows COM automation not available - PDF conversion not supported on this platform")
         return None
 
@@ -882,6 +846,3 @@ def generate_sat_report(data):
     """Generate SAT report (placeholder legacy helper)."""
     current_app.logger.info('generate_sat_report placeholder invoked')
     return {"success": True, "filename": "SAT_Report_Final.docx"}
-
-
-
