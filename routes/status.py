@@ -96,26 +96,32 @@ def view_status(submission_id):
 @status_bp.route('/download/<submission_id>')
 @login_required
 def download_report(submission_id):
-    """Generate and download SAT report directly from database data"""
+    """Generate and download SAT report using the official template when available"""
     try:
-        current_app.logger.info(f"Starting direct download generation for {submission_id}")
+        current_app.logger.info(f"Starting SAT download generation for {submission_id}")
         
-        # Import the new direct generator
-        from services.direct_docx_generator import generate_sat_report_direct
-        
-        # Generate the report directly from database data
-        result = generate_sat_report_direct(submission_id)
-        
+        from services.document_generator import regenerate_document_from_db
+
+        # Prefer generating from the SAT template first
+        result = regenerate_document_from_db(submission_id)
+
         if 'error' in result:
-            current_app.logger.error(f"Direct generation failed: {result['error']}")
-            flash(f"Error generating report: {result['error']}", 'error')
-            return redirect(url_for('dashboard.home'))
-        
-        # Send the generated file
+            current_app.logger.warning(
+                f"Template-based generation failed for {submission_id}: {result['error']}. Falling back to direct generator."
+            )
+            from services.direct_docx_generator import generate_sat_report_direct
+            result = generate_sat_report_direct(submission_id)
+            if 'error' in result:
+                current_app.logger.error(f"Direct generation failed: {result['error']}")
+                flash(f"Error generating report: {result['error']}", 'error')
+                return redirect(url_for('dashboard.home'))
+        else:
+            current_app.logger.info(f"Template-based generation successful: {result['path']}")
+
         file_path = result['path']
         download_name = result['download_name']
-        
-        current_app.logger.info(f"Direct generation successful: {file_path}")
+
+        current_app.logger.info(f"Preparing download from path: {file_path}")
         
         # Read file and create response
         with open(file_path, 'rb') as f:
@@ -134,7 +140,7 @@ def download_report(submission_id):
             }
         )
         
-        current_app.logger.info(f"Serving directly generated report: {download_name} ({len(file_content)} bytes)")
+        current_app.logger.info(f"Serving SAT report download: {download_name} ({len(file_content)} bytes)")
         return response
 
     except Exception as e:
