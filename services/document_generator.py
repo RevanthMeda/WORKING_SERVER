@@ -5,6 +5,8 @@ import os
 import json
 import tempfile
 import datetime as dt
+import re
+from html import unescape
 from typing import Dict, Any, List
 from flask import current_app, url_for
 from docxtpl import DocxTemplate, InlineImage
@@ -13,6 +15,30 @@ from PIL import Image
 
 from models import Report, SATReport
 from services.sat_tables import extract_ui_tables, build_doc_tables, migrate_context_tables, TABLE_CONFIG
+
+
+HTML_TAG_RE = re.compile(r'<[^>]+>')
+BR_RE = re.compile(r'<br\s*/?>', re.IGNORECASE)
+PARA_CLOSE_RE = re.compile(r'</p\s*>', re.IGNORECASE)
+PARA_OPEN_RE = re.compile(r'<p\s*>', re.IGNORECASE)
+LI_OPEN_RE = re.compile(r'<li\s*>', re.IGNORECASE)
+LI_CLOSE_RE = re.compile(r'</li\s*>', re.IGNORECASE)
+
+
+def _strip_html(value: str) -> str:
+    """Convert simple HTML snippets to plain text for Word templates."""
+    text = value.replace('\r\n', '\n')
+    text = BR_RE.sub('\n', text)
+    text = PARA_CLOSE_RE.sub('\n', text)
+    text = PARA_OPEN_RE.sub('', text)
+    text = LI_CLOSE_RE.sub('\n', text)
+    text = LI_OPEN_RE.sub('- ', text)
+    text = HTML_TAG_RE.sub('', text)
+    text = unescape(text)
+    text = text.replace('\xa0', ' ')
+    lines = [line.rstrip() for line in text.splitlines()]
+    cleaned = '\n'.join(line for line in lines if line)
+    return cleaned.strip()
 
 
 def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
@@ -77,9 +103,13 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
             if value is None:
                 return ""
             if isinstance(value, str):
-                return value.strip()  # Remove leading/trailing whitespace
+                cleaned = value.strip()
+                cleaned = cleaned.replace('\xa0', ' ')
+                if HTML_TAG_RE.search(cleaned):
+                    cleaned = _strip_html(cleaned)
+                return cleaned
             return str(value)
-        
+
         # Build rendering context with sanitized values - include ALL template fields
         render_context = {
             "DOCUMENT_TITLE": sanitize_value(context_data.get('DOCUMENT_TITLE', '')),
