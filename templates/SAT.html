@@ -2969,6 +2969,45 @@
               </div>
             </div>
 
+            <div class="data-card">
+              <div class="card-header">
+                <span>SCADA / SMS Alarms</span>
+              </div>
+              <div class="card-body">
+                <div class="table-container">
+                  <table>
+                    <thead>
+                      <tr><th>Alarm Type</th><th>Expected Result</th><th>Pass/Fail</th><th>Comments</th><th>Action</th></tr>
+                    </thead>
+                    <tbody id="alarm-list-body">
+                      {% for alarm in submission_data.ALARM_LIST %}
+                      <tr>
+                        <td><input name="Alarm_Type[]" value="{{ alarm['Alarm Type'] }}"/></td>
+                        <td><input name="Expected / Required Result[]" value="{{ alarm['Expected / Required Result'] }}"/></td>
+                        <td>
+                          <select name="Pass/Fail []">
+                            <option value="Pass" {% if alarm[' Pass/Fail ']=='Pass' %}selected{% endif %}>Pass</option>
+                            <option value="Fail" {% if alarm[' Pass/Fail ']=='Fail' %}selected{% endif %}>Fail</option>
+                            <option value="N/A" {% if alarm[' Pass/Fail ']=='N/A' %}selected{% endif %}>N/A</option>
+                          </select>
+                        </td>
+                        <td><textarea name="Comments []">{{ alarm[' Comments '] }}</textarea></td>
+                        <td>
+                          <button type="button" class="btn-remove" onclick="removeRow(this)">
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                <button type="button" class="btn btn-add" onclick="addRow('tmpl-alarm-list', 'alarm-list-body')">
+                  <i class="fas fa-plus"></i> Add Alarm
+                </button>
+              </div>
+            </div>
+
             <!-- Image Upload Section for SCADA/SMS Alarms -->
             <div class="data-card">
               <div class="card-header">
@@ -3329,6 +3368,26 @@
               </select>
             </td>
             <td><textarea name="SCADA_Comments[]" placeholder="Comments"></textarea></td>
+            <td>
+              <button type="button" class="btn-remove remove-row-btn" onclick="removeRow(this)">
+                <i class="fas fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        </template>
+
+        <template id="tmpl-alarm-list">
+          <tr>
+            <td><input name="Alarm_Type[]" placeholder="Alarm Type"/></td>
+            <td><input name="Expected / Required Result[]" placeholder="Expected Result"/></td>
+            <td>
+              <select name="Pass/Fail []">
+                <option value="Pass">Pass</option>
+                <option value="Fail">Fail</option>
+                <option value="N/A">N/A</option>
+              </select>
+            </td>
+            <td><textarea name="Comments []" placeholder="Comments"></textarea></td>
             <td>
               <button type="button" class="btn-remove remove-row-btn" onclick="removeRow(this)">
                 <i class="fas fa-trash"></i>

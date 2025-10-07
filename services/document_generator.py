@@ -41,6 +41,63 @@ def _strip_html(value: str) -> str:
     return cleaned.strip()
 
 
+SIGNATURE_WIDTH_MM = 40
+
+
+def _format_timestamp(value: str) -> str:
+    """Convert stored timestamps into a readable string for templates."""
+    if not value:
+        return ""
+    cleaned = value.strip() if isinstance(value, str) else str(value)
+    if not cleaned:
+        return ""
+    try:
+        return dt.datetime.fromisoformat(cleaned).strftime('%Y-%m-%d %H:%M')
+    except Exception:
+        return cleaned
+
+
+def _load_signature_image(doc: DocxTemplate, value: Any) -> Any:
+    """Attempt to rebuild an InlineImage for stored signature references."""
+    if not value:
+        return ""
+    if isinstance(value, InlineImage):
+        return value
+
+    filename = str(value).strip()
+    if not filename:
+        return ""
+
+    candidates = []
+    if os.path.isabs(filename):
+        candidates.append(filename)
+    else:
+        base_names = [filename]
+        if not os.path.splitext(filename)[1]:
+            base_names.append(f"{filename}.png")
+
+        base_dirs = [
+            current_app.config.get('SIGNATURES_FOLDER'),
+            os.path.join(current_app.root_path, 'static', 'signatures'),
+            os.path.join(os.getcwd(), 'static', 'signatures'),
+        ]
+
+        for base in filter(None, base_dirs):
+            for name in base_names:
+                candidates.append(os.path.join(base, name))
+
+    for candidate in candidates:
+        try:
+            if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
+                return InlineImage(doc, candidate, width=Mm(SIGNATURE_WIDTH_MM))
+        except Exception as exc:
+            current_app.logger.error(
+                f"Failed to load signature image from {candidate}: {exc}",
+                exc_info=True
+            )
+    return ""
+
+
 def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
     """
     Regenerate a SAT report document from database data
@@ -99,6 +156,18 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
 
         # Helper to sanitize values - convert None to empty string
         # Note: docxtpl automatically handles XML escaping, so we don't need to do it manually
+        sig_prepared = _load_signature_image(doc, context_data.get('prepared_signature') or context_data.get('SIG_PREPARED'))
+        sig_review_tech = _load_signature_image(doc, context_data.get('SIG_REVIEW_TECH'))
+        sig_review_pm = _load_signature_image(doc, context_data.get('SIG_REVIEW_PM'))
+        sig_approval_client = _load_signature_image(doc, context_data.get('SIG_APPROVAL_CLIENT'))
+        sig_approver_1 = _load_signature_image(doc, context_data.get('SIG_APPROVER_1'))
+        sig_approver_2 = _load_signature_image(doc, context_data.get('SIG_APPROVER_2'))
+        sig_approver_3 = _load_signature_image(doc, context_data.get('SIG_APPROVER_3'))
+
+        preparer_date_value = context_data.get('PREPARER_DATE') or context_data.get('prepared_timestamp')
+        tech_lead_date_value = context_data.get('TECH_LEAD_DATE') or context_data.get('tech_lead_timestamp')
+        pm_date_value = context_data.get('PM_DATE') or context_data.get('pm_timestamp')
+
         def sanitize_value(value):
             if value is None:
                 return ""
@@ -121,17 +190,17 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
             "REVISION_DETAILS": sanitize_value(context_data.get('REVISION_DETAILS', '')),
             "REVISION_DATE": sanitize_value(context_data.get('REVISION_DATE', '')),
             "PREPARED_BY": sanitize_value(context_data.get('PREPARED_BY', '')),
-            "PREPARER_DATE": "",  # Date fields for signature section
-            "TECH_LEAD_DATE": "",
-            "PM_DATE": "",
-            "SIG_PREPARED": "",  # Signatures are not regenerated
-            "SIG_PREPARED_BY": "",
+            "PREPARER_DATE": sanitize_value(_format_timestamp(preparer_date_value)),
+            "TECH_LEAD_DATE": sanitize_value(_format_timestamp(tech_lead_date_value)),
+            "PM_DATE": sanitize_value(_format_timestamp(pm_date_value)),
+            "SIG_PREPARED": sig_prepared,
+            "SIG_PREPARED_BY": sanitize_value(context_data.get('SIG_PREPARED_BY', context_data.get('PREPARED_BY', ''))),
             "REVIEWED_BY_TECH_LEAD": sanitize_value(context_data.get('REVIEWED_BY_TECH_LEAD', '')),
-            "SIG_REVIEW_TECH": "",
+            "SIG_REVIEW_TECH": sig_review_tech,
             "REVIEWED_BY_PM": sanitize_value(context_data.get('REVIEWED_BY_PM', '')),
-            "SIG_REVIEW_PM": "",
+            "SIG_REVIEW_PM": sig_review_pm,
             "APPROVED_BY_CLIENT": sanitize_value(context_data.get('APPROVED_BY_CLIENT', '')),
-            "SIG_APPROVAL_CLIENT": "",
+            "SIG_APPROVAL_CLIENT": sig_approval_client,
             "PURPOSE": sanitize_value(context_data.get('PURPOSE', '')),
             "SCOPE": sanitize_value(context_data.get('SCOPE', '')),
             "SCADA_IMAGES": scada_image_objects if scada_image_objects else [],
@@ -140,9 +209,9 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
             "SCADA_SCREENSHOTS": scada_urls if scada_urls else [],
             "TRENDS_SCREENSHOTS": trends_urls if trends_urls else [],
             "ALARM_SCREENSHOTS": alarm_urls if alarm_urls else [],
-            "SIG_APPROVER_1": "",
-            "SIG_APPROVER_2": "",
-            "SIG_APPROVER_3": "",
+            "SIG_APPROVER_1": sig_approver_1,
+            "SIG_APPROVER_2": sig_approver_2,
+            "SIG_APPROVER_3": sig_approver_3,
         }
 
         # Add table data with sanitization

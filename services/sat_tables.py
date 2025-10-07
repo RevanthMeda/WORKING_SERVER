@@ -48,11 +48,11 @@ TABLE_CONFIG = [
         "fields": [
             {"form": "pretest_item[]", "ui": "Item", "doc": "Item"},
             {"form": "pretest_test[]", "ui": "Test", "doc": "Test"},
-            {"form": "pretest_method[]", "ui": "Method_Test_Steps", "doc": "Method_Test_Steps"},
-            {"form": "pretest_acceptance[]", "ui": "Acceptance_Criteria", "doc": "Acceptance_Criteria"},
+            {"form": "pretest_method[]", "ui": "Method_Test_Steps", "doc": "Method/Test Steps", "aliases": ["Method_Test_Steps"]},
+            {"form": "pretest_acceptance[]", "ui": "Acceptance_Criteria", "doc": "Acceptance Criteria", "aliases": ["Acceptance_Criteria"]},
             {"form": "pretest_result[]", "ui": "Result", "doc": "Result"},
-            {"form": "pretest_punch[]", "ui": "Punch_Item", "doc": "Punch_Item"},
-            {"form": "pretest_verified_by[]", "ui": "Verified_by", "doc": "Verified_by"},
+            {"form": "pretest_punch[]", "ui": "Punch_Item", "doc": "Punch Item", "aliases": ["Punch_Item"]},
+            {"form": "pretest_verified_by[]", "ui": "Verified_by", "doc": "Verified by", "aliases": ["Verified_by"]},
             {"form": "pretest_comment[]", "ui": "Comment", "doc": "Comment"},
         ],
     },
@@ -60,7 +60,7 @@ TABLE_CONFIG = [
         "ui_section": "KEY_COMPONENTS",
         "doc_section": "KEY_COMPONENTS",
         "fields": [
-            {"form": "component_sno[]", "ui": "S_No", "doc": "S.no", "aliases": ["S_no", "S. no", "S. No."]},
+            {"form": "component_sno[]", "ui": "S_No", "doc": "S_no", "aliases": ["S.no", "S. no", "S. No.", "S_No"]},
             {"form": "component_model[]", "ui": "Model", "doc": "Model"},
             {"form": "component_description[]", "ui": "Description", "doc": "Description"},
             {"form": "component_remarks[]", "ui": "Remarks", "doc": "Remarks"},
@@ -107,31 +107,32 @@ TABLE_CONFIG = [
     },
     {
         "ui_section": "ANALOGUE_OUTPUT_SIGNALS",
-        "doc_section": "ANALOGUE_LISTS",
+        "doc_section": "ANALOGUE_OUTPUT_LISTS",
         "fields": [
-            {"form": "analogue_output_s_no[]", "ui": "S_No", "doc": "S. No.", "aliases": ["S.no", "S_No"]},
-            {"form": "analogue_output_rack_no[]", "ui": "Rack_No", "doc": "Rack No.", "aliases": ["Rack No."]},
-            {"form": "analogue_output_module_position[]", "ui": "Module_Position", "doc": "Module Position", "aliases": ["Module Position"]},
-            {"form": "analogue_output_signal_tag[]", "ui": "Signal_TAG", "doc": "Signal TAG", "aliases": ["Signal TAG"]},
-            {"form": "analogue_output_description[]", "ui": "Description", "doc": "Signal Description", "aliases": ["Signal Description"]},
+            {"form": "analogue_output_s_no[]", "ui": "S_No", "doc": "S. No.", "aliases": ["S_No", "S.no", "S. No."]},
+            {"form": "analogue_output_rack_no[]", "ui": "Rack_No", "doc": "Rack No.", "aliases": ["Rack_No", "Rack No."]},
+            {"form": "analogue_output_module_position[]", "ui": "Module_Position", "doc": "Module Position", "aliases": ["Module_Position", "Module Position"]},
+            {"form": "analogue_output_signal_tag[]", "ui": "Signal_TAG", "doc": "Signal TAG", "aliases": ["Signal_TAG", "Signal TAG"]},
+            {"form": "analogue_output_description[]", "ui": "Description", "doc": "Signal Description", "aliases": ["Description", "Signal Description"]},
             {"form": "analogue_output_result[]", "ui": "Result", "doc": "Result"},
-            {"form": "analogue_output_punch_item[]", "ui": "Punch_Item", "doc": "Punch Item", "aliases": ["Punch Item"]},
-            {"form": "analogue_output_verified_by[]", "ui": "Verified_by", "doc": "Verified By", "aliases": ["Verified By"]},
+            {"form": "analogue_output_punch_item[]", "ui": "Punch_Item", "doc": "Punch Item", "aliases": ["Punch_Item", "Punch Item"]},
+            {"form": "analogue_output_verified_by[]", "ui": "Verified_by", "doc": "Verified By", "aliases": ["Verified_by", "Verified By"]},
             {"form": "analogue_output_comment[]", "ui": "Comment", "doc": "Comment"},
         ],
     },
     {
         "ui_section": "DIGITAL_OUTPUT_SIGNALS",
-        "doc_section": "DIGITAL_OUTPUT_SIGNALS",
+        "doc_section": "DIGITAL_OUTPUT_LISTS",
+        "doc_section_aliases": ["DIGITAL_OUTPUT_SIGNALS"],
         "fields": [
-            {"form": "digital_output_s_no[]", "ui": "S_No", "doc": "S_No", "aliases": ["S.no", "S. No."]},
-            {"form": "digital_output_rack_no[]", "ui": "Rack_No", "doc": "Rack_No", "aliases": ["Rack No."]},
-            {"form": "digital_output_module_position[]", "ui": "Module_Position", "doc": "Module_Position", "aliases": ["Module Position"]},
-            {"form": "digital_output_signal_tag[]", "ui": "Signal_TAG", "doc": "Signal_TAG", "aliases": ["Signal TAG"]},
-            {"form": "digital_output_description[]", "ui": "Description", "doc": "Description"},
+            {"form": "digital_output_s_no[]", "ui": "S_No", "doc": "S. No.", "aliases": ["S_No", "S.no", "S. No."]},
+            {"form": "digital_output_rack_no[]", "ui": "Rack_No", "doc": "Rack No.", "aliases": ["Rack_No", "Rack No."]},
+            {"form": "digital_output_module_position[]", "ui": "Module_Position", "doc": "Module Position", "aliases": ["Module_Position", "Module Position"]},
+            {"form": "digital_output_signal_tag[]", "ui": "Signal_TAG", "doc": "Signal TAG", "aliases": ["Signal_TAG", "Signal TAG"]},
+            {"form": "digital_output_description[]", "ui": "Description", "doc": "Signal Description", "aliases": ["Description", "Signal Description"]},
             {"form": "digital_output_result[]", "ui": "Result", "doc": "Result"},
-            {"form": "digital_output_punch_item[]", "ui": "Punch_Item", "doc": "Punch_Item", "aliases": ["Punch Item"]},
-            {"form": "digital_output_verified_by[]", "ui": "Verified_by", "doc": "Verified_by", "aliases": ["Verified By"]},
+            {"form": "digital_output_punch_item[]", "ui": "Punch_Item", "doc": "Punch Item", "aliases": ["Punch_Item", "Punch Item"]},
+            {"form": "digital_output_verified_by[]", "ui": "Verified_by", "doc": "Verified By", "aliases": ["Verified_by", "Verified By"]},
             {"form": "digital_output_comment[]", "ui": "Comment", "doc": "Comment"},
         ],
     },
@@ -152,12 +153,12 @@ TABLE_CONFIG = [
         "ui_section": "MODBUS_ANALOGUE_SIGNALS",
         "doc_section": "MODBUS_ANALOGUE_LISTS",
         "fields": [
-            {"form": "modbus_analogue_address[]", "ui": "Address", "doc": "Address", "aliases": [" Address"]},
+            {"form": "modbus_analogue_address[]", "ui": "Address", "doc": " Address", "aliases": ["Address", " Address"]},
             {"form": "modbus_analogue_description[]", "ui": "Description", "doc": "Description"},
             {"form": "modbus_analogue_range[]", "ui": "Range", "doc": "Range"},
             {"form": "modbus_analogue_result[]", "ui": "Result", "doc": "Result"},
-            {"form": "modbus_analogue_punch_item[]", "ui": "Punch_Item", "doc": "Punch Item", "aliases": ["Punch Item"]},
-            {"form": "modbus_analogue_verified_by[]", "ui": "Verified_by", "doc": "Verified By", "aliases": ["Verified By"]},
+            {"form": "modbus_analogue_punch_item[]", "ui": "Punch_Item", "doc": "Punch Item", "aliases": ["Punch Item", "Punch_Item"]},
+            {"form": "modbus_analogue_verified_by[]", "ui": "Verified_by", "doc": "Verified By", "aliases": ["Verified By", "Verified_by"]},
             {"form": "modbus_analogue_comment[]", "ui": "Comment", "doc": "Comment"},
         ],
     },
@@ -267,8 +268,16 @@ def migrate_context_tables(context: Dict[str, Any]) -> Dict[str, Any]:
             continue
 
         doc_rows = updated.get(doc_section)
+        if not doc_rows:
+            for alias_section in section.get('doc_section_aliases', []):
+                alias_rows = updated.get(alias_section)
+                if alias_rows:
+                    doc_rows = alias_rows
+                    break
         if doc_rows:
             updated[ui_section] = [_convert_doc_row(row, section) for row in doc_rows]
+            if section.get('doc_section_aliases') and doc_section not in updated:
+                updated[doc_section] = doc_rows
         else:
             updated.setdefault(ui_section, [])
 
