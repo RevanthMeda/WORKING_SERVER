@@ -13,6 +13,8 @@ from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Mm
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from PIL import Image
 
 from models import Report, SATReport, User
@@ -111,6 +113,32 @@ def _select_stage_approval(approvals: List[Dict[str, Any]], stage: int) -> Dict[
     return {}
 
 
+def _append_word_field(paragraph, instruction: str) -> None:
+    """Append a Word field code to the given paragraph."""
+    run_begin = paragraph.add_run()
+    fld_char_begin = OxmlElement('w:fldChar')
+    fld_char_begin.set(qn('w:fldCharType'), 'begin')
+    run_begin._r.append(fld_char_begin)
+
+    instr_run = paragraph.add_run()
+    instr_text = OxmlElement('w:instrText')
+    instr_text.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+    instr_text.text = instruction
+    instr_run._r.append(instr_text)
+
+    run_sep = paragraph.add_run()
+    fld_char_sep = OxmlElement('w:fldChar')
+    fld_char_sep.set(qn('w:fldCharType'), 'separate')
+    run_sep._r.append(fld_char_sep)
+
+    paragraph.add_run()  # placeholder result
+
+    run_end = paragraph.add_run()
+    fld_char_end = OxmlElement('w:fldChar')
+    fld_char_end.set(qn('w:fldCharType'), 'end')
+    run_end._r.append(fld_char_end)
+
+
 def _enable_field_updates(document: DocxTemplate) -> None:
     """Ensure Word refreshes fields (e.g., TOC) when the document is opened."""
     try:
@@ -122,6 +150,24 @@ def _enable_field_updates(document: DocxTemplate) -> None:
         update_fields.set(qn('w:val'), 'true')
     except Exception as exc:
         current_app.logger.warning(f"Could not enable field updates in document: {exc}")
+
+
+def _ensure_total_pages_line(document: DocxTemplate) -> None:
+    """Insert a total pages line near the table of contents if not present."""
+    target_paragraph = None
+    for paragraph in document.paragraphs:
+        if paragraph.text.strip().lower() == 'table of contents':
+            target_paragraph = paragraph
+            break
+
+    if target_paragraph:
+        insert_after = target_paragraph.insert_paragraph_after('Total pages: ')
+    else:
+        insert_after = document.add_paragraph('Total pages: ')
+
+    if insert_after.runs:
+        insert_after.runs[0].bold = True
+    _append_word_field(insert_after, 'NUMPAGES')
 
 
 def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
@@ -337,6 +383,7 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
         doc.render(render_context)
         current_app.logger.info("Document rendering completed")
         _enable_field_updates(doc)
+        _ensure_total_pages_line(doc)
 
         # Save to temp file
         timestamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")

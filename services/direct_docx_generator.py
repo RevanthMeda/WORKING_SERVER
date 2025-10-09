@@ -41,6 +41,37 @@ class DirectSATDocxGenerator:
             update_fields = OxmlElement('w:updateFields')
             settings_elem.append(update_fields)
         update_fields.set(qn('w:val'), 'true')
+
+    @staticmethod
+    def _append_field(paragraph, instruction: str):
+        """Append a Word field with the given instruction text to a paragraph."""
+        # Begin field
+        run = paragraph.add_run()
+        fld_char_begin = OxmlElement('w:fldChar')
+        fld_char_begin.set(qn('w:fldCharType'), 'begin')
+        run._r.append(fld_char_begin)
+
+        # Instruction text
+        instr_run = paragraph.add_run()
+        instr_text = OxmlElement('w:instrText')
+        instr_text.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+        instr_text.text = instruction
+        instr_run._r.append(instr_text)
+
+        # Separate
+        run_sep = paragraph.add_run()
+        fld_char_sep = OxmlElement('w:fldChar')
+        fld_char_sep.set(qn('w:fldCharType'), 'separate')
+        run_sep._r.append(fld_char_sep)
+
+        # Placeholder result run (Word will replace on update)
+        paragraph.add_run()
+
+        # End field
+        run_end = paragraph.add_run()
+        fld_char_end = OxmlElement('w:fldChar')
+        fld_char_end.set(qn('w:fldCharType'), 'end')
+        run_end._r.append(fld_char_end)
     
     def generate_sat_report(self, report_data: Dict[str, Any], output_path: str) -> bool:
         """
@@ -186,29 +217,8 @@ class DirectSATDocxGenerator:
     def _add_table_of_contents(self):
         """Add table of contents"""
         self.doc.add_heading('Table of Contents', level=1)
-        paragraph = self.doc.add_paragraph()
-        run = paragraph.add_run()
-
-        fld_char_begin = OxmlElement('w:fldChar')
-        fld_char_begin.set(qn('w:fldCharType'), 'begin')
-        run._r.append(fld_char_begin)
-
-        instr_text = OxmlElement('w:instrText')
-        instr_text.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
-        instr_text.text = r'TOC \o "1-3" \h \z \u'
-        run._r.append(instr_text)
-
-        fld_char_separate = OxmlElement('w:fldChar')
-        fld_char_separate.set(qn('w:fldCharType'), 'separate')
-        run._r.append(fld_char_separate)
-
-        # Placeholder run for the actual field result (Word will populate on update)
-        paragraph.add_run()
-
-        fld_char_end = OxmlElement('w:fldChar')
-        fld_char_end.set(qn('w:fldCharType'), 'end')
-        run_end = paragraph.add_run()
-        run_end._r.append(fld_char_end)
+        toc_paragraph = self.doc.add_paragraph()
+        self._append_field(toc_paragraph, r'TOC \o "1-3" \h \z \u')
 
         note = self.doc.add_paragraph()
         note_style_name = 'Intense Quote'
@@ -216,6 +226,11 @@ class DirectSATDocxGenerator:
             note.style = note_style_name
         note_run = note.add_run('Hint: Right-click the table of contents and select "Update Field" after opening the document to refresh page numbers.')
         note_run.italic = True
+
+        total_para = self.doc.add_paragraph()
+        total_label = total_para.add_run('Total pages: ')
+        total_label.bold = True
+        self._append_field(total_para, 'NUMPAGES')
 
         self.doc.add_page_break()
     
