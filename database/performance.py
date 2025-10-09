@@ -895,6 +895,8 @@ def init_database_performance(app):
         logger.warning(f"Query analyzer not available: {e}")
     
     # Initialize query result caching with Redis
+    cache_manager = None
+
     try:
         from .query_cache import init_query_cache
         from models import db
@@ -924,7 +926,7 @@ def init_database_performance(app):
     @event.listens_for(db.session, 'after_commit')
     def invalidate_cache_after_commit(session):
         """Invalidate relevant cache entries after database commits."""
-        # Simple cache invalidation - in production, use more sophisticated logic
-        cache_manager.invalidate()
+        if cache_manager is not None:
+            cache_manager.invalidate()
     
     logger.info("Database performance optimizations initialized")
