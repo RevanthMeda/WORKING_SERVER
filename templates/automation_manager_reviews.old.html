@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>Reviews & Approvals - Cully Report Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --admin-primary: #4DD0E1;
+            --admin-primary-dark: #26C6DA;
+            --admin-primary-light: #80DEEA;
+            --admin-success: #10b981;
+            --admin-warning: #f59e0b;
+            --admin-danger: #ef4444;
+            --admin-neutral: #6b7280;
+            --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            --card-shadow-hover: 0 8px 30px rgba(0, 0, 0, 0.12);
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            color: #1f2937;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .dashboard-header {
+            background: linear-gradient(135deg, #4DD0E1 0%, #26C6DA 100%);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 32px;
+            box-shadow: var(--card-shadow);
+            position: relative;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-info h1 {
+            color: white;
+            margin: 0 0 8px 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        .header-info p {
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            font-size: 1.1rem;
+        }
+
+        .header-logo {
+            height: 80px;
+            width: auto;
+        }
+
+        .dashboard-nav {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 32px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .nav-link:hover {
+            background: #f1f5f9;
+            color: var(--admin-primary-dark);
+        }
+
+        .nav-link.active {
+            background: var(--admin-primary);
+            color: white;
+        }
+
+        .reviews-content {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .section-header h2 {
+            margin: 0;
+            color: #1f2937;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .reviews-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .reviews-table th,
+        .reviews-table td {
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .reviews-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .reviews-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .review-item {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+            transition: all 0.2s ease;
+        }
+
+        .review-item:hover {
+            box-shadow: var(--card-shadow-hover);
+        }
+
+        .review-header {
+            display: flex;
+            justify-content: between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .review-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0 0 8px 0;
+        }
+
+        .review-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .meta-label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #6b7280;
+        }
+
+        .meta-value {
+            font-size: 1rem;
+            color: #1f2937;
+        }
+
+        .review-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--admin-primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--admin-primary-dark);
+        }
+
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .btn-secondary:hover {
+            background: #e2e8f0;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 64px 32px;
+            color: #6b7280;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 16px;
+            color: #d1d5db;
+        }
+
+        .empty-state h3 {
+            margin: 0 0 8px 0;
+            color: #374151;
+        }
+
+        .empty-state p {
+            margin: 0;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 24px;
+            color: #6b7280;
+            font-size: 0.875rem;
+            background: white;
+            border-radius: 12px;
+            margin-top: 32px;
+            box-shadow: var(--card-shadow);
+        }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot-assistant.css') }}">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <div class="dashboard-header">
+            <div class="header-content">
+                <div class="header-info">
+                    <h1><i class="fa fa-clipboard-check"></i> Reviews & Approvals</h1>
+                    <p>Review and approve technical documentation and test reports</p>
+                </div>
+                <img src="{{ url_for('static', filename='cully.png') }}" alt="Cully Logo" class="header-logo">
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="dashboard-nav">
+            <div class="nav-links">
+                <a href="{{ url_for('dashboard.automation_manager') }}" class="nav-link">
+                    <i class="fa fa-home"></i> Dashboard
+                </a>
+                <a href="{{ url_for('dashboard.reviews') }}" class="nav-link active">
+                    <i class="fa fa-file-alt"></i> Reviews & Approvals
+                </a>
+                <a href="{{ url_for('reports.new') }}" class="nav-link">
+                    <i class="fa fa-plus"></i> Create Report
+                </a>
+                <a href="{{ url_for('io_builder.index') }}" class="nav-link">
+                    <i class="fa fa-sitemap"></i> I/O Builder
+                </a>
+                <a href="{{ url_for('notifications.notification_center') }}" class="nav-link">
+                    <i class="fa fa-bell"></i> Notifications
+                    {% if unread_count > 0 %}
+                        <span class="notification-badge">{{ unread_count }}</span>
+                    {% endif %}
+                </a>
+                <a href="{{ url_for('auth.change_password') }}" class="nav-link">
+                    <i class="fa fa-key"></i> Settings
+                </a>
+                <a href="{{ url_for('auth.logout') }}" class="nav-link logout">
+                    <i class="fa fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </div>
+
+        <!-- Reviews Content -->
+        <div class="reviews-content">
+            <div class="section-header">
+                <i class="fa fa-clock" style="color: var(--admin-warning);"></i>
+                <h2>Pending Reviews ({{ pending_reviews|length }})</h2>
+            </div>
+
+            {% if pending_reviews %}
+                {% for review in pending_reviews %}
+                <div class="review-item">
+                    <div class="review-header">
+                        <h3 class="review-title">{{ review.document_title }}</h3>
+                    </div>
+                    
+                    <div class="review-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Client</span>
+                            <span class="meta-value">{{ review.client_name or 'Not specified' }}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Project Reference</span>
+                            <span class="meta-value">{{ review.project_reference or 'Not specified' }}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Prepared By</span>
+                            <span class="meta-value">{{ review.prepared_by or review.user_email }}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Submitted</span>
+                            <span class="meta-value">{{ review.created_at.strftime('%Y-%m-%d %H:%M') if review.created_at else 'Unknown' }}</span>
+                        </div>
+                    </div>
+
+                    <div class="review-actions">
+                        <a href="{{ url_for('status.view_status', submission_id=review.id) }}" class="btn btn-primary">
+                            <i class="fa fa-eye"></i> Review & Approve
+                        </a>
+                        <a href="{{ url_for('status.view_status', submission_id=review.id) }}" class="btn btn-secondary">
+                            <i class="fa fa-file-alt"></i> View Details
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="fa fa-check-circle"></i>
+                    <h3>No Pending Reviews</h3>
+                    <p>All reports have been reviewed and approved. Great work!</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Developed by <strong>Revanth Meda</strong> for <strong>Cully Automation</strong></p>
+        </div>
+    </div>
+
+    {% include 'partials/chatbot_widget.html' %}
+    <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
+</body>
+</html>

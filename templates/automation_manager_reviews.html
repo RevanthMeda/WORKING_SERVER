@@ -1,378 +1,332 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>Reviews & Approvals - Cully Report Generator</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        :root {
-            --admin-primary: #4DD0E1;
-            --admin-primary-dark: #26C6DA;
-            --admin-primary-light: #80DEEA;
-            --admin-success: #10b981;
-            --admin-warning: #f59e0b;
-            --admin-danger: #ef4444;
-            --admin-neutral: #6b7280;
-            --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            --card-shadow-hover: 0 8px 30px rgba(0, 0, 0, 0.12);
-        }
+{% extends 'base.html' %}
 
-        body {
-            margin: 0;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            color: #1f2937;
-            line-height: 1.6;
-            min-height: 100vh;
-        }
+{% block title %}Reviews & Approvals - {{ super() }}{% endblock %}
 
-        .dashboard-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 24px;
-        }
+{% block head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard-light.css') }}">
+  <style>
+    .reviews-page {
+      display: grid;
+      gap: var(--space-xl);
+    }
 
-        .dashboard-header {
-            background: linear-gradient(135deg, #4DD0E1 0%, #26C6DA 100%);
-            border-radius: 16px;
-            padding: 32px;
-            margin-bottom: 32px;
-            box-shadow: var(--card-shadow);
-            position: relative;
-        }
+    .reviews-page__header {
+      background: linear-gradient(135deg, rgba(123, 165, 199, 0.95), rgba(90, 127, 163, 0.95));
+      border-radius: 24px;
+      padding: var(--space-xl);
+      color: var(--cully-white);
+      box-shadow: var(--shadow-lg);
+      position: relative;
+      overflow: hidden;
+    }
 
-        .header-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+    .reviews-page__header::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.22), transparent 55%);
+      pointer-events: none;
+    }
 
-        .header-info h1 {
-            color: white;
-            margin: 0 0 8px 0;
-            font-size: 2.5rem;
-            font-weight: 700;
-        }
+    .reviews-page__header-content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-lg);
+      justify-content: space-between;
+      align-items: center;
+    }
 
-        .header-info p {
-            color: rgba(255, 255, 255, 0.9);
-            margin: 0;
-            font-size: 1.1rem;
-        }
+    .reviews-page__title {
+      margin: 0;
+      font-size: clamp(2.2rem, 3vw, 2.6rem);
+      font-weight: 700;
+    }
 
-        .header-logo {
-            height: 80px;
-            width: auto;
-        }
+    .reviews-page__subtitle {
+      margin: 0;
+      max-width: 520px;
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 1.05rem;
+    }
 
-        .dashboard-nav {
-            background: white;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 32px;
-            box-shadow: var(--card-shadow);
-        }
+    .reviews-page__badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: 0.45rem 0.9rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.18);
+      color: var(--cully-white);
+      font-weight: 600;
+    }
 
-        .nav-links {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
+    .reviews-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+      align-items: center;
+    }
 
-        .nav-link {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 20px;
-            border-radius: 8px;
-            text-decoration: none;
-            color: #64748b;
-            font-weight: 500;
-            transition: all 0.2s ease;
-            position: relative;
-        }
+    .reviews-nav__link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: 0.55rem 1.1rem;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 600;
+      color: var(--cully-dark);
+      background: rgba(255, 255, 255, 0.74);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
 
-        .nav-link:hover {
-            background: #f1f5f9;
-            color: var(--admin-primary-dark);
-        }
+    .reviews-nav__link--active {
+      background: var(--cully-white);
+      box-shadow: var(--shadow-sm);
+    }
 
-        .nav-link.active {
-            background: var(--admin-primary);
-            color: white;
-        }
+    .reviews-nav__link:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
 
-        .reviews-content {
-            background: white;
-            border-radius: 12px;
-            padding: 32px;
-            box-shadow: var(--card-shadow);
-        }
+    .reviews-content {
+      display: grid;
+      gap: var(--space-lg);
+    }
 
-        .section-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 24px;
-        }
+    .review-card {
+      background: var(--cully-white);
+      border-radius: 20px;
+      padding: var(--space-lg);
+      box-shadow: var(--shadow-sm);
+      border: 1px solid rgba(90, 127, 163, 0.12);
+      display: grid;
+      gap: var(--space-md);
+    }
 
-        .section-header h2 {
-            margin: 0;
-            color: #1f2937;
-            font-size: 1.5rem;
-            font-weight: 600;
-        }
+    .review-card__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-md);
+    }
 
-        .reviews-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 16px;
-        }
+    .review-card__title {
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--cully-dark);
+    }
 
-        .reviews-table th,
-        .reviews-table td {
-            padding: 16px;
-            text-align: left;
-            border-bottom: 1px solid #e5e7eb;
-        }
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      background: rgba(245, 158, 11, 0.2);
+      color: #b45309;
+    }
 
-        .reviews-table th {
-            background: #f8fafc;
-            font-weight: 600;
-            color: #374151;
-        }
+    .review-card__meta {
+      display: grid;
+      gap: var(--space-sm);
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
 
-        .reviews-table tbody tr:hover {
-            background: #f8fafc;
-        }
+    .meta-block {
+      background: rgba(90, 127, 163, 0.08);
+      border-radius: 16px;
+      padding: var(--space-sm) var(--space-md);
+    }
 
-        .review-item {
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 16px;
-            transition: all 0.2s ease;
-        }
+    .meta-block__label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--cully-gray);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.25rem;
+    }
 
-        .review-item:hover {
-            box-shadow: var(--card-shadow-hover);
-        }
+    .meta-block__value {
+      margin: 0;
+      color: var(--cully-dark);
+      font-weight: 600;
+    }
 
-        .review-header {
-            display: flex;
-            justify-content: between;
-            align-items: flex-start;
-            margin-bottom: 16px;
-        }
+    .review-card__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+      align-items: center;
+    }
 
-        .review-title {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #1f2937;
-            margin: 0 0 8px 0;
-        }
+    .review-card__actions a {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: 0.6rem 1.1rem;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 600;
+      border: 1px solid rgba(90, 127, 163, 0.28);
+      color: var(--cully-dark);
+      background: rgba(255, 255, 255, 0.92);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
 
-        .review-meta {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-bottom: 20px;
-        }
+    .review-card__actions a:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
 
-        .meta-item {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
+    .review-card__actions a.btn-primary {
+      background: linear-gradient(135deg, var(--cully-blue), var(--cully-navy));
+      color: var(--cully-white);
+      border-color: transparent;
+    }
 
-        .meta-label {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #6b7280;
-        }
+    .reviews-empty {
+      background: rgba(90, 127, 163, 0.06);
+      border-radius: 20px;
+      padding: var(--space-xl);
+      text-align: center;
+      color: var(--cully-gray);
+      border: 1px dashed rgba(90, 127, 163, 0.35);
+    }
 
-        .meta-value {
-            font-size: 1rem;
-            color: #1f2937;
-        }
+    .reviews-empty i {
+      font-size: 2.4rem;
+      margin-bottom: var(--space-sm);
+    }
 
-        .review-actions {
-            display: flex;
-            gap: 12px;
-            margin-top: 20px;
-        }
+    @media (max-width: 768px) {
+      .reviews-page__header-content {
+        flex-direction: column;
+        align-items: flex-start;
+      }
 
-        .btn {
-            padding: 10px 20px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.2s ease;
-            border: none;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
+      .review-card__header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
 
-        .btn-primary {
-            background: var(--admin-primary);
-            color: white;
-        }
+      .reviews-nav {
+        flex-direction: column;
+        align-items: stretch;
+      }
 
-        .btn-primary:hover {
-            background: var(--admin-primary-dark);
-        }
+      .reviews-nav__link {
+        width: 100%;
+        justify-content: center;
+      }
 
-        .btn-secondary {
-            background: #f1f5f9;
-            color: #475569;
-        }
+      .review-card__actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
 
-        .btn-secondary:hover {
-            background: #e2e8f0;
-        }
+      .review-card__actions a {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  </style>
+{% endblock %}
 
-        .empty-state {
-            text-align: center;
-            padding: 64px 32px;
-            color: #6b7280;
-        }
-
-        .empty-state i {
-            font-size: 4rem;
-            margin-bottom: 16px;
-            color: #d1d5db;
-        }
-
-        .empty-state h3 {
-            margin: 0 0 8px 0;
-            color: #374151;
-        }
-
-        .empty-state p {
-            margin: 0;
-        }
-
-        .footer {
-            text-align: center;
-            padding: 24px;
-            color: #6b7280;
-            font-size: 0.875rem;
-            background: white;
-            border-radius: 12px;
-            margin-top: 32px;
-            box-shadow: var(--card-shadow);
-        }
-    </style>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot-assistant.css') }}">
-</head>
-<body>
-    <div class="dashboard-container">
-        <!-- Header -->
-        <div class="dashboard-header">
-            <div class="header-content">
-                <div class="header-info">
-                    <h1><i class="fa fa-clipboard-check"></i> Reviews & Approvals</h1>
-                    <p>Review and approve technical documentation and test reports</p>
-                </div>
-                <img src="{{ url_for('static', filename='cully.png') }}" alt="Cully Logo" class="header-logo">
-            </div>
-        </div>
-
-        <!-- Navigation -->
-        <div class="dashboard-nav">
-            <div class="nav-links">
-                <a href="{{ url_for('dashboard.automation_manager') }}" class="nav-link">
-                    <i class="fa fa-home"></i> Dashboard
-                </a>
-                <a href="{{ url_for('dashboard.reviews') }}" class="nav-link active">
-                    <i class="fa fa-file-alt"></i> Reviews & Approvals
-                </a>
-                <a href="{{ url_for('reports.new') }}" class="nav-link">
-                    <i class="fa fa-plus"></i> Create Report
-                </a>
-                <a href="{{ url_for('io_builder.index') }}" class="nav-link">
-                    <i class="fa fa-sitemap"></i> I/O Builder
-                </a>
-                <a href="{{ url_for('notifications.notification_center') }}" class="nav-link">
-                    <i class="fa fa-bell"></i> Notifications
-                    {% if unread_count > 0 %}
-                        <span class="notification-badge">{{ unread_count }}</span>
-                    {% endif %}
-                </a>
-                <a href="{{ url_for('auth.change_password') }}" class="nav-link">
-                    <i class="fa fa-key"></i> Settings
-                </a>
-                <a href="{{ url_for('auth.logout') }}" class="nav-link logout">
-                    <i class="fa fa-sign-out-alt"></i> Logout
-                </a>
-            </div>
-        </div>
-
-        <!-- Reviews Content -->
-        <div class="reviews-content">
-            <div class="section-header">
-                <i class="fa fa-clock" style="color: var(--admin-warning);"></i>
-                <h2>Pending Reviews ({{ pending_reviews|length }})</h2>
-            </div>
-
-            {% if pending_reviews %}
-                {% for review in pending_reviews %}
-                <div class="review-item">
-                    <div class="review-header">
-                        <h3 class="review-title">{{ review.document_title }}</h3>
-                    </div>
-                    
-                    <div class="review-meta">
-                        <div class="meta-item">
-                            <span class="meta-label">Client</span>
-                            <span class="meta-value">{{ review.client_name or 'Not specified' }}</span>
-                        </div>
-                        <div class="meta-item">
-                            <span class="meta-label">Project Reference</span>
-                            <span class="meta-value">{{ review.project_reference or 'Not specified' }}</span>
-                        </div>
-                        <div class="meta-item">
-                            <span class="meta-label">Prepared By</span>
-                            <span class="meta-value">{{ review.prepared_by or review.user_email }}</span>
-                        </div>
-                        <div class="meta-item">
-                            <span class="meta-label">Submitted</span>
-                            <span class="meta-value">{{ review.created_at.strftime('%Y-%m-%d %H:%M') if review.created_at else 'Unknown' }}</span>
-                        </div>
-                    </div>
-
-                    <div class="review-actions">
-                        <a href="{{ url_for('status.view_status', submission_id=review.id) }}" class="btn btn-primary">
-                            <i class="fa fa-eye"></i> Review & Approve
-                        </a>
-                        <a href="{{ url_for('status.view_status', submission_id=review.id) }}" class="btn btn-secondary">
-                            <i class="fa fa-file-alt"></i> View Details
-                        </a>
-                    </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty-state">
-                    <i class="fa fa-check-circle"></i>
-                    <h3>No Pending Reviews</h3>
-                    <p>All reports have been reviewed and approved. Great work!</p>
-                </div>
-            {% endif %}
-        </div>
-
-        <!-- Footer -->
-        <div class="footer">
-            <p>Developed by <strong>Revanth Meda</strong> for <strong>Cully Automation</strong></p>
-        </div>
+{% block content %}
+<section class="reviews-page">
+  <header class="reviews-page__header">
+    <div class="reviews-page__header-content">
+      <div>
+        <h1 class="reviews-page__title"><i class="fas fa-clipboard-check"></i> Reviews & Approvals</h1>
+        <p class="reviews-page__subtitle">
+          Review submissions awaiting your approval, coordinate feedback, and move projects forward.
+        </p>
+        <span class="reviews-page__badge">
+          <i class="fas fa-clock"></i> {{ pending_reviews|length }} pending review{{ 's' if pending_reviews|length != 1 else '' }}
+        </span>
+      </div>
+      <nav class="reviews-nav">
+        <a class="reviews-nav__link" href="{{ url_for('dashboard.automation_manager') }}">
+          <i class="fas fa-home"></i> Dashboard
+        </a>
+        <a class="reviews-nav__link reviews-nav__link--active" href="{{ url_for('dashboard.reviews') }}">
+          <i class="fas fa-list-check"></i> Reviews & Approvals
+        </a>
+        <a class="reviews-nav__link" href="{{ url_for('reports.new') }}">
+          <i class="fas fa-plus-circle"></i> Create Report
+        </a>
+        <a class="reviews-nav__link" href="{{ url_for('io_builder.index') }}">
+          <i class="fas fa-sitemap"></i> I/O Builder
+        </a>
+        <a class="reviews-nav__link" href="{{ url_for('notifications.notification_center') }}">
+          <i class="fas fa-bell"></i> Notifications
+          {% if unread_count > 0 %}
+            <span class="status-chip" style="background: rgba(255,255,255,0.2); color: var(--cully-white); border: none;">
+              {{ unread_count }}
+            </span>
+          {% endif %}
+        </a>
+      </nav>
     </div>
+  </header>
 
-    {% include 'partials/chatbot_widget.html' %}
-    <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
-</body>
-</html>
+  <div class="reviews-content">
+    {% if pending_reviews %}
+      {% for review in pending_reviews %}
+        <article class="review-card">
+          <header class="review-card__header">
+            <h2 class="review-card__title">{{ review.document_title or 'Untitled Submission' }}</h2>
+            <span class="status-chip"><i class="fas fa-hourglass-half"></i> Awaiting Review</span>
+          </header>
+
+          <div class="review-card__meta">
+            <div class="meta-block">
+              <span class="meta-block__label">Client</span>
+              <p class="meta-block__value">{{ review.client_name or 'Not specified' }}</p>
+            </div>
+            <div class="meta-block">
+              <span class="meta-block__label">Project Reference</span>
+              <p class="meta-block__value">{{ review.project_reference or 'Not specified' }}</p>
+            </div>
+            <div class="meta-block">
+              <span class="meta-block__label">Prepared By</span>
+              <p class="meta-block__value">{{ review.prepared_by or review.user_email }}</p>
+            </div>
+            <div class="meta-block">
+              <span class="meta-block__label">Submitted</span>
+              <p class="meta-block__value">
+                {{ review.created_at.strftime('%Y-%m-%d %H:%M') if review.created_at else 'Unknown' }}
+              </p>
+            </div>
+          </div>
+
+          <footer class="review-card__actions">
+            <a class="btn-primary" href="{{ url_for('status.view_status', submission_id=review.id) }}">
+              <i class="fas fa-check-circle"></i> Review & Approve
+            </a>
+            <a href="{{ url_for('status.view_status', submission_id=review.id) }}">
+              <i class="fas fa-eye"></i> View Details
+            </a>
+          </footer>
+        </article>
+      {% endfor %}
+    {% else %}
+      <div class="reviews-empty">
+        <i class="fas fa-check-circle"></i>
+        <h3>All caught up!</h3>
+        <p>No pending reviews at the moment. Your queue will update automatically when reports arrive.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
