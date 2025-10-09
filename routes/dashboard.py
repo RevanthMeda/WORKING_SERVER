@@ -1,7 +1,18 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, make_response, session
 from flask_login import login_required, current_user
 from auth_utils import admin_required, role_required
-from models import db, User, Report, SATReport, StorageConfig, StorageSettingsAudit
+from models import (
+    db,
+    User,
+    Report,
+    SATReport,
+    StorageConfig,
+    StorageSettingsAudit,
+    SystemSettings,
+    Notification,
+    CullyStatistics,
+    test_db_connection,
+)
 from datetime import datetime
 
 from sqlalchemy.orm import joinedload
@@ -46,18 +57,22 @@ def _get_storage_settings_payload():
     try:
         settings_obj = StorageSettingsService.load_settings()
         storage_dict = settings_obj.to_dict()
-        storage_config = StorageConfig.query.filter_by(
-            org_id=settings_obj.org_id,
-            environment=settings_obj.environment,
-        ).first()
+        storage_config = (
+            db.session.query(StorageConfig)
+            .filter_by(org_id=settings_obj.org_id, environment=settings_obj.environment)
+            .first()
+        )
         audits = []
         if storage_config:
             audits = [
                 entry.to_dict()
-                for entry in StorageSettingsAudit.query.filter_by(storage_config_id=storage_config.id)
-                .order_by(StorageSettingsAudit.created_at.desc())
-                .limit(20)
-                .all()
+                for entry in (
+                    db.session.query(StorageSettingsAudit)
+                    .filter_by(storage_config_id=storage_config.id)
+                    .order_by(StorageSettingsAudit.created_at.desc())
+                    .limit(20)
+                    .all()
+                )
             ]
         return storage_dict, audits, None
     except StorageSettingsError as exc:
@@ -110,8 +125,6 @@ def home():
 @no_cache
 def admin():
     """Admin dashboard"""
-    from models import SystemSettings, test_db_connection
-
     db_connected = test_db_connection()
 
     # Calculate user statistics with optimized single query
@@ -125,10 +138,16 @@ def admin():
     pending_users_count = user_stats.pending or 0
     
     # Get all users for display (only if needed)
-    users = User.query.all()
+    users = db.session.query(User).all()
 
     # Get actual pending users (users who need approval)
-    pending_users_list = User.query.filter_by(status='Pending').order_by(User.created_date.desc()).limit(5).all()
+    pending_users_list = (
+        db.session.query(User)
+        .filter_by(status='Pending')
+        .order_by(User.created_date.desc())
+        .limit(5)
+        .all()
+    )
 
     # Calculate report statistics
     try:
@@ -137,9 +156,13 @@ def admin():
         current_app.logger.info(f"Admin dashboard: Found {total_reports} total reports")
         
         # Eager load SAT reports to prevent N+1 queries
-        recent_reports = Report.query.options(
-            joinedload(Report.sat_report)
-        ).order_by(Report.created_at.desc()).limit(5).all()
+        recent_reports = (
+            db.session.query(Report)
+            .options(joinedload(Report.sat_report))
+            .order_by(Report.created_at.desc())
+            .limit(5)
+            .all()
+        )
         current_app.logger.info(f"Admin dashboard: Processing {len(recent_reports)} recent reports")
         
         # Add basic report info for display
@@ -198,7 +221,6 @@ def admin():
 @no_cache
 def engineer():
     """Engineer dashboard"""
-    from models import Notification
     current_app.logger.info(f"Fetching dashboard for user: {current_user.email}")
 
     # Get unread notifications count
@@ -247,8 +269,6 @@ def engineer():
 @no_cache
 def automation_manager():
     """Automation Manager dashboard"""
-    from models import Notification, test_db_connection
-
     # Get unread notifications count
     try:
         unread_count = Notification.query.filter_by(
@@ -332,16 +352,17 @@ def automation_manager():
     completed_automations = stats.get('approved', 0)
 
     # Get recent reports (limit to 5 for display)
-    recent_reports = pending_reports[:5]
+    recent_reports = Report.query.order_by(Report.updated_at.desc()).limit(5).all()
 
     return render_template('automation_manager_dashboard.html',
-                         stats=stats,
-                         reports=recent_reports,
-                         unread_count=unread_count,
-                         automation_count=len(pending_reports),
-                         pending_workflows=pending_approvals,
-                         completed_automations=completed_automations,
-                         db_status=db_status)
+                           stats=stats,
+                           pending_reports=pending_reports,
+                           recent_reports=recent_reports,
+                           unread_count=unread_count,
+                           automation_count=len(pending_reports),
+                           pending_workflows=pending_approvals,
+                           completed_automations=completed_automations,
+                           db_status=db_status)
 
 @dashboard_bp.route('/automation-manager-reviews')
 @role_required(['Automation Manager'])
@@ -355,9 +376,6 @@ def automation_manager_reviews():
 @no_cache
 def pm():
     """Project Manager dashboard"""
-    from models import Notification
-
-
     # Get unread notifications count
     try:
         unread_count = Notification.query.filter_by(
@@ -567,7 +585,6 @@ def change_user_role(user_id):
 @admin_required
 def delete_user(user_id):
     """Delete a user permanently"""
-    from models import Notification
     user = User.query.get_or_404(user_id)
 
     if user.email == current_user.email:
@@ -1000,9 +1017,6 @@ def debug_reports():
 @admin_required
 def revoke_approval(report_id):
     """Revoke approval for a report"""
-    from models import Notification
-
-    
     try:
         report = Report.query.get(report_id)
         if not report:
@@ -1159,39 +1173,62 @@ def reviews():
 
     # Get all reports that need approval by this Automation Manager
     pending_reviews = []
+    viewer_email = current_user.email.lower()
+    viewer_is_admin = current_user.role == 'Admin'
     try:
-        all_reports = Report.query.all()
+        all_reports = db.session.query(Report).all()
         for report in all_reports:
             if report.approvals_json:
                 try:
                     approvals = json.loads(report.approvals_json)
                     for approval in approvals:
-                        if (approval.get('stage') == 1 and  # Automation Manager stage
-                            approval.get('status') == 'pending'):
-                            
-                            # Get SAT report data for context
-                            sat_report = SATReport.query.filter_by(report_id=report.id).first()
-                            report_data = {}
-                            if sat_report:
-                                try:
-                                    stored_data = json.loads(sat_report.data_json)
-                                    report_data = stored_data.get('context', {})
-                                except json.JSONDecodeError:
-                                    pass
-                            
-                            pending_reviews.append({
-                                'id': report.id,
-                                'document_title': report_data.get('DOCUMENT_TITLE', 'SAT Report'),
-                                'client_name': report_data.get('CLIENT_NAME', ''),
-                                'project_reference': report_data.get('PROJECT_REFERENCE', ''),
-                                'prepared_by': report_data.get('PREPARED_BY', ''),
-                                'user_email': report.user_email,
-                                'created_at': report.created_at,
-                                'updated_at': report.updated_at,
-                                'stage': approval.get('stage'),
-                                'approver_email': approval.get('approver_email')
-                            })
-                            break  # Only add once per report
+                        if approval.get('stage') != 1 or approval.get('status') != 'pending':
+                            continue
+
+                        approver_email = (approval.get('approver_email') or '').lower()
+
+                        # Skip items not assigned to this user unless admin viewing
+                        if not viewer_is_admin:
+                            if approver_email and approver_email != viewer_email:
+                                continue
+                            if not approver_email:
+                                # If no approver email recorded, fall back to default config
+                                default_approvers = current_app.config.get('DEFAULT_APPROVERS', [])
+                                stage1_defaults = [
+                                    a.get('approver_email', '').lower()
+                                    for a in default_approvers
+                                    if a.get('stage') == 1
+                                ]
+                                if stage1_defaults and viewer_email not in stage1_defaults:
+                                    continue
+
+                        # Get SAT report data for context
+                        sat_report = (
+                            db.session.query(SATReport)
+                            .filter_by(report_id=report.id)
+                            .first()
+                        )
+                        report_data = {}
+                        if sat_report:
+                            try:
+                                stored_data = json.loads(sat_report.data_json)
+                                report_data = stored_data.get('context', {})
+                            except json.JSONDecodeError:
+                                pass
+
+                        pending_reviews.append({
+                            'id': report.id,
+                            'document_title': report_data.get('DOCUMENT_TITLE', 'SAT Report'),
+                            'client_name': report_data.get('CLIENT_NAME', ''),
+                            'project_reference': report_data.get('PROJECT_REFERENCE', ''),
+                            'prepared_by': report_data.get('PREPARED_BY', ''),
+                            'user_email': report.user_email,
+                            'created_at': report.created_at,
+                            'updated_at': report.updated_at,
+                            'stage': approval.get('stage'),
+                            'approver_email': approval.get('approver_email')
+                        })
+                        break  # Only add once per report
                 except json.JSONDecodeError:
                     continue
     except Exception as e:

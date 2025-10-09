@@ -4,11 +4,11 @@ import signal
 import logging
 import traceback
 import importlib.util
-from flask import Flask, g, request, render_template, jsonify, make_response, redirect, url_for, session, flash
+from flask import Flask, g, request, render_template, jsonify, redirect, url_for, session, flash
 from flask_wtf.csrf import CSRFProtect, generate_csrf, CSRFError
 from flask_login import current_user, login_required
 from flask_session import Session
-from typing import Optional, Any
+from typing import Any, cast
 
 # Import Config directly from config.py file
 config_file_path = os.path.join(os.path.dirname(__file__), 'config.py')
@@ -26,13 +26,21 @@ config = config_module.config
 # Import from config/ directory
 from config.manager import init_config_system
 from config.secrets import init_secrets_management
-from middleware import init_security_middleware
 from middleware_optimized import init_optimized_middleware
 from session_manager import session_manager
 from services.storage_manager import StorageSettingsService, StorageSettingsError
 
 # Initialize CSRF protection globally
 csrf = CSRFProtect()
+
+# Type helper so static typing knows about dynamically-attached attributes
+class _ExtendedFlask(Flask):
+    cache: Any
+    session_manager: Any
+    query_cache: Any
+    cdn_extension: Any
+    celery: Any
+
 
 # Import only essential modules - lazy load others
 try:
@@ -46,7 +54,7 @@ except ImportError as e:
 
 def create_app(config_name='default'):
     """Create and configure Flask application"""
-    app = Flask(__name__)
+    app: _ExtendedFlask = cast(_ExtendedFlask, Flask(__name__))
     
     # Load configuration based on environment
     config_class = config.get(config_name, config['default'])
@@ -54,7 +62,7 @@ def create_app(config_name='default'):
     
     # Initialize hierarchical configuration system
     try:
-        config_manager = init_config_system(app)
+        _config_manager = init_config_system(app)
         app.logger.info("Hierarchical configuration system initialized")
     except Exception as e:
         app.logger.error(f"Failed to initialize config system: {e}")
@@ -62,7 +70,7 @@ def create_app(config_name='default'):
     
     # Initialize secrets management system
     try:
-        secrets_manager = init_secrets_management(app)
+        _secrets_manager = init_secrets_management(app)
         app.logger.info("Secrets management system initialized")
     except Exception as e:
         app.logger.error(f"Failed to initialize secrets management: {e}")
@@ -117,11 +125,11 @@ def create_app(config_name='default'):
 
         # Initialize migration system
         from database import (
-            init_migrations, init_database_performance, 
-            init_connection_pooling, init_backup_system
+            init_migrations, init_database_performance,
+            init_connection_pooling
         )
         from database.cli import register_db_commands
-        migration_manager = init_migrations(app)
+        _migration_manager = init_migrations(app)
         register_db_commands(app)
         
         # Register task management CLI commands (optional)
@@ -268,7 +276,6 @@ def create_app(config_name='default'):
     warnings.filterwarnings('ignore', message="'FLASK_ENV' is deprecated")
 
     # Add CSRF token to g for access in templates and manage session
-    @app.before_request
     def add_csrf_token():
         import time
 
@@ -331,13 +338,15 @@ def create_app(config_name='default'):
         except Exception:
             pass
 
-    @app.route('/refresh_csrf')
+    app.before_request(add_csrf_token)
+
     def refresh_csrf():
         """Refresh CSRF token via AJAX"""
         return jsonify({'csrf_token': generate_csrf()})
 
+    app.add_url_rule('/refresh_csrf', 'refresh_csrf', refresh_csrf, methods=['GET'])
+
     # API endpoint to check authentication status
-    @app.route('/api/check-auth')
     def check_auth():
         """Check if user is authenticated and session is valid"""
         # First check if session is valid
@@ -350,8 +359,9 @@ def create_app(config_name='default'):
         else:
             return jsonify({'authenticated': False, 'reason': 'Not logged in'}), 401
     
+    app.add_url_rule('/api/check-auth', 'check_auth', check_auth, methods=['GET'])
+
     # API endpoint for getting users by role
-    @app.route('/api/get-users-by-role')
     @login_required
     def get_users_by_role():
         """API endpoint to get users by role for dropdowns"""
@@ -388,10 +398,10 @@ def create_app(config_name='default'):
         except Exception as e:
             app.logger.error(f"Error in get_users_by_role endpoint: {e}")
             return jsonify({'success': False, 'error': 'Unable to fetch users at this time'}), 500
+    app.add_url_rule('/api/get-users-by-role', 'get_users_by_role', get_users_by_role, methods=['GET'])
 
     # Custom CSRF error handler
-    @app.errorhandler(CSRFError)
-    def handle_csrf_error(e):
+    def handle_csrf_error(e: CSRFError):
         app.logger.error(f"CSRF Error occurred: {str(e)}")
         app.logger.error(f"Request Method: {request.method}")
         app.logger.error(f"Request Form Keys: {list(request.form.keys()) if request.form else []}")
@@ -411,26 +421,30 @@ def create_app(config_name='default'):
 
         return render_template('csrf_error.html', reason=str(e)), 400
 
+    app.register_error_handler(CSRFError, handle_csrf_error)
+
     # Root route - redirect to welcome or dashboard
-    @app.route('/')
     def index():
         if current_user.is_authenticated:
             return redirect(url_for('dashboard.home'))
         return redirect(url_for('auth.welcome'))
 
+    app.add_url_rule('/', 'index', index, methods=['GET'])
+
     # Legacy redirects
-    @app.route('/sat_form')
     def legacy_sat_form():
         return redirect(url_for('reports.new'))
 
-    @app.route('/sat')
-    @app.route('/sat/start')
     def legacy_sat():
         return redirect(url_for('reports.new_sat'))
 
-    @app.route('/generate_sat')
     def legacy_generate_sat():
         return redirect(url_for('reports.new_sat'))
+
+    app.add_url_rule('/sat_form', 'legacy_sat_form', legacy_sat_form, methods=['GET'])
+    app.add_url_rule('/sat', 'legacy_sat', legacy_sat, methods=['GET'])
+    app.add_url_rule('/sat/start', 'legacy_sat_start', legacy_sat, methods=['GET'])
+    app.add_url_rule('/generate_sat', 'legacy_generate_sat', legacy_generate_sat, methods=['GET'])
 
     # Lazy import and register blueprints for faster startup
     def register_blueprints():
@@ -513,29 +527,26 @@ def create_app(config_name='default'):
         app.logger.debug('Dashboard stats cache disabled or database not initialized; skipping refresher thread')
 
     # Error handlers
-    @app.errorhandler(404)
     def not_found_error(error):
         return render_template('404.html'), 404
 
-    @app.errorhandler(500)
     def internal_error(error):
         db.session.rollback()
         return render_template('404.html'), 500
 
-    @app.errorhandler(400)
     def csrf_error(error):
         """Handle CSRF token errors"""
         return render_template('csrf_error.html'), 400
 
-    # 404 Error handler
-    @app.errorhandler(404)
-    def page_not_found(e):
-        return render_template('404.html'), 404
+    app.register_error_handler(404, not_found_error)
+    app.register_error_handler(500, internal_error)
+    app.register_error_handler(400, csrf_error)
 
     # Minimal response logging for performance
-    @app.after_request
     def log_response(response):
         return response
+
+    app.after_request(log_response)
 
     if not db_initialized:
         app.logger.warning("Database initialization failed - running without database")

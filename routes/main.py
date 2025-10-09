@@ -4,6 +4,7 @@ from models import db, Report, SATReport, Notification
 from auth import login_required
 import json
 from services.sat_tables import extract_ui_tables, build_doc_tables, migrate_context_tables, TABLE_CONFIG
+from typing import Any, Callable
 EXTRA_IMAGE_KEYS = ['SCADA_SCREENSHOTS', 'TRENDS_SCREENSHOTS', 'ALARM_SCREENSHOTS']
 TABLE_UI_KEYS = [cfg['ui_section'] for cfg in TABLE_CONFIG] + EXTRA_IMAGE_KEYS
 import os
@@ -59,7 +60,17 @@ def edit_submission(submission_id):
     return redirect(url_for('reports.sat_wizard', submission_id=submission_id))
 
 
+def _utils_unavailable(*args: Any, **kwargs: Any) -> Any:
+    raise RuntimeError("Utility helpers are unavailable; ensure utils module is installed.")
 
+
+load_submissions: Callable[..., Any] = _utils_unavailable
+save_submissions: Callable[..., Any] = _utils_unavailable
+send_edit_link: Callable[..., Any] = _utils_unavailable
+send_approval_link: Callable[..., Any] = _utils_unavailable
+setup_approval_workflow_db: Callable[..., Any] = _utils_unavailable
+handle_image_removals: Callable[..., Any] = _utils_unavailable
+allowed_file: Callable[..., Any] = _utils_unavailable
 try:
     from utils import (
                    load_submissions, save_submissions, send_edit_link, send_approval_link,
@@ -67,9 +78,6 @@ try:
                   allowed_file)
 except ImportError as e:
     print(f"Warning: Could not import utils: {e}")
-    generate_sat_report = None
-    create_docx_from_template = None
-    convert_to_pdf = None
 
 # Helper function to get unread notification count (assuming it exists elsewhere)
 def get_unread_count():
@@ -231,13 +239,12 @@ def generate():
         report.approvals_json = json.dumps(approvals)
 
         # Create the upload directory for this submission
-        upload_dir = os.path.join(current_app.config['UPLOAD_ROOT'], submission_id)
+        upload_root_cfg = current_app.config.get('UPLOAD_ROOT')
+        if not isinstance(upload_root_cfg, str) or not upload_root_cfg:
+            static_root = current_app.static_folder or os.path.join(current_app.root_path, 'static')
+            upload_root_cfg = os.path.join(static_root, 'uploads')
+        upload_dir = os.path.join(upload_root_cfg, submission_id)
         os.makedirs(upload_dir, exist_ok=True)
-
-        # Initialize image URLs lists from database
-        scada_urls = json.loads(sat_report.scada_image_urls) if sat_report.scada_image_urls else []
-        trends_urls = json.loads(sat_report.trends_image_urls) if sat_report.trends_image_urls else []
-        alarm_urls = json.loads(sat_report.alarm_image_urls) if sat_report.alarm_image_urls else []
 
         # Initialize DocxTemplate
         from docxtpl import DocxTemplate, InlineImage
@@ -249,6 +256,29 @@ def generate():
 
         doc = DocxTemplate(current_app.config['TEMPLATE_FILE'])
 
+        def _normalize_url_list(value: Any) -> list[str]:
+            if isinstance(value, list):
+                return [str(item) for item in value]
+            if isinstance(value, str):
+                try:
+                    parsed = json.loads(value)
+                    if isinstance(parsed, list):
+                        return [str(item) for item in parsed]
+                except Exception:
+                    pass
+                return [value] if value else []
+            if not value:
+                return []
+            try:
+                return [str(item) for item in list(value)]
+            except TypeError:
+                return [str(value)]
+
+        # Initialize image URLs lists from database
+        scada_urls = _normalize_url_list(sat_report.scada_image_urls)
+        trends_urls = _normalize_url_list(sat_report.trends_image_urls)
+        alarm_urls = _normalize_url_list(sat_report.alarm_image_urls)
+
         def load_signature_inline(filename, width_mm=40):
             """Rehydrate stored signature filenames into InlineImage objects for rendering."""
             if not filename:
@@ -256,9 +286,11 @@ def generate():
             base_names = [filename]
             if not os.path.splitext(filename)[1]:
                 base_names.append(f"{filename}.png")
+            sig_folder_cfg = current_app.config.get('SIGNATURES_FOLDER')
             candidates = []
             for name in base_names:
-                candidates.append(os.path.join(current_app.config['SIGNATURES_FOLDER'], name))
+                if isinstance(sig_folder_cfg, str) and sig_folder_cfg:
+                    candidates.append(os.path.join(sig_folder_cfg, name))
                 candidates.append(os.path.join(current_app.root_path, 'static', 'signatures', name))
                 candidates.append(os.path.join(os.getcwd(), 'static', 'signatures', name))
             for candidate in candidates:
@@ -271,57 +303,47 @@ def generate():
 
         # Process signature data
         sig_data_url = request.form.get("sig_prepared_data", "")
-        SIG_PREPARED = ""
+        sig_prepared_image: Any = ""
 
         if sig_data_url:
-            # Parse and save the signature data
             try:
-                # strip "data:image/png;base64,"
-                if "," in sig_data_url:
-                    header, encoded = sig_data_url.split(",", 1)
-                    data = base64.b64decode(encoded)
+                if "," not in sig_data_url:
+                    raise ValueError("Invalid signature data format")
+                _, encoded = sig_data_url.split(",", 1)
+                data = base64.b64decode(encoded)
 
-                    # Ensure unique filename
-                    fn = f"{submission_id}_prepared_{int(time.time())}.png"
-                    sig_folder = current_app.config['SIGNATURES_FOLDER']
-                    os.makedirs(sig_folder, exist_ok=True)  # Ensure folder exists
-                    out_path = os.path.join(sig_folder, fn)
+                sig_folder_cfg = current_app.config.get('SIGNATURES_FOLDER')
+                if not isinstance(sig_folder_cfg, str) or not sig_folder_cfg:
+                    raise KeyError("SIGNATURES_FOLDER not configured")
+                os.makedirs(sig_folder_cfg, exist_ok=True)
 
-                    # Write signature file
-                    with open(out_path, "wb") as f:
-                        f.write(data)
+                fn = f"{submission_id}_prepared_{int(time.time())}.png"
+                out_path = os.path.join(sig_folder_cfg, fn)
 
-                    # Verify the file was created successfully
-                    if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
-                        # Store signature filename in two places for redundancy
-                        sub.setdefault("context", {})["prepared_signature"] = fn
-                        sub["prepared_signature"] = fn  # Store in root of submission as well
+                with open(out_path, "wb") as signature_file:
+                    signature_file.write(data)
 
-                        # Add timestamp for the preparer
-                        current_timestamp = dt.datetime.now().isoformat()
-                        sub.setdefault("context", {})["prepared_timestamp"] = current_timestamp
-                        prepared_signature_filename = fn
-                        prepared_timestamp = current_timestamp
+                if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+                    sub.setdefault("context", {})["prepared_signature"] = fn
+                    sub["prepared_signature"] = fn
 
-                        # Log success with full path info
-                        current_app.logger.info(f"Stored preparer signature as {fn}")
-                        current_app.logger.info(f"Absolute signature path: {os.path.abspath(out_path)}")
-                        current_app.logger.info(f"File exists: {os.path.exists(out_path)}")
+                    current_timestamp = dt.datetime.now().isoformat()
+                    sub.setdefault("context", {})["prepared_timestamp"] = current_timestamp
+                    prepared_signature_filename = fn
+                    prepared_timestamp = current_timestamp
 
-                        # Create InlineImage for immediate use
-                        try:
-                            SIG_PREPARED = InlineImage(doc, out_path, width=Mm(40))
-                            current_app.logger.info("Successfully created InlineImage for signature")
-                        except Exception as e:
-                            current_app.logger.error(f"Error creating preparer signature image: {e}")
-                    else:
-                        current_app.logger.error(f"Signature file not created or empty: {out_path}")
+                    current_app.logger.info("Stored preparer signature at %s", os.path.abspath(out_path))
+
+                    try:
+                        sig_prepared_image = InlineImage(doc, out_path, width=Mm(40))
+                    except Exception as inline_error:
+                        current_app.logger.error("Error creating preparer signature image: %s", inline_error)
                 else:
-                    current_app.logger.error("Invalid signature data format")
-            except Exception as e:
-                current_app.logger.error(f"Error processing signature data: {e}", exc_info=True)
+                    raise FileNotFoundError(f"Signature file not created or empty: {out_path}")
+            except Exception as error:
+                current_app.logger.error("Error processing signature data: %s", error, exc_info=True)
         else:
-            SIG_PREPARED = load_signature_inline(prepared_signature_filename)
+            sig_prepared_image = load_signature_inline(prepared_signature_filename)
 
         # Initialize approval signatures
         SIG_APPROVER_1 = load_signature_inline(existing_sig_review_tech_file)
@@ -352,16 +374,7 @@ def generate():
 
                     # Create proper URL and add image object
                     try:
-                        # Process image and create scaled inline version
-                        from PIL import Image
-                        with Image.open(disk_fp) as img:
-                            w, h = img.size
-
-                        # Calculate scale to fit max width
-                        max_w_mm = 150
-                        scale = min(1, max_w_mm / (w * 0.264583))
-
-                        # 1) Add public URL for edit-mode preview
+                        # Add public URL for edit-mode preview
                         # Use posix-style paths for URLs (forward slashes)
                         rel_path = os.path.join("uploads", submission_id, uniq_fn).replace("\\", "/")
                         url = url_for("static", filename=rel_path)
@@ -398,9 +411,8 @@ def generate():
 
         # Prepare signature placeholders
         # Prepare signature placeholders (legacy fields retained for compatibility)
-        SIG_PREPARED_BY = ""
+        sig_prepared_by = ""
         SIG_REVIEW_TECH = ""
-        SIG_REVIEW_PM = ""
         SIG_APPROVAL_CLIENT = ""
 
         # Extract table data using the unified schema helpers
@@ -412,7 +424,7 @@ def generate():
 
         # Build final context for the DOCX
         # Build final context for document rendering
-        context = {
+        context: dict[str, Any] = {
             "DOCUMENT_TITLE": request.form.get('document_title', ''),
             "PROJECT_REFERENCE": request.form.get('project_reference', ''),
             "DOCUMENT_REFERENCE": request.form.get('document_reference', ''),
@@ -422,8 +434,8 @@ def generate():
             "REVISION_DETAILS": request.form.get('revision_details', ''),
             "REVISION_DATE": request.form.get('revision_date', ''),
             "PREPARED_BY": request.form.get('prepared_by', ''),
-            "SIG_PREPARED": SIG_PREPARED,
-            "SIG_PREPARED_BY": SIG_PREPARED_BY,
+            "SIG_PREPARED": sig_prepared_image,
+            "SIG_PREPARED_BY": sig_prepared_by,
             "REVIEWED_BY_TECH_LEAD": request.form.get('reviewed_by_tech_lead', ''),
             "SIG_REVIEW_TECH": SIG_REVIEW_TECH,
             "REVIEWED_BY_PM": request.form.get('reviewed_by_pm', ''),
@@ -448,7 +460,7 @@ def generate():
             if key not in context:
                 context[key] = value
         # For storage, remove the InlineImage objects recursively
-        context_to_store = dict(context)
+        context_to_store: dict[str, Any] = dict(context)
         for key, value in combined_tables.items():
             context_to_store[key] = value
         context_to_store['SIG_PREPARED'] = prepared_signature_filename or context_to_store.get('SIG_PREPARED', '')
@@ -593,7 +605,9 @@ def generate():
 
         # Save to a permanent, submission-specific location
         try:
-            output_dir = current_app.config['OUTPUT_DIR']
+            output_dir = current_app.config.get('OUTPUT_DIR')
+            if not isinstance(output_dir, str) or not output_dir:
+                raise KeyError("OUTPUT_DIR missing or invalid")
             os.makedirs(output_dir, exist_ok=True)
             permanent_path = os.path.join(output_dir, f'SAT_Report_{submission_id}_Final.docx')
             shutil.copyfile(temp_path, permanent_path)
@@ -793,31 +807,21 @@ def save_progress():
             if key not in context:
                 context[key] = value
 
-        upload_root = current_app.config.get('UPLOAD_ROOT', os.path.join(current_app.static_folder, 'uploads'))
-        upload_dir = os.path.join(upload_root, submission_id)
+        upload_root_cfg = current_app.config.get('UPLOAD_ROOT')
+        if not isinstance(upload_root_cfg, str) or not upload_root_cfg:
+            static_root = current_app.static_folder or os.path.join(current_app.root_path, 'static')
+            upload_root_cfg = os.path.join(static_root, 'uploads')
+        upload_dir = os.path.join(upload_root_cfg, submission_id)
         os.makedirs(upload_dir, exist_ok=True)
 
-        def _normalize_url_list(value):
-            if isinstance(value, list):
-                return value
-            if isinstance(value, str):
-                try:
-                    parsed = json.loads(value)
-                    if isinstance(parsed, list):
-                        return parsed
-                except Exception:
-                    pass
-                return [value] if value else []
-            if not value:
-                return []
-            try:
-                return list(value)
-            except TypeError:
-                return []
+        def _resolve_urls(key: str, model_value: Any) -> list[str]:
+            existing_value = existing_data.get(key) if isinstance(existing_data, dict) else None
+            urls = _normalize_url_list(existing_value)
+            return urls if urls else _normalize_url_list(model_value)
 
-        scada_urls = _normalize_url_list(existing_data.get('scada_image_urls') or (json.loads(sat_report.scada_image_urls) if sat_report.scada_image_urls else []))
-        trends_urls = _normalize_url_list(existing_data.get('trends_image_urls') or (json.loads(sat_report.trends_image_urls) if sat_report.trends_image_urls else []))
-        alarm_urls = _normalize_url_list(existing_data.get('alarm_image_urls') or (json.loads(sat_report.alarm_image_urls) if sat_report.alarm_image_urls else []))
+        scada_urls = _resolve_urls('scada_image_urls', sat_report.scada_image_urls)
+        trends_urls = _resolve_urls('trends_image_urls', sat_report.trends_image_urls)
+        alarm_urls = _resolve_urls('alarm_image_urls', sat_report.alarm_image_urls)
 
         # Handle removal of images marked for deletion in the form
         # The `handle_image_removals` function processes the comma-separated
