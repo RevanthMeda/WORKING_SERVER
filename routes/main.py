@@ -632,13 +632,23 @@ def generate():
 
         flash(success_message, "success")
 
-        return jsonify({
+        response_payload = {
             "success": True,
             "message": success_message,
             "submission_id": submission_id,
             "redirect_url": url_for('status.view_status', submission_id=submission_id),
             "download_url": url_for('status.download_report', submission_id=submission_id)
-        })
+        }
+
+        wants_json = (
+            request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            or 'application/json' in request.headers.get('Accept', '')
+        )
+
+        if wants_json:
+            return jsonify(response_payload)
+
+        return redirect(response_payload["redirect_url"])
 
     except Exception as e:
         current_app.logger.error(f"Error in generate: {e}", exc_info=True)

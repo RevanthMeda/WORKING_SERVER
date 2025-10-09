@@ -479,21 +479,23 @@
     
     fetch(form.action, {
       method: 'POST',
-      body: formData
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'application/json'
+      }
     })
     .then(response => response.json())
     .then(data => {
       if (data.success) {
         // Show success message
         showAlert(data.message, 'success');
-        
+
         // Clear form state to prevent auto-population
         clearFormState();
-        
-        // Redirect to status page after short delay
-        setTimeout(() => {
-          window.location.href = data.redirect_url;
-        }, 1500);
+
+        // Redirect to status page (auto download handled there)
+        window.location.href = data.redirect_url;
       } else {
         throw new Error(data.message || 'Generation failed');
       }
