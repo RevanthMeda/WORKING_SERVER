@@ -123,6 +123,47 @@ def run_migration(app, db):
                         logger.warning(f"Could not create report_edits table: {table_error}")
             else:
                 logger.info("report_edits table already exists")
+
+            # Ensure api_keys table schema matches latest expectations
+            if 'api_keys' in inspector.get_table_names():
+                api_columns = [col['name'] for col in inspector.get_columns('api_keys')]
+                existing_indexes = [index['name'] for index in inspector.get_indexes('api_keys')]
+
+                with engine.begin() as conn:
+                    if 'key_hash' not in api_columns:
+                        logger.info("Adding missing key_hash column to api_keys table")
+
+                        if is_sqlite:
+                            conn.execute(text("ALTER TABLE api_keys ADD COLUMN key_hash TEXT"))
+                        elif is_postgresql:
+                            conn.execute(text("ALTER TABLE api_keys ADD COLUMN key_hash VARCHAR(64)"))
+                        else:
+                            conn.execute(text("ALTER TABLE api_keys ADD COLUMN key_hash VARCHAR(64)"))
+
+                        if 'key' in api_columns:
+                            try:
+                                conn.execute(
+                                    text(
+                                        "UPDATE api_keys SET key_hash = key "
+                                        "WHERE key IS NOT NULL AND (key_hash IS NULL OR key_hash = '')"
+                                    )
+                                )
+                                logger.info("Backfilled key_hash values from legacy key column")
+                            except Exception as backfill_error:
+                                logger.warning(f"Could not backfill key_hash values: {backfill_error}")
+                        else:
+                            logger.warning("Legacy api_keys.key column not found; manual backfill of key_hash required")
+                    else:
+                        logger.info("api_keys.key_hash column already present")
+
+                    if 'ux_api_keys_key_hash' not in existing_indexes:
+                        try:
+                            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ux_api_keys_key_hash ON api_keys(key_hash)"))
+                            logger.info("Ensured unique index on api_keys.key_hash")
+                        except Exception as index_error:
+                            logger.warning(f"Could not create unique index on api_keys.key_hash: {index_error}")
+            else:
+                logger.info("api_keys table does not exist; skipping API key schema adjustments")
             
             # Verify all columns are present
             updated_columns = [col['name'] for col in inspector.get_columns('reports')]

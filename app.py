@@ -28,8 +28,9 @@ config = config_module.config
 from config.manager import init_config_system
 from config.secrets import init_secrets_management
 from middleware_optimized import init_optimized_middleware
-from session_manager import session_manager
 from services.storage_manager import StorageSettingsService, StorageSettingsError
+from session_manager import session_manager
+from database.fix_missing_columns import ensure_database_ready
 
 # Initialize CSRF protection globally
 csrf = CSRFProtect()
@@ -201,6 +202,10 @@ def create_app(config_name='default'):
 
 
         init_auth(app)
+        try:
+            ensure_database_ready(app, db)
+        except Exception as migration_error:
+            app.logger.warning("Database consistency check encountered issues: %s", migration_error, exc_info=True)
 
         try:
             settings = StorageSettingsService.sync_app_config(app)
