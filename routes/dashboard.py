@@ -13,6 +13,7 @@ from models import (
     CullyStatistics,
     test_db_connection,
 )
+from api.security import APIKey, APIUsage
 from datetime import datetime
 
 from sqlalchemy.orm import joinedload
@@ -596,8 +597,15 @@ def delete_user(user_id):
 
     try:
         # Delete associated notifications first (to maintain referential integrity)
+        Notification.query.filter_by(user_email=user_email).delete(synchronize_session=False)
 
-        Notification.query.filter_by(user_email=user_email).delete()
+        # Remove API usage records and API keys linked to the user
+        APIUsage.query.filter(
+            or_(APIUsage.user_id == user.id, APIUsage.user_id == str(user.id))
+        ).delete(synchronize_session=False)
+        APIKey.query.filter(
+            or_(APIKey.user_id == user.id, APIKey.user_id == str(user.id))
+        ).delete(synchronize_session=False)
 
         # Delete the user
         db.session.delete(user)

@@ -4,8 +4,7 @@ This fixes the login/dashboard access issues caused by missing database columns.
 """
 import os
 import sys
-from sqlalchemy import text, inspect, MetaData
-from datetime import datetime
+from sqlalchemy import text, inspect
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -163,15 +162,17 @@ def run_migration(app, db):
                         except Exception as index_error:
                             logger.warning(f"Could not create unique index on api_keys.key_hash: {index_error}")
 
+                    column_type_map = {col['name']: col['type'] for col in inspector.get_columns('api_keys')}
+
                     if 'user_id' not in api_columns:
                         logger.info("Adding missing user_id column to api_keys table")
 
                         if is_sqlite:
-                            conn.execute(text("ALTER TABLE api_keys ADD COLUMN user_id TEXT"))
+                            conn.execute(text("ALTER TABLE api_keys ADD COLUMN user_id INTEGER"))
                         elif is_postgresql:
-                            conn.execute(text("ALTER TABLE api_keys ADD COLUMN user_id VARCHAR(36)"))
+                            conn.execute(text("ALTER TABLE api_keys ADD COLUMN user_id INTEGER"))
                         else:
-                            conn.execute(text("ALTER TABLE api_keys ADD COLUMN user_id VARCHAR(36)"))
+                            conn.execute(text("ALTER TABLE api_keys ADD COLUMN user_id INTEGER"))
 
                         if 'user_email' in api_columns:
                             try:
@@ -179,9 +180,9 @@ def run_migration(app, db):
                                     conn.execute(
                                         text(
                                             "UPDATE api_keys AS k "
-                                            "SET user_id = u.id "
-                                            "FROM users AS u "
-                                            "WHERE (k.user_id IS NULL OR k.user_id = '') "
+                                             "SET user_id = u.id "
+                                             "FROM users AS u "
+                                            "WHERE k.user_id IS NULL "
                                             "AND LOWER(k.user_email) = LOWER(u.email)"
                                         )
                                     )
@@ -192,7 +193,7 @@ def run_migration(app, db):
                                             "SET user_id = ("
                                             "SELECT id FROM users WHERE LOWER(users.email) = LOWER(api_keys.user_email)"
                                             ") "
-                                            "WHERE user_id IS NULL OR user_id = ''"
+                                            "WHERE user_id IS NULL"
                                         )
                                     )
                                 logger.info("Backfilled api_keys.user_id values from user_email")
@@ -200,8 +201,34 @@ def run_migration(app, db):
                                 logger.warning(f"Could not backfill api_keys.user_id values: {backfill_error}")
                         else:
                             logger.warning("api_keys.user_email column not found; manual user_id backfill may be required")
+
+                        if is_postgresql:
+                            try:
+                                conn.execute(
+                                    text(
+                                        "ALTER TABLE api_keys "
+                                        "ADD CONSTRAINT IF NOT EXISTS fk_api_keys_user "
+                                        "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+                                    )
+                                )
+                                logger.info("Ensured foreign key constraint for api_keys.user_id")
+                            except Exception as fk_error:
+                                logger.warning(f"Could not create foreign key constraint on api_keys.user_id: {fk_error}")
                     else:
                         logger.info("api_keys.user_id column already present")
+                        col_type = str(column_type_map.get('user_id')).lower()
+                        if 'integer' not in col_type:
+                            try:
+                                if is_postgresql:
+                                    conn.execute(text(
+                                        "ALTER TABLE api_keys "
+                                        "ALTER COLUMN user_id TYPE INTEGER USING user_id::INTEGER"
+                                    ))
+                                    logger.info("Converted api_keys.user_id column to INTEGER")
+                                elif is_sqlite:
+                                    logger.warning("SQLite migration from TEXT to INTEGER for api_keys.user_id requires manual intervention")
+                            except Exception as type_error:
+                                logger.warning(f"Could not convert api_keys.user_id column type: {type_error}")
 
                     if 'ix_api_keys_user_id' not in existing_indexes:
                         try:

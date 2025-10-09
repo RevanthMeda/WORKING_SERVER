@@ -23,7 +23,7 @@ class APIKey(db.Model):
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
     key_hash = db.Column(db.String(64), nullable=False, unique=True)  # SHA-256 hash
-    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     permissions = db.Column(db.JSON, default=list)  # List of permissions
     rate_limit = db.Column(db.Integer, default=1000)  # Requests per hour
     is_active = db.Column(db.Boolean, default=True)
@@ -32,7 +32,10 @@ class APIKey(db.Model):
     expires_at = db.Column(db.DateTime)
     
     # Relationships
-    user = db.relationship('User', backref='api_keys')
+    user = db.relationship(
+        'User',
+        backref=db.backref('api_keys', cascade='all, delete-orphan', passive_deletes=True)
+    )
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
