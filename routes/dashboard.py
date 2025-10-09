@@ -599,16 +599,8 @@ def delete_user(user_id):
         # Delete associated notifications first (to maintain referential integrity)
         Notification.query.filter_by(user_email=user_email).delete(synchronize_session=False)
 
-        # Remove API usage records and API keys linked to the user
-        api_key_filter = or_(APIKey.user_id == user.id, APIKey.user_id == str(user.id))
-        api_key_ids = [
-            row.id for row in APIKey.query.filter(api_key_filter).with_entities(APIKey.id)
-        ]
-        if api_key_ids:
-            APIUsage.query.filter(APIUsage.api_key_id.in_(api_key_ids)).delete(synchronize_session=False)
-            APIKey.query.filter(APIKey.id.in_(api_key_ids)).delete(synchronize_session=False)
-        else:
-            APIKey.query.filter(api_key_filter).delete(synchronize_session=False)
+        # The deletion of the user will cascade to api_keys and api_usage tables
+        # thanks to the `ondelete='CASCADE'` setting in the models.
 
         # Delete the user
         db.session.delete(user)

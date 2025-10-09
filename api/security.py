@@ -81,8 +81,8 @@ class APIUsage(db.Model):
     __tablename__ = 'api_usage'
     
     id = db.Column(db.Integer, primary_key=True)
-    api_key_id = db.Column(db.String(36), db.ForeignKey('api_keys.id'))
-    user_id = db.Column(db.String(36), db.ForeignKey('users.id'))
+    api_key_id = db.Column(db.String(36), db.ForeignKey('api_keys.id', ondelete='SET NULL'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=True)
     endpoint = db.Column(db.String(200), nullable=False)
     method = db.Column(db.String(10), nullable=False)
     status_code = db.Column(db.Integer)
