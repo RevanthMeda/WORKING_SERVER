@@ -162,6 +162,53 @@ def run_migration(app, db):
                             logger.info("Ensured unique index on api_keys.key_hash")
                         except Exception as index_error:
                             logger.warning(f"Could not create unique index on api_keys.key_hash: {index_error}")
+
+                    if 'user_id' not in api_columns:
+                        logger.info("Adding missing user_id column to api_keys table")
+
+                        if is_sqlite:
+                            conn.execute(text("ALTER TABLE api_keys ADD COLUMN user_id TEXT"))
+                        elif is_postgresql:
+                            conn.execute(text("ALTER TABLE api_keys ADD COLUMN user_id VARCHAR(36)"))
+                        else:
+                            conn.execute(text("ALTER TABLE api_keys ADD COLUMN user_id VARCHAR(36)"))
+
+                        if 'user_email' in api_columns:
+                            try:
+                                if is_postgresql:
+                                    conn.execute(
+                                        text(
+                                            "UPDATE api_keys AS k "
+                                            "SET user_id = u.id "
+                                            "FROM users AS u "
+                                            "WHERE (k.user_id IS NULL OR k.user_id = '') "
+                                            "AND LOWER(k.user_email) = LOWER(u.email)"
+                                        )
+                                    )
+                                else:
+                                    conn.execute(
+                                        text(
+                                            "UPDATE api_keys "
+                                            "SET user_id = ("
+                                            "SELECT id FROM users WHERE LOWER(users.email) = LOWER(api_keys.user_email)"
+                                            ") "
+                                            "WHERE user_id IS NULL OR user_id = ''"
+                                        )
+                                    )
+                                logger.info("Backfilled api_keys.user_id values from user_email")
+                            except Exception as backfill_error:
+                                logger.warning(f"Could not backfill api_keys.user_id values: {backfill_error}")
+                        else:
+                            logger.warning("api_keys.user_email column not found; manual user_id backfill may be required")
+                    else:
+                        logger.info("api_keys.user_id column already present")
+
+                    if 'ix_api_keys_user_id' not in existing_indexes:
+                        try:
+                            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_api_keys_user_id ON api_keys(user_id)"))
+                            logger.info("Ensured index on api_keys.user_id")
+                        except Exception as index_error:
+                            logger.warning(f"Could not create index on api_keys.user_id: {index_error}")
             else:
                 logger.info("api_keys table does not exist; skipping API key schema adjustments")
             
