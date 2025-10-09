@@ -23,32 +23,32 @@ def run_migration(app, db):
             engine = db.engine
             inspector = inspect(engine)
             
-            # Check if reports table exists
-            if 'reports' not in inspector.get_table_names():
-                logger.error("Reports table does not exist! Creating all tables...")
-                db.create_all()
-                logger.info("All tables created successfully")
-                return True
-            
-            # Get existing columns in reports table
-            existing_columns = [col['name'] for col in inspector.get_columns('reports')]
-            logger.info(f"Existing columns in reports table: {existing_columns}")
-            
-            # Define columns to add
-            columns_to_add = [
-                ('submitted_at', 'TIMESTAMP', None),
-                ('approved_at', 'TIMESTAMP', None),
-                ('approved_by', 'VARCHAR(120)', None),
-                ('edit_count', 'INTEGER', 0)
-            ]
-            
             # Check database type
             db_uri = str(engine.url)
             is_sqlite = 'sqlite' in db_uri
             is_postgresql = 'postgresql' in db_uri or 'postgres' in db_uri
-            
-            # Add missing columns
+
             with engine.begin() as conn:
+                # Check if reports table exists
+                if 'reports' not in inspector.get_table_names():
+                    logger.error("Reports table does not exist! Creating all tables...")
+                    db.create_all()
+                    logger.info("All tables created successfully")
+                    return True
+                
+                # Get existing columns in reports table
+                existing_columns = [col['name'] for col in inspector.get_columns('reports')]
+                logger.info(f"Existing columns in reports table: {existing_columns}")
+                
+                # Define columns to add
+                columns_to_add = [
+                    ('submitted_at', 'TIMESTAMP', None),
+                    ('approved_at', 'TIMESTAMP', None),
+                    ('approved_by', 'VARCHAR(120)', None),
+                    ('edit_count', 'INTEGER', 0)
+                ]
+                
+                # Add missing columns to reports table
                 for column_name, column_type, default_value in columns_to_add:
                     if column_name not in existing_columns:
                         logger.info(f"Adding missing column: {column_name}")
@@ -87,48 +87,46 @@ def run_migration(app, db):
                             logger.warning(f"Could not add column {column_name}: {col_error}")
                     else:
                         logger.info(f"Column {column_name} already exists")
-            
-            # Check if report_edits table exists, create if not
-            if 'report_edits' not in inspector.get_table_names():
-                logger.info("Creating report_edits table...")
                 
-                create_table_sql = """
-                CREATE TABLE report_edits (
-                    id INTEGER PRIMARY KEY,
-                    report_id VARCHAR(36) NOT NULL,
-                    edited_by VARCHAR(120) NOT NULL,
-                    edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    field_name VARCHAR(100),
-                    old_value TEXT,
-                    new_value TEXT,
-                    edit_type VARCHAR(20),
-                    comments TEXT,
-                    FOREIGN KEY (report_id) REFERENCES reports(id)
-                )
-                """
-                
-                if is_sqlite:
-                    # SQLite uses AUTOINCREMENT differently
-                    create_table_sql = create_table_sql.replace("INTEGER PRIMARY KEY", "INTEGER PRIMARY KEY AUTOINCREMENT")
-                elif is_postgresql:
-                    # PostgreSQL uses SERIAL for auto-increment
-                    create_table_sql = create_table_sql.replace("INTEGER PRIMARY KEY", "SERIAL PRIMARY KEY")
-                
-                with engine.begin() as conn:
+                # Check if report_edits table exists, create if not
+                if 'report_edits' not in inspector.get_table_names():
+                    logger.info("Creating report_edits table...")
+                    
+                    create_table_sql = """
+                    CREATE TABLE report_edits (
+                        id INTEGER PRIMARY KEY,
+                        report_id VARCHAR(36) NOT NULL,
+                        edited_by VARCHAR(120) NOT NULL,
+                        edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        field_name VARCHAR(100),
+                        old_value TEXT,
+                        new_value TEXT,
+                        edit_type VARCHAR(20),
+                        comments TEXT,
+                        FOREIGN KEY (report_id) REFERENCES reports(id)
+                    )
+                    """
+                    
+                    if is_sqlite:
+                        # SQLite uses AUTOINCREMENT differently
+                        create_table_sql = create_table_sql.replace("INTEGER PRIMARY KEY", "INTEGER PRIMARY KEY AUTOINCREMENT")
+                    elif is_postgresql:
+                        # PostgreSQL uses SERIAL for auto-increment
+                        create_table_sql = create_table_sql.replace("INTEGER PRIMARY KEY", "SERIAL PRIMARY KEY")
+                    
                     try:
                         conn.execute(text(create_table_sql))
                         logger.info("✓ Created report_edits table successfully")
                     except Exception as table_error:
                         logger.warning(f"Could not create report_edits table: {table_error}")
-            else:
-                logger.info("report_edits table already exists")
+                else:
+                    logger.info("report_edits table already exists")
 
-            # Ensure api_keys table schema matches latest expectations
-            if 'api_keys' in inspector.get_table_names():
-                api_columns = [col['name'] for col in inspector.get_columns('api_keys')]
-                existing_indexes = [index['name'] for index in inspector.get_indexes('api_keys')]
+                # Ensure api_keys table schema matches latest expectations
+                if 'api_keys' in inspector.get_table_names():
+                    api_columns = [col['name'] for col in inspector.get_columns('api_keys')]
+                    existing_indexes = [index['name'] for index in inspector.get_indexes('api_keys')]
 
-                with engine.begin() as conn:
                     if 'key_hash' not in api_columns:
                         logger.info("Adding missing key_hash column to api_keys table")
 
@@ -236,30 +234,29 @@ def run_migration(app, db):
                             logger.info("Ensured index on api_keys.user_id")
                         except Exception as index_error:
                             logger.warning(f"Could not create index on api_keys.user_id: {index_error}")
-            else:
-                logger.info("api_keys table does not exist; skipping API key schema adjustments")
+                else:
+                    logger.info("api_keys table does not exist; skipping API key schema adjustments")
 
-            # Ensure api_usage table schema matches latest expectations
-            if 'api_usage' in inspector.get_table_names():
-                api_usage_columns = [col['name'] for col in inspector.get_columns('api_usage')]
-                api_usage_indexes = [index['name'] for index in inspector.get_indexes('api_usage')]
-                column_type_map = {col['name']: col['type'] for col in inspector.get_columns('api_usage')}
+                # Ensure api_usage table schema matches latest expectations
+                if 'api_usage' in inspector.get_table_names():
+                    api_usage_columns = [col['name'] for col in inspector.get_columns('api_usage')]
+                    api_usage_indexes = [index['name'] for index in inspector.get_indexes('api_usage')]
+                    column_type_map = {col['name']: col['type'] for col in inspector.get_columns('api_usage')}
 
-                # Define all expected columns for api_usage
-                expected_api_usage_columns = {
-                    'id': 'INTEGER',
-                    'api_key_id': 'VARCHAR(36)',
-                    'user_id': 'INTEGER',
-                    'endpoint': 'VARCHAR(200)',
-                    'method': 'VARCHAR(10)',
-                    'status_code': 'INTEGER',
-                    'response_time': 'FLOAT',
-                    'ip_address': 'VARCHAR(45)',
-                    'user_agent': 'TEXT',
-                    'timestamp': 'TIMESTAMP'
-                }
+                    # Define all expected columns for api_usage
+                    expected_api_usage_columns = {
+                        'id': 'INTEGER',
+                        'api_key_id': 'VARCHAR(36)',
+                        'user_id': 'INTEGER',
+                        'endpoint': 'VARCHAR(200)',
+                        'method': 'VARCHAR(10)',
+                        'status_code': 'INTEGER',
+                        'response_time': 'FLOAT',
+                        'ip_address': 'VARCHAR(45)',
+                        'user_agent': 'TEXT',
+                        'timestamp': 'TIMESTAMP'
+                    }
 
-                with engine.begin() as conn:
                     for col_name, col_type in expected_api_usage_columns.items():
                         if col_name not in api_usage_columns:
                             logger.info(f"Adding missing column {col_name} to api_usage table")
@@ -279,11 +276,14 @@ def run_migration(app, db):
                             logger.warning(f"Could not convert api_usage.user_id column type: {type_error}")
 
                     if is_postgresql:
-                        try:
-                            conn.execute(text("ALTER TABLE api_usage ADD CONSTRAINT fk_api_usage_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"))
-                            logger.info("Ensured foreign key constraint for api_usage.user_id")
-                        except Exception as fk_error:
-                            logger.warning(f"Could not create foreign key constraint on api_usage.user_id: {fk_error}")
+                        foreign_keys = inspector.get_foreign_keys('api_usage')
+                        fk_exists = any(fk['name'] == 'fk_api_usage_user' for fk in foreign_keys)
+                        if not fk_exists:
+                            try:
+                                conn.execute(text("ALTER TABLE api_usage ADD CONSTRAINT fk_api_usage_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"))
+                                logger.info("Ensured foreign key constraint for api_usage.user_id")
+                            except Exception as fk_error:
+                                logger.warning(f"Could not create foreign key constraint on api_usage.user_id: {fk_error}")
 
                     if 'ix_api_usage_user_id' not in api_usage_indexes:
                         try:
@@ -291,8 +291,8 @@ def run_migration(app, db):
                             logger.info("Ensured index on api_usage.user_id")
                         except Exception as index_error:
                             logger.warning(f"Could not create index on api_usage.user_id: {index_error}")
-            else:
-                logger.info("api_usage table does not exist; skipping API usage schema adjustments")
+                else:
+                    logger.info("api_usage table does not exist; skipping API usage schema adjustments")
             
             # Verify all columns are present
             updated_columns = [col['name'] for col in inspector.get_columns('reports')]
