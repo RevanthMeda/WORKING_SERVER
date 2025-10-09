@@ -176,28 +176,20 @@ class DirectSATDocxGenerator:
     def _add_table_of_contents(self):
         """Add table of contents"""
         self.doc.add_heading('Table of Contents', level=1)
-        
-        toc_items = [
-            ('1. Introduction', '3'),
-            ('1.1 Purpose', '3'),
-            ('1.2 Scope', '3'),
-            ('1.3 Relationship with other documents', '3'),
-            ('2. Pre-Test Requirements', '4'),
-            ('3. Asset Register', '5'),
-            ('4. Signal Tests', '6'),
-            ('5. Process Test', '11'),
-            ('6. SCADA Verification', '12'),
-            ('7. Trends Testing', '14'),
-            ('8. SCADA / SMS Alarms', '17'),
-            ('9. List of Test Equipment', '21'),
-            ('10. Punch List Items', '21')
-        ]
-        
-        for item, page in toc_items:
-            para = self.doc.add_paragraph()
-            para.add_run(item)
-            para.add_run('\t' + page)
-        
+        toc_paragraph = self.doc.add_paragraph()
+        run = toc_paragraph.add_run()
+        fld = OxmlElement('w:fldSimple')
+        fld.set(qn('w:instr'), 'TOC \\o "1-3" \\h \\z \\u')
+        run._r.append(fld)
+
+        note = self.doc.add_paragraph()
+        try:
+            note.style = self.doc.styles['Intense Quote']
+        except KeyError:
+            pass
+        note_run = note.add_run('Hint: Right-click the table of contents and select "Update Field" after opening the document to refresh page numbers.')
+        note_run.italic = True
+
         self.doc.add_page_break()
     
     def _add_introduction_section(self, context: Dict[str, Any]):
