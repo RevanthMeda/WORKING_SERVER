@@ -186,20 +186,34 @@ class DirectSATDocxGenerator:
     def _add_table_of_contents(self):
         """Add table of contents"""
         self.doc.add_heading('Table of Contents', level=1)
-        toc_paragraph = self.doc.add_paragraph()
-        run = toc_paragraph.add_run()
-        fld = OxmlElement('w:fldSimple')
-        fld.set(qn('w:instr'), 'TOC \\o "1-3" \\h \\z \\u')
-        run._r.append(fld)
+        paragraph = self.doc.add_paragraph()
+        run = paragraph.add_run()
+
+        fld_char_begin = OxmlElement('w:fldChar')
+        fld_char_begin.set(qn('w:fldCharType'), 'begin')
+        run._r.append(fld_char_begin)
+
+        instr_text = OxmlElement('w:instrText')
+        instr_text.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+        instr_text.text = r'TOC \o "1-3" \h \z \u'
+        run._r.append(instr_text)
+
+        fld_char_separate = OxmlElement('w:fldChar')
+        fld_char_separate.set(qn('w:fldCharType'), 'separate')
+        run._r.append(fld_char_separate)
+
+        # Placeholder run for the actual field result (Word will populate on update)
+        paragraph.add_run()
+
+        fld_char_end = OxmlElement('w:fldChar')
+        fld_char_end.set(qn('w:fldCharType'), 'end')
+        run_end = paragraph.add_run()
+        run_end._r.append(fld_char_end)
 
         note = self.doc.add_paragraph()
-        note_style = 'Intense Quote'
-        try:
-            self.doc.styles[note_style]
-        except KeyError:
-            note_style = None
-        if note_style:
-            note.style = note_style
+        note_style_name = 'Intense Quote'
+        if note_style_name in [style.name for style in self.doc.styles]:
+            note.style = note_style_name
         note_run = note.add_run('Hint: Right-click the table of contents and select "Update Field" after opening the document to refresh page numbers.')
         note_run.italic = True
 
