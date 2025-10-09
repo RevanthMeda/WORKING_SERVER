@@ -245,25 +245,38 @@ def run_migration(app, db):
                 api_usage_indexes = [index['name'] for index in inspector.get_indexes('api_usage')]
                 column_type_map = {col['name']: col['type'] for col in inspector.get_columns('api_usage')}
 
+                # Define all expected columns for api_usage
+                expected_api_usage_columns = {
+                    'id': 'INTEGER',
+                    'api_key_id': 'VARCHAR(36)',
+                    'user_id': 'INTEGER',
+                    'endpoint': 'VARCHAR(200)',
+                    'method': 'VARCHAR(10)',
+                    'status_code': 'INTEGER',
+                    'response_time': 'FLOAT',
+                    'ip_address': 'VARCHAR(45)',
+                    'user_agent': 'TEXT',
+                    'timestamp': 'TIMESTAMP'
+                }
+
                 with engine.begin() as conn:
-                    if 'user_id' not in api_usage_columns:
-                        logger.info("Adding missing user_id column to api_usage table")
-                        if is_postgresql:
-                            conn.execute(text("ALTER TABLE api_usage ADD COLUMN user_id INTEGER"))
-                        else:
-                            conn.execute(text("ALTER TABLE api_usage ADD COLUMN user_id INTEGER"))
-                    else:
-                        logger.info("api_usage.user_id column already present")
-                        col_type = str(column_type_map.get('user_id')).lower()
-                        if 'integer' not in col_type:
-                            try:
-                                if is_postgresql:
-                                    conn.execute(text("ALTER TABLE api_usage ALTER COLUMN user_id TYPE INTEGER USING user_id::INTEGER"))
-                                    logger.info("Converted api_usage.user_id column to INTEGER")
-                                elif is_sqlite:
-                                    logger.warning("SQLite migration from TEXT to INTEGER for api_usage.user_id requires manual intervention")
-                            except Exception as type_error:
-                                logger.warning(f"Could not convert api_usage.user_id column type: {type_error}")
+                    for col_name, col_type in expected_api_usage_columns.items():
+                        if col_name not in api_usage_columns:
+                            logger.info(f"Adding missing column {col_name} to api_usage table")
+                            if is_postgresql:
+                                conn.execute(text(f"ALTER TABLE api_usage ADD COLUMN {col_name} {col_type}"))
+                            else:
+                                conn.execute(text(f"ALTER TABLE api_usage ADD COLUMN {col_name} {col_type}"))
+
+                    if 'user_id' in api_usage_columns and 'integer' not in str(column_type_map.get('user_id')).lower():
+                        try:
+                            if is_postgresql:
+                                conn.execute(text("ALTER TABLE api_usage ALTER COLUMN user_id TYPE INTEGER USING user_id::INTEGER"))
+                                logger.info("Converted api_usage.user_id column to INTEGER")
+                            elif is_sqlite:
+                                logger.warning("SQLite migration from TEXT to INTEGER for api_usage.user_id requires manual intervention")
+                        except Exception as type_error:
+                            logger.warning(f"Could not convert api_usage.user_id column type: {type_error}")
 
                     if is_postgresql:
                         try:
