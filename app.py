@@ -668,18 +668,88 @@ def create_app(config_name='default'):
 APP_CONFIG_NAME = os.getenv('FLASK_CONFIG_NAME', os.getenv('FLASK_ENV', 'production') or 'production')
 app = create_app(APP_CONFIG_NAME)
 
+
+def _build_ssl_context(app: Flask) -> Any:
+    if not app.config.get('USE_HTTPS', False):
+        return None
+
+    cert_path = app.config.get('SSL_CERT_PATH')
+    key_path = app.config.get('SSL_KEY_PATH')
+
+    if cert_path and key_path and os.path.exists(cert_path) and os.path.exists(key_path):
+        return cert_path, key_path
+
+    if cert_path and cert_path.endswith('.pfx') and os.path.exists(cert_path):
+        try:
+            import ssl
+            import tempfile
+            import atexit
+            from cryptography.hazmat.primitives import serialization
+            from cryptography.hazmat.primitives.serialization import pkcs12
+
+            password = app.config.get('SSL_CERT_PASSWORD')
+            with open(cert_path, 'rb') as cert_file:
+                private_key, certificate, _ca = pkcs12.load_key_and_certificates(
+                    cert_file.read(),
+                    password.encode() if password else None,
+                )
+
+            if not private_key or not certificate:
+                app.logger.error("PFX certificate is missing key or certificate entries.")
+                return None
+
+            with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pem') as cert_tmp:
+                cert_tmp.write(certificate.public_bytes(serialization.Encoding.PEM))
+                cert_tmp_path = cert_tmp.name
+
+            with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.key') as key_tmp:
+                key_tmp.write(
+                    private_key.private_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PrivateFormat.PKCS8,
+                        encryption_algorithm=serialization.NoEncryption(),
+                    )
+                )
+                key_tmp_path = key_tmp.name
+
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+            ssl_context.load_cert_chain(cert_tmp_path, key_tmp_path)
+
+            ssl_context.set_ciphers('ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS')
+            ssl_context.options |= ssl.OP_SINGLE_DH_USE | ssl.OP_SINGLE_ECDH_USE
+
+            def _cleanup() -> None:
+                for path in (cert_tmp_path, key_tmp_path):
+                    try:
+                        os.unlink(path)
+                    except FileNotFoundError:
+                        pass
+
+            atexit.register(_cleanup)
+            return ssl_context
+        except Exception as exc:
+            app.logger.error("Failed to load PFX certificate: %s", exc, exc_info=True)
+            return None
+
+    app.logger.warning("USE_HTTPS enabled but certificate files not found or invalid.")
+    return None
+
+
 if __name__ == '__main__':
-    host = os.getenv('FLASK_RUN_HOST', app.config.get('HOST', '127.0.0.1'))
+    host = os.getenv('FLASK_RUN_HOST', app.config.get('HOST', '0.0.0.0'))
     port = int(os.getenv('FLASK_RUN_PORT', app.config.get('PORT', 5000)))
-    debug = bool(app.config.get('DEBUG', False))
+    debug = bool(app.config.get('DEBUG', False) or os.getenv('FLASK_ENV') == 'development')
 
-    ssl_context = None
-    if app.config.get('USE_HTTPS', False):
-        cert_path = app.config.get('SSL_CERT_PATH')
-        key_path = app.config.get('SSL_KEY_PATH')
-        if cert_path and key_path and os.path.exists(cert_path) and os.path.exists(key_path):
-            ssl_context = (cert_path, key_path)
-
+    ssl_context = _build_ssl_context(app)
     scheme = 'https' if ssl_context else 'http'
+
     app.logger.info("Starting Flask development server on %s://%s:%s", scheme, host, port)
-    app.run(host=host, port=port, debug=debug, use_reloader=debug, ssl_context=ssl_context)
+    app.run(
+        host=host,
+        port=port,
+        debug=debug,
+        use_reloader=debug,
+        ssl_context=ssl_context,
+        threaded=True,
+    )
