@@ -8,10 +8,10 @@ import json
 from datetime import datetime
 from typing import Dict, Any, List
 from docx import Document
-from docx.shared import Inches, Pt
+from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.oxml.shared import OxmlElement, qn
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from flask import current_app
 
 
@@ -31,6 +31,16 @@ class DirectSATDocxGenerator:
             section.bottom_margin = Inches(1)
             section.left_margin = Inches(1)
             section.right_margin = Inches(1)
+        self._enable_field_updates()
+
+    def _enable_field_updates(self):
+        """Ensure Word refreshes fields (including ToC) when the document opens."""
+        settings_elem = self.doc.settings.element
+        update_fields = settings_elem.find(qn('w:updateFields'))
+        if update_fields is None:
+            update_fields = OxmlElement('w:updateFields')
+            settings_elem.append(update_fields)
+        update_fields.set(qn('w:val'), 'true')
     
     def generate_sat_report(self, report_data: Dict[str, Any], output_path: str) -> bool:
         """
@@ -183,10 +193,13 @@ class DirectSATDocxGenerator:
         run._r.append(fld)
 
         note = self.doc.add_paragraph()
+        note_style = 'Intense Quote'
         try:
-            note.style = self.doc.styles['Intense Quote']
+            self.doc.styles[note_style]
         except KeyError:
-            pass
+            note_style = None
+        if note_style:
+            note.style = note_style
         note_run = note.add_run('Hint: Right-click the table of contents and select "Update Field" after opening the document to refresh page numbers.')
         note_run.italic = True
 
@@ -198,11 +211,11 @@ class DirectSATDocxGenerator:
         
         # Purpose
         self.doc.add_heading('1.1 Purpose', level=2)
-        purpose_para = self.doc.add_paragraph(context.get('PURPOSE', ''))
+        self.doc.add_paragraph(context.get('PURPOSE', ''))
         
         # Scope
         self.doc.add_heading('1.2 Scope', level=2)
-        scope_para = self.doc.add_paragraph(context.get('SCOPE', ''))
+        self.doc.add_paragraph(context.get('SCOPE', ''))
         
         # Related documents
         self.doc.add_heading('1.3 Relationship with Other Documents', level=2)

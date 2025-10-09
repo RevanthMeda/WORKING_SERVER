@@ -11,6 +11,8 @@ from typing import Dict, Any, List
 from flask import current_app, url_for
 from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Mm
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from PIL import Image
 
 from models import Report, SATReport, User
@@ -107,6 +109,19 @@ def _select_stage_approval(approvals: List[Dict[str, Any]], stage: int) -> Dict[
         except (TypeError, ValueError):
             continue
     return {}
+
+
+def _enable_field_updates(document: DocxTemplate) -> None:
+    """Ensure Word refreshes fields (e.g., TOC) when the document is opened."""
+    try:
+        settings_elem = document.settings.element
+        update_fields = settings_elem.find(qn('w:updateFields'))
+        if update_fields is None:
+            update_fields = OxmlElement('w:updateFields')
+            settings_elem.append(update_fields)
+        update_fields.set(qn('w:val'), 'true')
+    except Exception as exc:
+        current_app.logger.warning(f"Could not enable field updates in document: {exc}")
 
 
 def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
@@ -321,6 +336,7 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
         current_app.logger.info("Starting document rendering from database...")
         doc.render(render_context)
         current_app.logger.info("Document rendering completed")
+        _enable_field_updates(doc)
 
         # Save to temp file
         timestamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
