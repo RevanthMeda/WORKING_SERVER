@@ -372,6 +372,14 @@
     position: relative;
 }
 
+.assistant-form-button .assistant-logo {
+    width: 1.5rem;
+    height: 1.5rem;
+    object-fit: contain;
+    display: block;
+    pointer-events: none;
+}
+
 .assistant-form-button--primary {
     background: linear-gradient(135deg, rgba(123, 165, 199, 0.9) 0%, rgba(90, 127, 163, 1) 100%);
     border-color: rgba(255, 255, 255, 0.18);
