@@ -51,6 +51,116 @@
       color: var(--primary);
       margin-bottom: 15px;
     }
+    .flag-section {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 12px;
+      background: rgba(123, 165, 199, 0.12);
+      border: 1px solid rgba(90, 127, 163, 0.18);
+    }
+    .flag-section h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.1rem;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    .flag-section h3 i {
+      color: var(--primary);
+    }
+    .flag-section p {
+      margin: 0 0 0.75rem 0;
+      color: #41536a;
+      font-size: 0.95rem;
+    }
+    .flag-list {
+      display: grid;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .flag-item {
+      border-radius: 12px;
+      border: 1px solid rgba(90, 127, 163, 0.2);
+      background: rgba(255, 255, 255, 0.9);
+      padding: 0.85rem;
+      display: grid;
+      gap: 0.65rem;
+    }
+    .flag-item__row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+    .flag-item__row label {
+      flex: 1 1 140px;
+      font-weight: 600;
+      color: #2c3e50;
+      font-size: 0.85rem;
+    }
+    .flag-item__row input,
+    .flag-item__row textarea,
+    .flag-item__row select {
+      flex: 1 1 220px;
+      border-radius: 10px;
+      border: 1px solid rgba(90, 127, 163, 0.3);
+      padding: 0.55rem;
+      font-size: 0.92rem;
+      background: rgba(255, 255, 255, 0.95);
+    }
+    .flag-item__row textarea {
+      min-height: 70px;
+      resize: vertical;
+    }
+    .flag-item__actions {
+      display: flex;
+      justify-content: flex-end;
+    }
+    .flag-item__actions button {
+      background: transparent;
+      border: none;
+      color: #c0392b;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .flag-item__actions button:hover {
+      text-decoration: underline;
+    }
+    .flag-empty {
+      font-size: 0.9rem;
+      color: #4a5d74;
+      font-style: italic;
+    }
+    .flag-section .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      border-radius: 10px;
+      border: 1px dashed rgba(90, 127, 163, 0.45);
+      background: rgba(255, 255, 255, 0.6);
+      padding: 0.55rem 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: #2c3e50;
+    }
+    .flag-section .btn-ghost:hover {
+      background: rgba(123, 165, 199, 0.18);
+    }
+    @media (max-width: 768px) {
+      .flag-item__row {
+        flex-direction: column;
+      }
+      .flag-item__row input,
+      .flag-item__row textarea,
+      .flag-item__row select {
+        flex: 1 1 auto;
+        width: 100%;
+      }
+    }
   </style>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot-assistant.css') }}">
 </head>
@@ -91,6 +201,19 @@
             id="approval_comment" 
             name="approval_comment" 
             placeholder="Add any comments or notes about your approval">{{ approval.comment }}</textarea>
+
+          <div class="flag-section" data-flag-section>
+            <h3><i class="fas fa-flag"></i> Flag Issues While Reviewing</h3>
+            <p>Record any observations before you approve or reject. These notes remain attached to this approval stage.</p>
+            <div class="flag-list" data-flag-list>
+              <p class="flag-empty" data-flag-empty>No flagged issues recorded.</p>
+            </div>
+            <button type="button" class="btn-ghost" data-add-flag>
+              <i class="fas fa-plus"></i> Add Flagged Item
+            </button>
+            <input type="hidden" name="flagged_issues" id="flagged_issues">
+            <script type="application/json" id="initial-flags-data">{{ (approval.flags or [])|tojson }}</script>
+          </div>
           
           <label>Signature <span class="required">*</span></label>
           <div class="signature-pad-container">
@@ -122,6 +245,7 @@
         <form id="rejectionForm" method="POST" action="{{ url_for('approval.reject_submission', submission_id=submission_id, stage=stage) }}">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
           <input type="hidden" name="approver_name" id="rejection_approver_name">
+          <input type="hidden" name="flagged_issues" id="rejection_flagged_issues">
           
           <label for="rejection_comment">Reason for Rejection <span class="required">*</span></label>
           <textarea 
@@ -167,9 +291,177 @@
       document.getElementById('clear-signature').addEventListener('click', function() {
         signaturePad.clear();
       });
+
+      // Flagged issues management
+      const flagSection = document.querySelector('[data-flag-section]');
+      const flagList = flagSection ? flagSection.querySelector('[data-flag-list]') : null;
+      const flagEmpty = flagSection ? flagSection.querySelector('[data-flag-empty]') : null;
+      const flaggedInput = document.getElementById('flagged_issues');
+      const addFlagBtn = flagSection ? flagSection.querySelector('[data-add-flag]') : null;
+      const initialFlagsScript = document.getElementById('initial-flags-data');
+
+      function renderEmptyState() {
+        if (!flagList || !flagEmpty) {
+          return;
+        }
+        const hasItems = flagList.querySelector('.flag-item');
+        flagEmpty.style.display = hasItems ? 'none' : 'block';
+      }
+
+      function buildSeveritySelect(selectedValue) {
+        const select = document.createElement('select');
+        select.dataset.flagField = 'severity';
+        const options = ['Low', 'Medium', 'High', 'Critical'];
+        options.forEach(function(option) {
+          const opt = document.createElement('option');
+          opt.value = option;
+          opt.textContent = option;
+          if ((selectedValue || 'Medium').toLowerCase() === option.toLowerCase()) {
+            opt.selected = true;
+          }
+          select.appendChild(opt);
+        });
+        return select;
+      }
+
+      function createFlagRow(labelText, fieldEl, placeholder) {
+        const row = document.createElement('div');
+        row.className = 'flag-item__row';
+        const label = document.createElement('label');
+        label.textContent = labelText;
+        row.appendChild(label);
+        if (placeholder && 'placeholder' in fieldEl) {
+          fieldEl.placeholder = placeholder;
+        }
+        row.appendChild(fieldEl);
+        return row;
+      }
+
+      function addFlag(data) {
+        if (!flagList) {
+          return;
+        }
+
+        const flagData = (data && typeof data === 'object') ? data : {};
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'flag-item';
+
+        const locationInput = document.createElement('input');
+        locationInput.type = 'text';
+        locationInput.dataset.flagField = 'location';
+        locationInput.value = flagData.location || '';
+        const locationRow = createFlagRow(
+          'Section / Reference',
+          locationInput,
+          'e.g. FAT Checklist - Page 5'
+        );
+
+        const severityRow = document.createElement('div');
+        severityRow.className = 'flag-item__row';
+
+        const severityLabel = document.createElement('label');
+        severityLabel.textContent = 'Severity';
+        severityRow.appendChild(severityLabel);
+        const severitySelect = buildSeveritySelect(flagData.severity);
+        severityRow.appendChild(severitySelect);
+
+        const actionLabel = document.createElement('label');
+        actionLabel.textContent = 'Action / Owner';
+        severityRow.appendChild(actionLabel);
+        const actionInput = document.createElement('input');
+        actionInput.type = 'text';
+        actionInput.dataset.flagField = 'action';
+        actionInput.value = flagData.action || '';
+        actionInput.placeholder = 'e.g. Assign to SCADA Team';
+        severityRow.appendChild(actionInput);
+
+        const noteField = document.createElement('textarea');
+        noteField.dataset.flagField = 'note';
+        noteField.value = flagData.note || '';
+        const noteRow = createFlagRow(
+          'Notes',
+          noteField,
+          'Describe what needs attention or remediation.'
+        );
+
+        const actionsRow = document.createElement('div');
+        actionsRow.className = 'flag-item__actions';
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.innerHTML = '<i class="fas fa-trash"></i> Remove';
+        removeBtn.addEventListener('click', function() {
+          wrapper.remove();
+          serializeFlags();
+          renderEmptyState();
+        });
+        actionsRow.appendChild(removeBtn);
+
+        wrapper.appendChild(locationRow);
+        wrapper.appendChild(severityRow);
+        wrapper.appendChild(noteRow);
+        wrapper.appendChild(actionsRow);
+
+        flagList.appendChild(wrapper);
+        renderEmptyState();
+      }
+
+      function serializeFlags() {
+        if (!flagList || !flaggedInput) {
+          return [];
+        }
+        const items = Array.from(flagList.querySelectorAll('.flag-item')).map(function(item) {
+          const extract = function(selector) {
+            const el = item.querySelector(selector);
+            return el ? el.value.trim() : '';
+          };
+          return {
+            location: extract('[data-flag-field="location"]'),
+            severity: extract('[data-flag-field="severity"]') || 'Medium',
+            action: extract('[data-flag-field="action"]'),
+            note: extract('[data-flag-field="note"]')
+          };
+        }).filter(function(entry) {
+          return entry.location || entry.action || entry.note;
+        });
+        try {
+          flaggedInput.value = JSON.stringify(items);
+        } catch (err) {
+          console.warn('Unable to serialise flagged issues', err);
+          flaggedInput.value = '[]';
+        }
+        return items;
+      }
+
+      if (initialFlagsScript) {
+        try {
+          const initialFlags = JSON.parse(initialFlagsScript.textContent || '[]');
+          if (Array.isArray(initialFlags) && initialFlags.length) {
+            initialFlags.forEach(function(flag) { addFlag(flag); });
+          }
+        } catch (err) {
+          console.warn('Unable to parse initial flags', err);
+        }
+      }
+
+      if (addFlagBtn) {
+        addFlagBtn.addEventListener('click', function() {
+          addFlag();
+          serializeFlags();
+        });
+      }
+
+      if (flagList) {
+        flagList.addEventListener('input', function() {
+          serializeFlags();
+        });
+      }
+      renderEmptyState();
+      serializeFlags();
       
       // Form submission - include signature data
       document.getElementById('approvalForm').addEventListener('submit', function(e) {
+        serializeFlags();
         if (signaturePad.isEmpty()) {
           e.preventDefault();
           alert('Please provide your signature before approving');
@@ -182,14 +474,29 @@
       
       // Handle rejection modal
       document.getElementById('rejectBtn').addEventListener('click', function() {
+        const flags = serializeFlags();
         const approverName = document.getElementById('approver_name').value;
         document.getElementById('rejection_approver_name').value = approverName;
+        const rejectionFlagsField = document.getElementById('rejection_flagged_issues');
+        if (rejectionFlagsField) {
+          rejectionFlagsField.value = JSON.stringify(flags);
+        }
         document.getElementById('rejectionModal').style.display = 'block';
       });
       
       document.getElementById('cancelRejection').addEventListener('click', function() {
         document.getElementById('rejectionModal').style.display = 'none';
       });
+
+      const rejectionForm = document.getElementById('rejectionForm');
+      if (rejectionForm) {
+        rejectionForm.addEventListener('submit', function() {
+          const rejectionFlagsField = document.getElementById('rejection_flagged_issues');
+          if (rejectionFlagsField) {
+            rejectionFlagsField.value = JSON.stringify(serializeFlags());
+          }
+        });
+      }
     });
   </script>
 

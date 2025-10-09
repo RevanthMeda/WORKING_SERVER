@@ -213,6 +213,88 @@
       color: var(--cully-dark);
       font-size: 0.95rem;
     }
+    .approval-flags {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: var(--space-md);
+      margin-top: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      border-radius: 12px;
+      background: rgba(250, 204, 21, 0.14);
+      border: 1px solid rgba(250, 204, 21, 0.25);
+    }
+    .approval-flags__icon {
+      display: flex;
+      align-items: flex-start;
+      font-size: 1.2rem;
+      color: #b45309;
+    }
+    .approval-flags__body h4 {
+      margin: 0 0 0.3rem 0;
+      font-size: 0.95rem;
+      color: #b45309;
+    }
+    .approval-flags__list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.45rem;
+    }
+    .approval-flag {
+      display: grid;
+      gap: 0.35rem;
+      border-left: 2px solid rgba(250, 204, 21, 0.35);
+      padding-left: 0.75rem;
+    }
+    .approval-flag__header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    .approval-flag__title {
+      font-weight: 600;
+      color: var(--cully-dark);
+    }
+    .approval-flag__badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .approval-flag__badge--low {
+      background: rgba(34, 197, 94, 0.16);
+      color: #15803d;
+    }
+    .approval-flag__badge--medium {
+      background: rgba(59, 130, 246, 0.18);
+      color: #1d4ed8;
+    }
+    .approval-flag__badge--high {
+      background: rgba(239, 68, 68, 0.2);
+      color: #b91c1c;
+    }
+    .approval-flag__badge--critical {
+      background: rgba(190, 24, 93, 0.25);
+      color: #9d174d;
+    }
+    .approval-flag__notes {
+      margin: 0;
+      color: #374151;
+      line-height: 1.45;
+      font-size: 0.9rem;
+    }
+    .approval-flag__action {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #4b5563;
+      font-style: italic;
+    }
     @media (max-width: 1024px) {
       .status-page .status-grid {
         grid-template-columns: 1fr;
@@ -419,6 +501,34 @@
                   <span><i class="fas fa-signature"></i> Signature captured</span>
                   {% endif %}
                 </div>
+                {% if approval.flags %}
+                <div class="approval-flags">
+                  <div class="approval-flags__icon">
+                    <i class="fas fa-flag"></i>
+                  </div>
+                  <div class="approval-flags__body">
+                    <h4>Flagged Items</h4>
+                    <ul class="approval-flags__list">
+                      {% for flag in approval.flags %}
+                        {% set severity = (flag.severity or 'Medium') %}
+                        {% set severity_class = severity|lower %}
+                        <li class="approval-flag">
+                          <div class="approval-flag__header">
+                            <span class="approval-flag__title">{{ flag.location or 'General observation' }}</span>
+                            <span class="approval-flag__badge approval-flag__badge--{{ severity_class }}">{{ severity }}</span>
+                          </div>
+                          {% if flag.note %}
+                          <p class="approval-flag__notes">{{ flag.note }}</p>
+                          {% endif %}
+                          {% if flag.action %}
+                          <p class="approval-flag__action">Action: {{ flag.action }}</p>
+                          {% endif %}
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                </div>
+                {% endif %}
                 {% if approval.comment %}
                 <div class="approval-comment">
                   <i class="fas fa-comment-dots"></i> {{ approval.comment }}

@@ -311,7 +311,7 @@
           </div>
 
           <footer class="review-card__actions">
-            <a class="btn-primary" href="{{ url_for('status.view_status', submission_id=review.id) }}">
+            <a class="btn-primary" href="{{ url_for('approval.approve_submission', submission_id=review.id, stage=review.stage or 1) }}">
               <i class="fas fa-check-circle"></i> Review & Approve
             </a>
             <a href="{{ url_for('status.view_status', submission_id=review.id) }}">

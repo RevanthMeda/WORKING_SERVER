@@ -2,8 +2,10 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 import os
 import datetime
 import base64
+import json
 from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Mm
+from models import db, Report, SATReport
 from utils import (
     load_submissions,
     save_submissions,
@@ -11,11 +13,85 @@ from utils import (
     notify_completion,
     convert_to_pdf,
     send_client_final_document,
-    get_safe_output_path
 )
 from services.dashboard_stats import compute_and_cache_dashboard_stats
 
 approval_bp = Blueprint('approval', __name__)
+
+
+def _extract_flagged_items(raw_payload):
+    """Parse flagged issues payload from the approval forms."""
+    if not raw_payload:
+        return []
+    try:
+        data = json.loads(raw_payload)
+    except (ValueError, TypeError) as exc:
+        current_app.logger.warning(f"Could not parse flagged issues payload: {exc}")
+        return []
+
+    cleaned = []
+    for entry in data if isinstance(data, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        location = (entry.get("location") or "").strip()
+        note = (entry.get("note") or "").strip()
+        action = (entry.get("action") or "").strip()
+        severity = (entry.get("severity") or "").strip()
+        if not any([location, note, action]):
+            continue
+        cleaned.append({
+            "location": location,
+            "note": note,
+            "action": action,
+            "severity": severity or "Medium",
+        })
+    return cleaned
+
+
+def _summarize_flags(flags):
+    """Create a concise textual summary for flagged issues."""
+    if not flags:
+        return ""
+    summaries = []
+    for item in flags:
+        bits = []
+        if item.get("location"):
+            bits.append(item["location"])
+        if item.get("note"):
+            bits.append(item["note"])
+        summary = " - ".join(bits) if bits else ""
+        if item.get("severity"):
+            summary = f"{summary} (Severity: {item['severity']})" if summary else f"Severity: {item['severity']}"
+        if item.get("action"):
+            summary = f"{summary} | Action: {item['action']}" if summary else f"Action: {item['action']}"
+        if summary:
+            summaries.append(summary)
+    return "; ".join(summaries)
+
+
+def _apply_flags_to_context(context, stage, flags, summary):
+    """Persist flagged issues into the submission context for downstream use."""
+    if not isinstance(context, dict):
+        context = {}
+    stage_key = f"stage_{stage}"
+    approval_flags = context.get("APPROVAL_FLAGS")
+    if not isinstance(approval_flags, dict):
+        approval_flags = {}
+
+    if flags:
+        approval_flags[stage_key] = flags
+        context["APPROVAL_FLAGS"] = approval_flags
+        context[f"STAGE_{stage}_FLAG_SUMMARY"] = summary or _summarize_flags(flags)
+    else:
+        if stage_key in approval_flags:
+            approval_flags.pop(stage_key, None)
+        if approval_flags:
+            context["APPROVAL_FLAGS"] = approval_flags
+        elif "APPROVAL_FLAGS" in context:
+            context.pop("APPROVAL_FLAGS")
+        context.pop(f"STAGE_{stage}_FLAG_SUMMARY", None)
+
+    return context
 
 @approval_bp.route('/<submission_id>/<int:stage>', methods=['GET', 'POST'])
 def approve_submission(submission_id, stage):
@@ -28,7 +104,6 @@ def approve_submission(submission_id, stage):
             current_app.logger.error(f"Submissions loaded as list instead of dict: {type(submissions)}")
             # Try to load from database instead
             try:
-                from models import db, Report, SATReport
                 report = Report.query.get(submission_id)
                 if report:
                     sat_report = SATReport.query.filter_by(report_id=submission_id).first()
@@ -72,7 +147,7 @@ def approve_submission(submission_id, stage):
             sig_data = request.form.get("signature_data", "")
             if sig_data.startswith("data:image"):
                 # strip off "data:image/png;base64,"
-                header, b64 = sig_data.split(",", 1)
+                _header, b64 = sig_data.split(",", 1)
                 data = base64.b64decode(b64)
                 fn = f"{submission_id}_{stage}.png"
                 
@@ -113,20 +188,39 @@ def approve_submission(submission_id, stage):
             current_stage["status"] = "approved"
             current_stage["timestamp"] = datetime.datetime.now().isoformat()
             current_stage["approver_name"] = request.form.get("approver_name", "")
+
+            # Persist flagged issues
+            flags_payload = request.form.get("flagged_issues", "")
+            flagged_items = _extract_flagged_items(flags_payload)
+            if flagged_items:
+                current_stage["flags"] = flagged_items
+                current_stage["flag_summary"] = _summarize_flags(flagged_items)
+            else:
+                current_stage.pop("flags", None)
+                current_stage.pop("flag_summary", None)
+
+            ctx = submission_data.get("context")
+            if not isinstance(ctx, dict):
+                ctx = {}
+            ctx = _apply_flags_to_context(ctx, stage, flagged_items, current_stage.get("flag_summary"))
             
             # Map to Word template fields for Automation Manager (stage 1)
             if stage == 1:
-                # Update submission data context with Word template fields
-                ctx = submission_data.get("context", {})
                 ctx["REVIEWED_BY_TECH_LEAD"] = current_stage["approver_name"]
                 ctx["TECH_LEAD_DATE"] = datetime.datetime.now().strftime('%Y-%m-%d')
                 
                 # Store signature filename for Word template
                 if current_stage.get("signature"):
                     ctx["SIG_REVIEW_TECH"] = current_stage["signature"]
-                
-                submission_data["context"] = ctx
-                
+            elif stage == 2:
+                ctx["REVIEWED_BY_PM"] = current_stage["approver_name"]
+                ctx["PM_DATE"] = datetime.datetime.now().strftime('%Y-%m-%d')
+                if current_stage.get("signature"):
+                    ctx["SIG_REVIEW_PM"] = current_stage["signature"]
+
+            submission_data["context"] = ctx
+
+            if stage == 1:
                 # Stage 1 approval locks editing but keeps workflow in pending state for PM
                 submission_data["status"] = "PENDING"
                 submission_data["locked"] = True
@@ -159,7 +253,6 @@ def approve_submission(submission_id, stage):
             
             # Also update the database Report record
             try:
-                from models import db, Report, SATReport
                 import json as json_module
                 report = Report.query.get(submission_id)
                 if report:
@@ -235,9 +328,35 @@ def approve_submission(submission_id, stage):
             
             if is_final_approval:
                 tpl = DocxTemplate(current_app.config['TEMPLATE_FILE'])
-                ctx = submission_data['context'].copy()
+                base_context = submission_data.get('context', {})
+                ctx = base_context.copy() if isinstance(base_context, dict) else {}
                 submission_data["status"] = "APPROVED"
                 submission_data["locked"] = True
+
+                approval_flag_sections = []
+                for approval_item in approvals:
+                    stage_flags = approval_item.get("flags") or []
+                    if not stage_flags:
+                        continue
+                    summary_text = approval_item.get("flag_summary") or _summarize_flags(stage_flags)
+                    approval_flag_sections.append({
+                        "stage": approval_item.get("stage"),
+                        "title": approval_item.get("title") or f"Stage {approval_item.get('stage')}",
+                        "summary": summary_text,
+                        "items": stage_flags,
+                    })
+                if approval_flag_sections:
+                    ctx["APPROVAL_FLAGS_DETAIL"] = approval_flag_sections
+                    ctx["APPROVAL_FLAGS_SUMMARY"] = "\n".join(
+                        filter(
+                            None,
+                            [
+                                f"Stage {section.get('stage')}: {section.get('summary')}"
+                                if section.get("stage") else section.get("summary", "")
+                                for section in approval_flag_sections
+                            ],
+                        )
+                    )
 
                 # Check and log all parameters for debugging
                 current_app.logger.info(f"Preparing final document with context keys: {list(ctx.keys())}")
@@ -508,7 +627,6 @@ def approve_submission(submission_id, stage):
                 if client_email:
                     try:
                         current_app.logger.info(f"Sending final document to client: {client_email}")
-                        from utils import send_client_final_document
                         result = send_client_final_document(
                             client_email, 
                             submission_id, 
@@ -604,6 +722,15 @@ def reject_submission(submission_id, stage):
         current_stage["comment"] = request.form.get("rejection_comment", "")
         current_stage["timestamp"] = datetime.datetime.now().isoformat()
         current_stage["approver_name"] = request.form.get("approver_name", "")
+
+        flags_payload = request.form.get("flagged_issues", "")
+        flagged_items = _extract_flagged_items(flags_payload)
+        if flagged_items:
+            current_stage["flags"] = flagged_items
+            current_stage["flag_summary"] = _summarize_flags(flagged_items)
+        else:
+            current_stage.pop("flags", None)
+            current_stage.pop("flag_summary", None)
         
         # Create rejection notification for submitter
         from utils import create_status_update_notification

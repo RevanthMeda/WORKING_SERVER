@@ -34,6 +34,22 @@ def view_status(submission_id):
         stored_data = {}
 
     approvals = json.loads(report.approvals_json) if report.approvals_json else []
+    for approval in approvals:
+        flags = approval.get("flags", [])
+        if not isinstance(flags, list):
+            approval["flags"] = []
+            continue
+        cleaned_flags = []
+        for item in flags:
+            if not isinstance(item, dict):
+                continue
+            cleaned_flags.append({
+                "location": (item.get("location") or "").strip(),
+                "note": (item.get("note") or "").strip(),
+                "action": (item.get("action") or "").strip(),
+                "severity": (item.get("severity") or "Medium").strip() or "Medium",
+            })
+        approval["flags"] = cleaned_flags
 
     # Determine overall status
     statuses = [a.get("status", "pending") for a in approvals]
