@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 
 {% block title %}SAT Report Status - {{ document_title }}{% endblock %}
 
@@ -32,6 +32,10 @@
       border-color: transparent;
     }
     .status-page .page-hero .status-chip.status-chip--pending {
+      background: rgba(250, 204, 21, 0.3);
+      border-color: transparent;
+    }
+    .status-page .page-hero .status-chip.status-chip--warning {
       background: rgba(250, 204, 21, 0.3);
       border-color: transparent;
     }
@@ -243,7 +247,10 @@
 {% set pending_approvals = approvals | selectattr('status', 'equalto', 'pending') | list %}
 {% set next_pending = pending_approvals[0] if pending_approvals else None %}
 
-<section class="cully-page status-page">
+<section class="cully-page status-page"
+         data-status-root
+         data-submission-id="{{ submission_id }}"
+         data-download-url="{{ url_for('status.download_report', submission_id=submission_id) if download_available else '' }}">
   <header class="page-hero">
     <div class="page-hero__content">
       <h1 class="page-hero__title">
@@ -288,7 +295,7 @@
         <i class="fas fa-diagram-project"></i>
       </div>
       <div>
-        <p class="summary-card__value">{{ project_reference or '—' }}</p>
+        <p class="summary-card__value">{{ project_reference or 'Not provided' }}</p>
         <p class="summary-card__label">Project Reference</p>
       </div>
     </article>
@@ -297,7 +304,7 @@
         <i class="fas fa-building"></i>
       </div>
       <div>
-        <p class="summary-card__value">{{ client_name or '—' }}</p>
+        <p class="summary-card__value">{{ client_name or 'Not provided' }}</p>
         <p class="summary-card__label">Client</p>
       </div>
     </article>
@@ -306,7 +313,7 @@
         <i class="fas fa-code-branch"></i>
       </div>
       <div>
-        <p class="summary-card__value">{{ revision or 'Not set' }}</p>
+        <p class="summary-card__value">{{ revision or 'Not provided' }}</p>
         <p class="summary-card__label">Revision</p>
       </div>
     </article>
@@ -315,7 +322,7 @@
         <i class="fas fa-clock-rotate-left"></i>
       </div>
       <div>
-        <p class="summary-card__value">{{ updated_at or 'Not recorded' }}</p>
+        <p class="summary-card__value">{{ updated_at or 'Not provided' }}</p>
         <p class="summary-card__label">Last Updated</p>
       </div>
     </article>
@@ -332,37 +339,37 @@
         <dl class="status-meta">
           <div class="status-meta__row">
             <dt class="status-meta__label">Document Reference</dt>
-            <dd class="status-meta__value">{{ document_reference or '—' }}</dd>
+            <dd class="status-meta__value">{{ document_reference or 'Not provided' }}</dd>
           </div>
           <div class="status-meta__row">
             <dt class="status-meta__label">Report Owner</dt>
-            <dd class="status-meta__value">{{ user_email or '—' }}</dd>
+            <dd class="status-meta__value">{{ user_email or 'Not provided' }}</dd>
           </div>
           <div class="status-meta__row">
             <dt class="status-meta__label">Prepared By</dt>
-            <dd class="status-meta__value">{{ prepared_by or '—' }}</dd>
+            <dd class="status-meta__value">{{ prepared_by or 'Not provided' }}</dd>
           </div>
           <div class="status-meta__row">
             <dt class="status-meta__label">Submission Date</dt>
-            <dd class="status-meta__value">{{ report_date or '—' }}</dd>
+            <dd class="status-meta__value">{{ report_date or 'Not provided' }}</dd>
           </div>
           <div class="status-meta__row">
             <dt class="status-meta__label">Revision Date</dt>
-            <dd class="status-meta__value">{{ revision_date or '—' }}</dd>
+            <dd class="status-meta__value">{{ revision_date or 'Not provided' }}</dd>
           </div>
           <div class="status-meta__row">
             <dt class="status-meta__label">Created</dt>
-            <dd class="status-meta__value">{{ created_at or '—' }}</dd>
+            <dd class="status-meta__value">{{ created_at or 'Not provided' }}</dd>
           </div>
           <div class="status-meta__row">
             <dt class="status-meta__label">Last Updated</dt>
-            <dd class="status-meta__value">{{ updated_at or '—' }}</dd>
+            <dd class="status-meta__value">{{ updated_at or 'Not provided' }}</dd>
           </div>
           <div class="status-meta__row">
             <dt class="status-meta__label">Download Status</dt>
             <dd class="status-meta__value">
               {% if download_available %}
-                Ready · {{ 'PDF available' if has_pdf else 'DOCX available' }}
+                Ready - {{ 'PDF available' if has_pdf else 'DOCX available' }}
               {% else %}
                 Report file has not been generated yet
               {% endif %}
@@ -398,10 +405,10 @@
               </div>
               <div class="approval-timeline__content">
                 <div class="approval-stage-title">
-                  Stage {{ approval.stage or loop.index }} · {{ approval.title or 'Approver' }}
+                  Stage {{ approval.stage or loop.index }} - {{ approval.title or 'Approver' }}
                 </div>
                 <div class="approval-meta">
-                  <span><i class="fas fa-user-circle"></i> {{ approval.approver_email or '—' }}</span>
+                  <span><i class="fas fa-user-circle"></i> {{ approval.approver_email or 'Not provided' }}</span>
                   <span class="approval-status {{ status_info.badge }}">
                     <i class="fas {{ status_info.icon }}"></i> {{ status_info.label }}
                   </span>
@@ -455,7 +462,7 @@
         <div>
           <strong>Some approvals are in.</strong>
           {% if next_pending %}
-            Waiting on {{ next_pending.title or 'the next approver' }} ({{ next_pending.approver_email or '—' }}) to finalise the review.
+            Waiting on {{ next_pending.title or 'the next approver' }} ({{ next_pending.approver_email or 'Not provided' }}) to finalise the review.
           {% else %}
             Remaining approvers have not been assigned yet.
           {% endif %}
@@ -465,7 +472,7 @@
         <div>
           <strong>Approval workflow in progress.</strong>
           {% if next_pending %}
-            Next action: {{ next_pending.title or 'Approver' }} ({{ next_pending.approver_email or '—' }}) needs to review the submission.
+            Next action: {{ next_pending.title or 'Approver' }} ({{ next_pending.approver_email or 'Not provided' }}) needs to review the submission.
           {% else %}
             Invite approvers or nudge your team to keep things moving.
           {% endif %}
@@ -506,13 +513,23 @@
   {% if auto_download and download_available %}
   <script>
     window.addEventListener('load', function () {
-      var downloadUrl = {{ url_for('status.download_report', submission_id=submission_id) | tojson }};
-      var storageKey = 'status-auto-download-' + {{ submission_id | tojson }};
-      if (!sessionStorage.getItem(storageKey)) {
-        sessionStorage.setItem(storageKey, '1');
-        window.open(downloadUrl, '_blank');
+      var statusRoot = document.querySelector('[data-status-root]');
+      if (!statusRoot) {
+        return;
       }
+      var downloadUrl = statusRoot.getAttribute('data-download-url');
+      var submissionId = statusRoot.getAttribute('data-submission-id') || '';
+      if (!downloadUrl) {
+        return;
+      }
+      var storageKey = 'status-auto-download-' + submissionId;
+      if (sessionStorage.getItem(storageKey)) {
+        return;
+      }
+      sessionStorage.setItem(storageKey, '1');
+      window.open(downloadUrl, '_blank');
     });
   </script>
   {% endif %}
 {% endblock %}
+
