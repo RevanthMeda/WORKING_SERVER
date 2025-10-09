@@ -13,7 +13,7 @@ from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Mm
 from PIL import Image
 
-from models import Report, SATReport
+from models import Report, SATReport, User
 from services.sat_tables import extract_ui_tables, build_doc_tables, migrate_context_tables, TABLE_CONFIG
 
 
@@ -98,6 +98,17 @@ def _load_signature_image(doc: DocxTemplate, value: Any) -> Any:
     return ""
 
 
+def _select_stage_approval(approvals: List[Dict[str, Any]], stage: int) -> Dict[str, Any]:
+    """Return the approval entry that matches the provided stage number."""
+    for approval in approvals or []:
+        try:
+            if int(approval.get('stage', 0)) == int(stage):
+                return approval
+        except (TypeError, ValueError):
+            continue
+    return {}
+
+
 def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
     """
     Regenerate a SAT report document from database data
@@ -121,6 +132,21 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
             return {'error': 'Invalid report data'}
 
         context_data = stored_data.get('context', stored_data) or {}
+
+        approvals_data: List[Dict[str, Any]] = []
+        if report.approvals_json:
+            try:
+                approvals_data = json.loads(report.approvals_json) or []
+            except json.JSONDecodeError:
+                current_app.logger.warning(
+                    "Unable to decode approvals JSON for report %s",
+                    submission_id
+                )
+                approvals_data = []
+
+        tech_approval = _select_stage_approval(approvals_data, 1)
+        pm_approval = _select_stage_approval(approvals_data, 2)
+        client_approval = _select_stage_approval(approvals_data, 3)
 
         # Load template
         template_path = current_app.config.get('TEMPLATE_FILE')
@@ -156,17 +182,42 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
 
         # Helper to sanitize values - convert None to empty string
         # Note: docxtpl automatically handles XML escaping, so we don't need to do it manually
-        sig_prepared = _load_signature_image(doc, context_data.get('prepared_signature') or context_data.get('SIG_PREPARED'))
-        sig_review_tech = _load_signature_image(doc, context_data.get('SIG_REVIEW_TECH'))
-        sig_review_pm = _load_signature_image(doc, context_data.get('SIG_REVIEW_PM'))
-        sig_approval_client = _load_signature_image(doc, context_data.get('SIG_APPROVAL_CLIENT'))
+        sig_prepared_source = (
+            context_data.get('prepared_signature')
+            or context_data.get('SIG_PREPARED')
+        )
+        sig_review_tech_source = (
+            context_data.get('SIG_REVIEW_TECH')
+            or tech_approval.get('signature')
+        )
+        sig_review_pm_source = (
+            context_data.get('SIG_REVIEW_PM')
+            or pm_approval.get('signature')
+        )
+        sig_client_source = (
+            context_data.get('SIG_APPROVAL_CLIENT')
+            or client_approval.get('signature')
+        )
+
+        sig_prepared = _load_signature_image(doc, sig_prepared_source)
+        sig_review_tech = _load_signature_image(doc, sig_review_tech_source)
+        sig_review_pm = _load_signature_image(doc, sig_review_pm_source)
+        sig_approval_client = _load_signature_image(doc, sig_client_source)
         sig_approver_1 = _load_signature_image(doc, context_data.get('SIG_APPROVER_1'))
         sig_approver_2 = _load_signature_image(doc, context_data.get('SIG_APPROVER_2'))
         sig_approver_3 = _load_signature_image(doc, context_data.get('SIG_APPROVER_3'))
 
         preparer_date_value = context_data.get('PREPARER_DATE') or context_data.get('prepared_timestamp')
-        tech_lead_date_value = context_data.get('TECH_LEAD_DATE') or context_data.get('tech_lead_timestamp')
-        pm_date_value = context_data.get('PM_DATE') or context_data.get('pm_timestamp')
+        tech_lead_date_value = (
+            context_data.get('TECH_LEAD_DATE')
+            or context_data.get('tech_lead_timestamp')
+            or tech_approval.get('timestamp')
+        )
+        pm_date_value = (
+            context_data.get('PM_DATE')
+            or context_data.get('pm_timestamp')
+            or pm_approval.get('timestamp')
+        )
 
         def sanitize_value(value):
             if value is None:
@@ -178,6 +229,31 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
                     cleaned = _strip_html(cleaned)
                 return cleaned
             return str(value)
+
+        def resolve_approver_name(existing_value: str, approval_entry: Dict[str, Any]) -> str:
+            """Use the freshest available name for an approval stage."""
+            candidate = existing_value or ""
+            if approval_entry:
+                candidate = approval_entry.get('approver_name') or candidate
+                approver_email = approval_entry.get('approver_email')
+                if approver_email:
+                    user = User.query.filter_by(email=approver_email).first()
+                    if user and user.full_name:
+                        candidate = user.full_name
+            return candidate
+
+        tech_lead_name = resolve_approver_name(
+            context_data.get('REVIEWED_BY_TECH_LEAD', ''),
+            tech_approval
+        )
+        pm_name = resolve_approver_name(
+            context_data.get('REVIEWED_BY_PM', ''),
+            pm_approval
+        )
+        client_approver_name = resolve_approver_name(
+            context_data.get('APPROVED_BY_CLIENT', ''),
+            client_approval
+        )
 
         # Build rendering context with sanitized values - include ALL template fields
         render_context = {
@@ -195,11 +271,11 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
             "PM_DATE": sanitize_value(_format_timestamp(pm_date_value)),
             "SIG_PREPARED": sig_prepared,
             "SIG_PREPARED_BY": sanitize_value(context_data.get('SIG_PREPARED_BY', context_data.get('PREPARED_BY', ''))),
-            "REVIEWED_BY_TECH_LEAD": sanitize_value(context_data.get('REVIEWED_BY_TECH_LEAD', '')),
+            "REVIEWED_BY_TECH_LEAD": sanitize_value(tech_lead_name),
             "SIG_REVIEW_TECH": sig_review_tech,
-            "REVIEWED_BY_PM": sanitize_value(context_data.get('REVIEWED_BY_PM', '')),
+            "REVIEWED_BY_PM": sanitize_value(pm_name),
             "SIG_REVIEW_PM": sig_review_pm,
-            "APPROVED_BY_CLIENT": sanitize_value(context_data.get('APPROVED_BY_CLIENT', '')),
+            "APPROVED_BY_CLIENT": sanitize_value(client_approver_name),
             "SIG_APPROVAL_CLIENT": sig_approval_client,
             "PURPOSE": sanitize_value(context_data.get('PURPOSE', '')),
             "SCOPE": sanitize_value(context_data.get('SCOPE', '')),

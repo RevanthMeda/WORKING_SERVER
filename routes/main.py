@@ -9,6 +9,7 @@ TABLE_UI_KEYS = [cfg['ui_section'] for cfg in TABLE_CONFIG] + EXTRA_IMAGE_KEYS
 import os
 import uuid
 import datetime as dt
+from services.dashboard_stats import compute_and_cache_dashboard_stats
 
 main_bp = Blueprint('main', __name__)
 
@@ -201,6 +202,21 @@ def generate():
         # Load existing data for processing
         existing_data = json.loads(sat_report.data_json) if sat_report.data_json != '{}' else {}
         sub = existing_data  # For compatibility with existing code
+        existing_context = existing_data.get('context', {}) if isinstance(existing_data, dict) else {}
+
+        prepared_signature_filename = (
+            existing_context.get('prepared_signature')
+            or existing_data.get('prepared_signature')
+            if isinstance(existing_data, dict) else ""
+        ) or ""
+        prepared_timestamp = (
+            existing_context.get('prepared_timestamp')
+            or existing_data.get('prepared_timestamp')
+            if isinstance(existing_data, dict) else None
+        )
+        existing_sig_review_tech_file = existing_context.get('SIG_REVIEW_TECH', '') or ''
+        existing_sig_review_pm_file = existing_context.get('SIG_REVIEW_PM', '') or ''
+        existing_sig_client_file = existing_context.get('SIG_APPROVAL_CLIENT', '') or ''
 
         # Grab the approver emails from the form
         approver_emails = [
@@ -233,6 +249,26 @@ def generate():
 
         doc = DocxTemplate(current_app.config['TEMPLATE_FILE'])
 
+        def load_signature_inline(filename, width_mm=40):
+            """Rehydrate stored signature filenames into InlineImage objects for rendering."""
+            if not filename:
+                return ""
+            base_names = [filename]
+            if not os.path.splitext(filename)[1]:
+                base_names.append(f"{filename}.png")
+            candidates = []
+            for name in base_names:
+                candidates.append(os.path.join(current_app.config['SIGNATURES_FOLDER'], name))
+                candidates.append(os.path.join(current_app.root_path, 'static', 'signatures', name))
+                candidates.append(os.path.join(os.getcwd(), 'static', 'signatures', name))
+            for candidate in candidates:
+                try:
+                    if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
+                        return InlineImage(doc, candidate, width=Mm(width_mm))
+                except Exception as e:
+                    current_app.logger.error(f"Error loading signature from {candidate}: {e}", exc_info=True)
+            return ""
+
         # Process signature data
         sig_data_url = request.form.get("sig_prepared_data", "")
         SIG_PREPARED = ""
@@ -264,6 +300,8 @@ def generate():
                         # Add timestamp for the preparer
                         current_timestamp = dt.datetime.now().isoformat()
                         sub.setdefault("context", {})["prepared_timestamp"] = current_timestamp
+                        prepared_signature_filename = fn
+                        prepared_timestamp = current_timestamp
 
                         # Log success with full path info
                         current_app.logger.info(f"Stored preparer signature as {fn}")
@@ -282,11 +320,13 @@ def generate():
                     current_app.logger.error("Invalid signature data format")
             except Exception as e:
                 current_app.logger.error(f"Error processing signature data: {e}", exc_info=True)
+        else:
+            SIG_PREPARED = load_signature_inline(prepared_signature_filename)
 
         # Initialize approval signatures
-        SIG_APPROVER_1 = ""
-        SIG_APPROVER_2 = ""
-        SIG_APPROVER_3 = ""
+        SIG_APPROVER_1 = load_signature_inline(existing_sig_review_tech_file)
+        SIG_APPROVER_2 = load_signature_inline(existing_sig_review_pm_file)
+        SIG_APPROVER_3 = load_signature_inline(existing_sig_client_file)
 
         # Improved image file handling
         def save_new(field, url_list, inline_list):
@@ -397,6 +437,8 @@ def generate():
             "SIG_APPROVER_1": SIG_APPROVER_1,
             "SIG_APPROVER_2": SIG_APPROVER_2,
             "SIG_APPROVER_3": SIG_APPROVER_3,
+            "prepared_signature": prepared_signature_filename,
+            "prepared_timestamp": prepared_timestamp or "",
         }
         context['SCADA_SCREENSHOTS'] = scada_urls
         context['TRENDS_SCREENSHOTS'] = trends_urls
@@ -409,6 +451,16 @@ def generate():
         context_to_store = dict(context)
         for key, value in combined_tables.items():
             context_to_store[key] = value
+        context_to_store['SIG_PREPARED'] = prepared_signature_filename or context_to_store.get('SIG_PREPARED', '')
+        context_to_store['prepared_signature'] = prepared_signature_filename or context_to_store.get('prepared_signature', '')
+        if prepared_timestamp:
+            context_to_store['prepared_timestamp'] = prepared_timestamp
+        if existing_sig_review_tech_file:
+            context_to_store['SIG_REVIEW_TECH'] = existing_sig_review_tech_file
+        if existing_sig_review_pm_file:
+            context_to_store['SIG_REVIEW_PM'] = existing_sig_review_pm_file
+        if existing_sig_client_file:
+            context_to_store['SIG_APPROVAL_CLIENT'] = existing_sig_client_file
         def remove_inline_images(obj):
             """Recursively remove InlineImage objects from nested data structures"""
             if isinstance(obj, InlineImage):
@@ -459,7 +511,9 @@ def generate():
             "trends_image_urls": trends_urls,
             "alarm_image_urls": alarm_urls,
             "created_at": existing_data.get("created_at", dt.datetime.now().isoformat()),
-            "updated_at": dt.datetime.now().isoformat()
+            "updated_at": dt.datetime.now().isoformat(),
+            "prepared_signature": prepared_signature_filename,
+            "prepared_timestamp": prepared_timestamp,
         }
 
         for table_key in TABLE_UI_KEYS:
@@ -484,6 +538,15 @@ def generate():
 
         # Save to database
         db.session.commit()
+
+        # Refresh dashboard statistics for assigned approvers
+        try:
+            role_map = {0: 'Automation Manager', 1: 'PM'}
+            for idx, email in enumerate(approver_emails[:2]):
+                if email:
+                    compute_and_cache_dashboard_stats(role_map[idx], email)
+        except Exception as stats_error:
+            current_app.logger.warning(f"Could not refresh dashboard stats: {stats_error}")
 
         # Render the DOCX template with error handling
         try:

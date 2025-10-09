@@ -13,6 +13,7 @@ from utils import (
     send_client_final_document,
     get_safe_output_path
 )
+from services.dashboard_stats import compute_and_cache_dashboard_stats
 
 approval_bp = Blueprint('approval', __name__)
 
@@ -126,8 +127,8 @@ def approve_submission(submission_id, stage):
                 
                 submission_data["context"] = ctx
                 
-                # Mark as approved and lock permanently when Automation Manager approves
-                submission_data["status"] = "APPROVED"
+                # Stage 1 approval locks editing but keeps workflow in pending state for PM
+                submission_data["status"] = "PENDING"
                 submission_data["locked"] = True
             
             # Create notification for submitter
@@ -165,13 +166,26 @@ def approve_submission(submission_id, stage):
                     # Update the database with new approval data
                     report.approvals_json = json_module.dumps(approvals)
                     
-                    # When Automation Manager (stage 1) approves, lock report permanently
+                    # Apply stage-specific metadata updates
                     if stage == 1:
+                        report.locked = True
+                        report.status = 'PENDING'
+                        report.approved_at = None
+                        report.approved_by = None
+                        current_app.logger.info(
+                            f"Automation Manager approved report {submission_id} - awaiting PM review"
+                        )
+                    elif stage == 2:
                         report.locked = True
                         report.status = 'APPROVED'
                         report.approved_at = datetime.datetime.utcnow()
-                        report.approved_by = current_stage.get("approver_email", current_stage.get("approver_name", ""))
-                        current_app.logger.info(f"Automation Manager approved report {submission_id} - locking permanently")
+                        report.approved_by = current_stage.get(
+                            "approver_email",
+                            current_stage.get("approver_name", "")
+                        )
+                        current_app.logger.info(
+                            f"PM approved report {submission_id} - workflow complete"
+                        )
                     
                     # Commit Report changes immediately to ensure database is updated
                     db.session.commit()
@@ -190,6 +204,23 @@ def approve_submission(submission_id, stage):
                         except Exception as e:
                             current_app.logger.error(f"Error updating SAT report data: {e}")
                             db.session.rollback()
+
+                    # Refresh dashboard statistics for impacted approvers
+                    try:
+                        if stage == 1:
+                            if current_stage.get("approver_email"):
+                                compute_and_cache_dashboard_stats('Automation Manager', current_stage["approver_email"])
+                            pm_stage = next((a for a in approvals if a.get("stage") == 2), None)
+                            if pm_stage and pm_stage.get("approver_email"):
+                                compute_and_cache_dashboard_stats('PM', pm_stage["approver_email"])
+                        elif stage == 2:
+                            if current_stage.get("approver_email"):
+                                compute_and_cache_dashboard_stats('PM', current_stage["approver_email"])
+                            am_stage = next((a for a in approvals if a.get("stage") == 1), None)
+                            if am_stage and am_stage.get("approver_email"):
+                                compute_and_cache_dashboard_stats('Automation Manager', am_stage["approver_email"])
+                    except Exception as stats_error:
+                        current_app.logger.warning(f"Unable to refresh dashboard stats: {stats_error}")
                 else:
                     current_app.logger.error(f"Report {submission_id} not found in database for approval update")
                     
@@ -205,6 +236,8 @@ def approve_submission(submission_id, stage):
             if is_final_approval:
                 tpl = DocxTemplate(current_app.config['TEMPLATE_FILE'])
                 ctx = submission_data['context'].copy()
+                submission_data["status"] = "APPROVED"
+                submission_data["locked"] = True
 
                 # Check and log all parameters for debugging
                 current_app.logger.info(f"Preparing final document with context keys: {list(ctx.keys())}")
@@ -274,6 +307,8 @@ def approve_submission(submission_id, stage):
                 tech_lead_approval = next((a for a in approvals if a["stage"] == 1), None)
                 if tech_lead_approval:
                     sig_fn = tech_lead_approval.get("signature")
+                    if sig_fn and isinstance(submission_data.get("context"), dict):
+                        submission_data["context"]["SIG_REVIEW_TECH"] = sig_fn
                     if sig_fn:
                         # Make sure it has .png extension
                         if not sig_fn.lower().endswith('.png'):
@@ -312,6 +347,8 @@ def approve_submission(submission_id, stage):
                 pm_approval = next((a for a in approvals if a["stage"] == 2), None)
                 if pm_approval:
                     sig_fn = pm_approval.get("signature")
+                    if sig_fn and isinstance(submission_data.get("context"), dict):
+                        submission_data["context"]["SIG_REVIEW_PM"] = sig_fn
                     if sig_fn:
                         # Make sure it has .png extension
                         if not sig_fn.lower().endswith('.png'):
