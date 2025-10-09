@@ -427,17 +427,52 @@ def send_approval_link(approver_email, submission_id, stage, subject=None, html_
         logger.warning("No approver email provided")
         return False
 
+    approval_url = url_for("approval.approve_submission", submission_id=submission_id, stage=stage, _external=True)
+    status_url = url_for("status.view_status", submission_id=submission_id, _external=True)
+
+    # Find the approver title
+    approver_title = "Approver"
+    for approver in current_app.config['DEFAULT_APPROVERS']:
+        if approver['stage'] == stage:
+            approver_title = approver.get('title', 'Approver')
+            break
+
+    # Attempt AI-enhanced email if details were not provided
+    if (not subject or not html_content) and current_app.config.get('GEMINI_API_KEY'):
+        try:
+            from models import Report, SATReport
+            from services.email_generator import generate_email_content
+
+            report_obj = Report.query.get(submission_id)
+            if report_obj and report_obj.type == 'SAT':
+                sat_report = SATReport.query.filter_by(report_id=submission_id).first()
+                if sat_report:
+                    sat_payload = json.loads(sat_report.data_json or '{}')
+                    report_context = sat_payload.get('context', {})
+                    report_context['type'] = report_obj.type
+                    if report_obj.document_title:
+                        report_context.setdefault('DOCUMENT_TITLE', report_obj.document_title)
+                        report_context['document_title'] = report_obj.document_title
+                    if report_obj.project_reference:
+                        report_context.setdefault('PROJECT_REFERENCE', report_obj.project_reference)
+                        report_context['project_reference'] = report_obj.project_reference
+                    if report_obj.client_name:
+                        report_context.setdefault('CLIENT_NAME', report_obj.client_name)
+                        report_context['client_name'] = report_obj.client_name
+
+                    extra = {
+                        'stage': stage,
+                        'approver_title': approver_title,
+                        'approval_url': approval_url,
+                        'status_url': status_url,
+                    }
+                    ai_email = generate_email_content(report_context, audience='approver', extra=extra)
+                    subject = subject or ai_email.get('subject')
+                    html_content = html_content or ai_email.get('body')
+        except Exception as ai_error:
+            logger.warning(f"AI-enhanced approval email failed: {ai_error}")
+
     if not subject or not html_content:
-        approval_url = url_for("approval.approve_submission", submission_id=submission_id, stage=stage, _external=True)
-        status_url = url_for("status.view_status", submission_id=submission_id, _external=True)
-
-        # Find the approver title
-        approver_title = "Approver"
-        for approver in current_app.config['DEFAULT_APPROVERS']:
-            if approver['stage'] == stage:
-                approver_title = approver.get('title', 'Approver')
-                break
-
         subject = f"Approval required for SAT Report (Stage {stage} - {approver_title})"
         html_content = f"""
         <html>
