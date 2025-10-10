@@ -1114,8 +1114,10 @@ def delete_report(report_id):
         sat_report = SATReport.query.filter_by(report_id=report_id).first()
         if sat_report:
             db.session.delete(sat_report)
+            db.session.flush()
 
         cleanup_statements = [
+            ('sat_reports', 'report_id'),
             ('fds_reports', 'report_id'),
             ('hds_reports', 'report_id'),
             ('site_survey_reports', 'report_id'),
