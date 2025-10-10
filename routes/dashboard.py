@@ -1122,6 +1122,8 @@ def delete_report(report_id):
             ('sds_reports', 'report_id'),
             ('fat_reports', 'report_id'),
             ('report_edits', 'report_id'),
+            ('report_versions', 'report_id'),
+            ('report_comments', 'report_id'),
             ('notifications', 'related_submission_id'),
         ]
         for table_name, column_name in cleanup_statements:
@@ -1137,7 +1139,11 @@ def delete_report(report_id):
                     cleanup_error,
                 )
 
-        db.session.delete(report)
+        db.session.expunge(report)
+        db.session.execute(
+            text("DELETE FROM reports WHERE id = :rid"),
+            {"rid": report_id},
+        )
         db.session.commit()
 
         current_app.logger.info(

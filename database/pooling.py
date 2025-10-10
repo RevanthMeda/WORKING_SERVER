@@ -495,13 +495,14 @@ def init_connection_pooling(app):
                 while True:
                     time.sleep(300)  # Check every 5 minutes
                     try:
-                        # Use the actual engine from db after it's initialized
-                        if hasattr(db, 'engine') and db.engine:
-                            health = pool_manager.health_check(db.engine)
-                            if health['status'] != 'healthy':
-                                logger.warning(f"Pool health check: {health['status']}")
-                                for issue in health['issues']:
-                                    logger.warning(f"Pool issue: {issue}")
+                        with app.app_context():
+                            engine = db.get_engine()
+                            if engine:
+                                health = pool_manager.health_check(engine)
+                                if health['status'] != 'healthy':
+                                    logger.warning(f"Pool health check: {health['status']}")
+                                    for issue in health['issues']:
+                                        logger.warning(f"Pool issue: {issue}")
                     except Exception as e:
                         logger.error(f"Health check error: {e}")
             
@@ -517,9 +518,10 @@ def get_pool_metrics():
     try:
         from models import db
         
-        if hasattr(db, 'engine'):
-            status = pool_manager.get_pool_status(db.engine)
-            health = pool_manager.health_check(db.engine)
+        engine = db.get_engine()
+        if engine:
+            status = pool_manager.get_pool_status(engine)
+            health = pool_manager.health_check(engine)
             leaks = leak_detector.detect_leaks()
             
             return {
