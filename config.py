@@ -46,8 +46,8 @@ class Config:
     OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
     OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-3.5-turbo')
 
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
-    
     # SSL/HTTPS Configuration
     SSL_CERT_PATH = os.path.join(BASE_DIR, 'ssl', 'mobilehmi.org2025.pfx')
     SSL_KEY_PATH = None  # Not needed for .pfx files
@@ -55,7 +55,6 @@ class Config:
     USE_HTTPS = True
 
     # Database - Use absolute path for SQLite
-    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
     
     # Ensure instance directory exists
     INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
