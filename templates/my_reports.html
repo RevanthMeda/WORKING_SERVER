@@ -209,6 +209,11 @@
                                             <a href="{{ url_for('reports.new_sat_full', template_id=report.id) }}" class="btn-inline">
                                                 <i class="fas fa-copy"></i> Duplicate
                                             </a>
+                                            {% if report.report_type == 'SAT' %}
+                                            <a href="{{ url_for('reports.generate_fds', sat_report_id=report.id) }}" class="btn-inline">
+                                                <i class="fas fa-cogs"></i> Generate FDS
+                                            </a>
+                                            {% endif %}
                                             {% if not report.locked and status_lower in ['draft', 'pending'] and report.user_email == current_user.email %}
                                                 <a href="{{ url_for('edit.edit_report', report_id=report.id) }}" class="btn-inline">
                                                     <i class="fas fa-edit"></i> Edit

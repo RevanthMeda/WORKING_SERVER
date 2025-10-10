@@ -1,10 +1,11 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, make_response
 from functools import wraps
 from flask_login import login_required, current_user
-from models import db, Report, User, SATReport
+from models import db, Report, User, SATReport, FDSReport
 from auth import login_required, role_required
 from utils import setup_approval_workflow_db, create_new_submission_notification, get_unread_count
 from services.sat_tables import migrate_context_tables
+from services.fds_generator import generate_fds_from_sat
 import json
 import uuid
 from datetime import datetime
@@ -330,3 +331,58 @@ def new_scada_migration():
                              submission_data=submission_data,
                              submission_id='',
                              unread_count=0)
+
+@reports_bp.route('/generate-fds/<sat_report_id>')
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'Admin'])
+def generate_fds(sat_report_id):
+    """Generate an FDS from an existing SAT report."""
+    try:
+        # 1. Fetch the SAT Report
+        sat_report = SATReport.query.filter_by(report_id=sat_report_id).first()
+        if not sat_report:
+            flash('SAT Report not found.', 'error')
+            return redirect(url_for('dashboard.my_reports'))
+
+        # 2. Load SAT data
+        sat_data = json.loads(sat_report.data_json)
+
+        # 3. Generate FDS data
+        fds_data = generate_fds_from_sat(sat_data)
+
+        # 4. Create new Report and FDSReport objects
+        parent_report = Report.query.get(sat_report_id)
+
+        new_report = Report(
+            id=str(uuid.uuid4()),
+            type='FDS',
+            status='DRAFT',
+            document_title=fds_data.get("document_header", {}).get("document_title", "Functional Design Specification"),
+            project_reference=parent_report.project_reference,
+            client_name=parent_report.client_name,
+            user_email=current_user.email,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+
+        fds_report = FDSReport(
+            report_id=new_report.id,
+            data_json=json.dumps(fds_data),
+            functional_requirements=fds_data.get("system_overview", {}).get("purpose"),
+            process_description=fds_data.get("system_overview", {}).get("scope_of_work"),
+            control_philosophy="Generated from SAT report"
+        )
+
+        new_report.fds_report = fds_report
+
+        # 5. Save to database
+        db.session.add(new_report)
+        db.session.commit()
+
+        flash(f'Successfully generated FDS report: {new_report.document_title}', 'success')
+        return redirect(url_for('dashboard.my_reports'))
+
+    except Exception as e:
+        current_app.logger.error(f"Error generating FDS report: {e}", exc_info=True)
+        flash('Failed to generate FDS report.', 'error')
+        return redirect(url_for('dashboard.my_reports'))

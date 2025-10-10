@@ -24,6 +24,19 @@ The application automates the complete lifecycle of SAT (System Acceptance Testi
 - **Report Status Confusion** → Real-time status tracking
 - **Client Delivery Delays** → Streamlined final document preparation
 
+### FDS Generation from SAT Reports
+The application now supports the automatic generation of a Functional Design Specification (FDS) from an existing System Acceptance Test (SAT) report. This feature further streamlines the documentation workflow by leveraging the data already captured in the SAT to create a baseline FDS.
+
+- **One-Click Generation**: Engineers can generate an FDS with a single click from the "My Reports" page.
+- **Data Mapping**: The system automatically maps relevant fields from the SAT report to the corresponding sections in the FDS, including:
+    - Document Header Information
+    - System Overview
+    - Equipment and Hardware Lists
+    - I/O Signal Mappings
+    - Communication and Modbus Registers
+- **Extensible**: The generation logic is designed to be extensible, with AI-powered enhancements planned for future releases.
+- **AI-Powered Datasheet Fetching**: The system uses an AI service to automatically find and link to manufacturer datasheets for equipment listed in the SAT report, enriching the generated FDS with valuable technical documentation.
+
 ## 🏗 Complete Application Architecture
 
 ### User Roles & Responsibilities
@@ -81,6 +94,7 @@ The application automates the complete lifecycle of SAT (System Acceptance Testi
 - **Users Table**: User accounts with roles, status, and authentication data
 - **Reports Table**: Base report data with relationships to specific report types
 - **SAT Reports Table**: Specialized SAT report structure with detailed form data
+- **FDS Reports Table**: Stores generated Functional Design Specification (FDS) reports, linked to their parent SAT report.
 - **FDS/HDS/Site Survey Reports**: Additional report types with specialized fields
 - **System Settings**: Configurable application parameters
 - **Approval Tracking**: Complete audit trail of all approval actions

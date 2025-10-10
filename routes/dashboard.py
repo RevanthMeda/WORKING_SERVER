@@ -1255,7 +1255,8 @@ def my_reports():
             "user_email": report.user_email,
             "can_delete": can_delete,
             "delete_reason": delete_reason,
-            "requires_admin_delete": has_stage_approved or status_upper != 'DRAFT'
+            "requires_admin_delete": has_stage_approved or status_upper != 'DRAFT',
+            "report_type": report.type
         })
     
     current_app.logger.info(f"Report list for {current_user.email}: {report_list}")
