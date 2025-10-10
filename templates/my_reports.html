@@ -4,6 +4,20 @@
 
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard-light.css') }}">
+    <style>
+        .btn-inline--danger {
+            color: #ef4444;
+        }
+        .btn-inline--danger:hover {
+            color: #dc2626;
+        }
+        .inline-actions .btn-inline[disabled],
+        .inline-actions .btn-inline[disabled]:hover {
+            color: rgba(100, 116, 139, 0.6);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+    </style>
 {% endblock %}
 
 {% block content %}
@@ -177,6 +191,20 @@
                                             <a href="{{ url_for('status.download_report', submission_id=report.id) }}" class="btn-inline">
                                                 <i class="fas fa-download"></i> Download
                                             </a>
+                                            {% if report.can_delete %}
+                                                <button type="button"
+                                                        class="btn-inline btn-inline--danger"
+                                                        data-delete-report
+                                                        data-delete-url="{{ url_for('dashboard.delete_report', report_id=report.id) }}"
+                                                        data-report-title="{{ report.document_title }}">
+                                                    <i class="fas fa-trash"></i> Delete
+                                                </button>
+                                            {% elif report.delete_reason %}
+                                                <span class="status-chip status-chip--locked"
+                                                      title="{{ report.delete_reason }}">
+                                                    <i class="fas fa-ban"></i> Locked
+                                                </span>
+                                            {% endif %}
                                         </div>
                                     </td>
                                 </tr>
@@ -197,4 +225,56 @@
         </div>
     </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+      const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+      document.querySelectorAll('[data-delete-report]').forEach(function(button) {
+        button.addEventListener('click', function () {
+          const deleteUrl = button.getAttribute('data-delete-url');
+          const title = button.getAttribute('data-report-title') || 'this report';
+          if (!deleteUrl) {
+            return;
+          }
+
+          const confirmation = confirm(`Are you sure you want to delete "${title}"? This action cannot be undone.`);
+          if (!confirmation) {
+            return;
+          }
+
+          fetch(deleteUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': csrfToken || ''
+            },
+            body: JSON.stringify({})
+          })
+          .then(async (response) => {
+            let payload = {};
+            try {
+              payload = await response.json();
+            } catch (err) {
+              payload = {};
+            }
+            if (!response.ok) {
+              const message = payload.message || 'Unable to delete the report.';
+              alert(message);
+              return;
+            }
+            window.location.reload();
+          })
+          .catch((error) => {
+            console.error('Delete request failed:', error);
+            alert('Unexpected error deleting the report. Please try again.');
+          });
+        });
+      });
+    });
+  </script>
 {% endblock %}

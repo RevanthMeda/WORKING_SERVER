@@ -1072,28 +1072,58 @@ def revoke_approval(report_id):
         return jsonify({'success': False, 'message': 'Failed to revoke approval'}), 500
 
 @dashboard_bp.route('/delete-report/<report_id>', methods=['POST'])
-@admin_required
+@login_required
 def delete_report(report_id):
-    """Delete a report permanently"""
-    
+    """Delete a report with role-based safeguards."""
     try:
-        # Get the report
         report = Report.query.get(report_id)
         if not report:
             return jsonify({'success': False, 'message': 'Report not found'}), 404
-        
-        # Delete associated SAT report data first
+
+        is_admin = current_user.role == 'Admin'
+
+        if not is_admin:
+            if report.user_email != current_user.email:
+                current_app.logger.warning(
+                    "User %s attempted to delete report %s they do not own.",
+                    current_user.email,
+                    report_id,
+                )
+                return jsonify({'success': False, 'message': 'You are not permitted to delete this report.'}), 403
+
+            status_upper = (report.status or 'DRAFT').upper()
+            approvals = []
+            has_stage_approved = False
+            if report.approvals_json:
+                try:
+                    approvals = json.loads(report.approvals_json)
+                    has_stage_approved = any(
+                        (approval.get('status') or '').lower() == 'approved'
+                        for approval in approvals
+                    )
+                except json.JSONDecodeError:
+                    has_stage_approved = False
+
+            if status_upper != 'DRAFT' or has_stage_approved:
+                return jsonify({
+                    'success': False,
+                    'message': 'This report has entered the approval workflow and can only be deleted by an administrator.'
+                }), 403
+
         sat_report = SATReport.query.filter_by(report_id=report_id).first()
         if sat_report:
             db.session.delete(sat_report)
-        
-        # Delete the main report
+
         db.session.delete(report)
         db.session.commit()
-        
-        current_app.logger.info(f"Report {report_id} deleted by admin {current_user.email}")
+
+        current_app.logger.info(
+            "Report %s deleted by %s",
+            report_id,
+            current_user.email,
+        )
         return jsonify({'success': True, 'message': 'Report deleted successfully'})
-        
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error deleting report {report_id}: {e}")
@@ -1152,6 +1182,36 @@ def my_reports():
         # Normalize status for display (convert DRAFT -> draft, etc.)
         normalized_status = actual_status.lower() if actual_status else 'draft'
 
+        approvals_raw = []
+        has_stage_approved = False
+        if report.approvals_json:
+            try:
+                approvals_raw = json.loads(report.approvals_json)
+                has_stage_approved = any(
+                    (stage.get('status') or '').lower() == 'approved'
+                    for stage in approvals_raw
+                )
+            except json.JSONDecodeError:
+                approvals_raw = []
+
+        status_upper = (actual_status or 'DRAFT').upper()
+        is_admin = current_user.role == 'Admin'
+        is_owner = report.user_email == current_user.email
+        can_delete = False
+        delete_reason = ''
+
+        if is_admin:
+            can_delete = True
+        else:
+            if not is_owner:
+                delete_reason = 'Only the report owner can delete this draft.'
+            elif status_upper != 'DRAFT':
+                delete_reason = 'Report can no longer be deleted because approvals have started.'
+            elif has_stage_approved:
+                delete_reason = 'A stage has already been approved; contact an administrator to remove this report.'
+            else:
+                can_delete = True
+
         report_list.append({
             "id": report.id,
             "document_title": stored_data.get("context", {}).get("DOCUMENT_TITLE", "SAT Report"),
@@ -1161,7 +1221,10 @@ def my_reports():
             "updated_at": report.updated_at,
             "status": normalized_status,
             "locked": report.locked,
-            "user_email": report.user_email  # Include user_email for edit permission check
+            "user_email": report.user_email,
+            "can_delete": can_delete,
+            "delete_reason": delete_reason,
+            "requires_admin_delete": has_stage_approved or status_upper != 'DRAFT'
         })
     
     current_app.logger.info(f"Report list for {current_user.email}: {report_list}")
