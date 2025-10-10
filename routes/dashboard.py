@@ -17,9 +17,10 @@ from api.security import APIKey, APIUsage
 from datetime import datetime
 
 from sqlalchemy.orm import joinedload
-from sqlalchemy import and_, or_, func, case
+from sqlalchemy import and_, or_, func, case, text
 import json
 from functools import wraps
+from sqlalchemy.exc import ProgrammingError, OperationalError
 from services.dashboard_stats import get_cached_dashboard_stats, compute_and_cache_dashboard_stats
 from services.storage_manager import (
     StorageSettingsService,
@@ -1113,6 +1114,28 @@ def delete_report(report_id):
         sat_report = SATReport.query.filter_by(report_id=report_id).first()
         if sat_report:
             db.session.delete(sat_report)
+
+        cleanup_statements = [
+            ('fds_reports', 'report_id'),
+            ('hds_reports', 'report_id'),
+            ('site_survey_reports', 'report_id'),
+            ('sds_reports', 'report_id'),
+            ('fat_reports', 'report_id'),
+            ('report_edits', 'report_id'),
+            ('notifications', 'related_submission_id'),
+        ]
+        for table_name, column_name in cleanup_statements:
+            try:
+                db.session.execute(
+                    text(f"DELETE FROM {table_name} WHERE {column_name} = :rid"),
+                    {"rid": report_id},
+                )
+            except (ProgrammingError, OperationalError) as cleanup_error:
+                current_app.logger.warning(
+                    "Skipping cleanup for %s due to schema mismatch: %s",
+                    table_name,
+                    cleanup_error,
+                )
 
         db.session.delete(report)
         db.session.commit()
