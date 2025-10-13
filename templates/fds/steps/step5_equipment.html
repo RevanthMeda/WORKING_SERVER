@@ -1,0 +1,107 @@
+<fieldset class="form-step" id="step-5">
+  <div class="step-header">
+    <h1 class="step-legend">
+      <i class="fas fa-tools"></i>
+      Step 5 - Equipment & Communication
+    </h1>
+  </div>
+
+  <div class="data-card">
+    <div class="card-header">
+      <span>Equipment List</span>
+    </div>
+    <div class="card-body">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>S.No</th>
+              <th>Model</th>
+              <th>Description</th>
+              <th>Quantity</th>
+              <th>Remarks</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="equipment-list-body">
+            {% if submission_data.EQUIPMENT_LIST %}
+              {% for item in submission_data.EQUIPMENT_LIST %}
+              <tr>
+                <td><input name="equipment_sno[]" value="{{ item.S_No }}"/></td>
+                <td><input name="equipment_model[]" value="{{ item.Model }}"/></td>
+                <td><input name="equipment_description[]" value="{{ item.Description }}"/></td>
+                <td><input name="equipment_quantity[]" value="{{ item.Quantity }}"/></td>
+                <td><input name="equipment_remarks[]" value="{{ item.Remarks }}"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td><input name="equipment_sno[]" placeholder="1"/></td>
+                <td><input name="equipment_model[]" placeholder="Model"/></td>
+                <td><input name="equipment_description[]" placeholder="Description"/></td>
+                <td><input name="equipment_quantity[]" placeholder="1"/></td>
+                <td><input name="equipment_remarks[]" placeholder="Remarks"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-add" onclick="addRow('tmpl-equipment', 'equipment-list-body')">
+        <i class="fas fa-plus"></i> Add Equipment
+      </button>
+    </div>
+  </div>
+
+  <div class="data-card">
+    <div class="card-header">
+      <span>Communication Protocols</span>
+    </div>
+    <div class="card-body">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Protocol Type</th>
+              <th>Communication Details</th>
+              <th>Remarks</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="protocols-body">
+            {% if submission_data.COMMUNICATION_PROTOCOLS %}
+              {% for row in submission_data.COMMUNICATION_PROTOCOLS %}
+              <tr>
+                <td><input name="protocol_type[]" value="{{ row.Protocol_Type }}"/></td>
+                <td><input name="protocol_details[]" value="{{ row.Communication_Details }}"/></td>
+                <td><input name="protocol_remarks[]" value="{{ row.Remarks }}"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td><input name="protocol_type[]" placeholder="Modbus TCP/IP"/></td>
+                <td><input name="protocol_details[]" placeholder="PLC to SCADA"/></td>
+                <td><input name="protocol_remarks[]" placeholder="Add remarks"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-add" onclick="addRow('tmpl-protocol', 'protocols-body')">
+        <i class="fas fa-plus"></i> Add Protocol
+      </button>
+    </div>
+  </div>
+
+  <div class="btn-group">
+    <button type="button" class="btn btn-secondary" onclick="goToStep(4)">
+      <i class="fas fa-arrow-left"></i> Previous
+    </button>
+    <button type="button" class="btn btn-primary" onclick="goToStep(6)">
+      <i class="fas fa-arrow-right"></i> Next Step
+    </button>
+  </div>
+</fieldset>

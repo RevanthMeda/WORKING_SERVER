@@ -1,0 +1,57 @@
+<template id="tmpl-version-history">
+  <tr>
+    <td><input name="version_revision[]" placeholder="R#"/></td>
+    <td><input name="version_details[]" placeholder="Revision details"/></td>
+    <td><input name="version_date[]" type="date"/></td>
+    <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+  </tr>
+</template>
+
+<template id="tmpl-equipment">
+  <tr>
+    <td><input name="equipment_sno[]" placeholder="1"/></td>
+    <td><input name="equipment_model[]" placeholder="Model"/></td>
+    <td><input name="equipment_description[]" placeholder="Description"/></td>
+    <td><input name="equipment_quantity[]" placeholder="1"/></td>
+    <td><input name="equipment_remarks[]" placeholder="Remarks"/></td>
+    <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+  </tr>
+</template>
+
+<template id="tmpl-protocol">
+  <tr>
+    <td><input name="protocol_type[]" placeholder="Protocol"/></td>
+    <td><input name="protocol_details[]" placeholder="Communication details"/></td>
+    <td><input name="protocol_remarks[]" placeholder="Remarks"/></td>
+    <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+  </tr>
+</template>
+
+<template id="tmpl-io">
+  <tr>
+    <td><input name="io_signal_type[]" placeholder="Signal Type"/></td>
+    <td><input name="io_signal_tag[]" placeholder="Signal Tag"/></td>
+    <td><input name="io_description[]" placeholder="Description"/></td>
+    <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+  </tr>
+</template>
+
+<template id="tmpl-modbus-digital">
+  <tr>
+    <td><input name="modbus_digital_address[]" placeholder="Address"/></td>
+    <td><input name="modbus_digital_description[]" placeholder="Description"/></td>
+    <td><input name="modbus_digital_tag[]" placeholder="Tag"/></td>
+    <td><input name="modbus_digital_remarks[]" placeholder="Remarks"/></td>
+    <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+  </tr>
+</template>
+
+<template id="tmpl-modbus-analog">
+  <tr>
+    <td><input name="modbus_analog_address[]" placeholder="Address"/></td>
+    <td><input name="modbus_analog_description[]" placeholder="Description"/></td>
+    <td><input name="modbus_analog_range[]" placeholder="Range"/></td>
+    <td><input name="modbus_analog_tag[]" placeholder="Tag"/></td>
+    <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+  </tr>
+</template>

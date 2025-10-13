@@ -1,0 +1,149 @@
+<fieldset class="form-step" id="step-6">
+  <div class="step-header">
+    <h1 class="step-legend">
+      <i class="fas fa-stream"></i>
+      Step 6 - Signal Mapping & Registers
+    </h1>
+  </div>
+
+  <div class="data-card">
+    <div class="card-header">
+      <span>Detailed I/O List</span>
+    </div>
+    <div class="card-body">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Signal Type</th>
+              <th>Signal Tag</th>
+              <th>Description</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="io-list-body">
+            {% if submission_data.DETAILED_IO_LIST %}
+              {% for row in submission_data.DETAILED_IO_LIST %}
+              <tr>
+                <td><input name="io_signal_type[]" value="{{ row.Signal_Type }}"/></td>
+                <td><input name="io_signal_tag[]" value="{{ row.Signal_Tag }}"/></td>
+                <td><input name="io_description[]" value="{{ row.Description }}"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td><input name="io_signal_type[]" placeholder="Digital Input"/></td>
+                <td><input name="io_signal_tag[]" placeholder="DI_00_01_00"/></td>
+                <td><input name="io_description[]" placeholder="Description"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-add" onclick="addRow('tmpl-io', 'io-list-body')">
+        <i class="fas fa-plus"></i> Add Signal
+      </button>
+    </div>
+  </div>
+
+  <div class="data-card">
+    <div class="card-header">
+      <span>Modbus Digital Registers</span>
+    </div>
+    <div class="card-body">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Address</th>
+              <th>Description</th>
+              <th>Tag</th>
+              <th>Remarks</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="modbus-digital-body">
+            {% if submission_data.MODBUS_DIGITAL_REGISTERS %}
+              {% for row in submission_data.MODBUS_DIGITAL_REGISTERS %}
+              <tr>
+                <td><input name="modbus_digital_address[]" value="{{ row.Address }}"/></td>
+                <td><input name="modbus_digital_description[]" value="{{ row.Description }}"/></td>
+                <td><input name="modbus_digital_tag[]" value="{{ row.Tag }}"/></td>
+                <td><input name="modbus_digital_remarks[]" value="{{ row.Remarks }}"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td><input name="modbus_digital_address[]" placeholder="MW2800.0"/></td>
+                <td><input name="modbus_digital_description[]" placeholder="Supply Healthy"/></td>
+                <td><input name="modbus_digital_tag[]" placeholder="Supply_Healthy"/></td>
+                <td><input name="modbus_digital_remarks[]" placeholder="Remarks"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-add" onclick="addRow('tmpl-modbus-digital', 'modbus-digital-body')">
+        <i class="fas fa-plus"></i> Add Digital Register
+      </button>
+    </div>
+  </div>
+
+  <div class="data-card">
+    <div class="card-header">
+      <span>Modbus Analogue List</span>
+    </div>
+    <div class="card-body">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Address</th>
+              <th>Description</th>
+              <th>Range</th>
+              <th>Tag</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="modbus-analog-body">
+            {% if submission_data.MODBUS_ANALOG_REGISTERS %}
+              {% for row in submission_data.MODBUS_ANALOG_REGISTERS %}
+              <tr>
+                <td><input name="modbus_analog_address[]" value="{{ row.Address }}"/></td>
+                <td><input name="modbus_analog_description[]" value="{{ row.Description }}"/></td>
+                <td><input name="modbus_analog_range[]" value="{{ row.Range }}"/></td>
+                <td><input name="modbus_analog_tag[]" value="{{ row.Tag }}"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td><input name="modbus_analog_address[]" placeholder="MW110"/></td>
+                <td><input name="modbus_analog_description[]" placeholder="Wet Well Primary Level"/></td>
+                <td><input name="modbus_analog_range[]" placeholder="0-32000 / 0-4 m"/></td>
+                <td><input name="modbus_analog_tag[]" placeholder="Wet_Well_Primary_Level"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-add" onclick="addRow('tmpl-modbus-analog', 'modbus-analog-body')">
+        <i class="fas fa-plus"></i> Add Analogue Register
+      </button>
+    </div>
+  </div>
+
+  <div class="btn-group">
+    <button type="button" class="btn btn-secondary" onclick="goToStep(5)">
+      <i class="fas fa-arrow-left"></i> Previous
+    </button>
+    <button type="button" class="btn btn-primary" onclick="goToStep(7)">
+      <i class="fas fa-arrow-right"></i> Next Step
+    </button>
+  </div>
+</fieldset>

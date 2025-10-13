@@ -82,12 +82,35 @@ def run_migration(app, db):
                         
                         try:
                             conn.execute(text(sql))
-                            logger.info(f"✓ Added column {column_name} successfully")
+                            logger.info(f"Added column {column_name} successfully")
                         except Exception as col_error:
                             logger.warning(f"Could not add column {column_name}: {col_error}")
                     else:
                         logger.info(f"Column {column_name} already exists")
-                
+
+                # Ensure FDS-specific columns exist
+                if 'fds_reports' in inspector.get_table_names():
+                    fds_columns = [col['name'] for col in inspector.get_columns('fds_reports')]
+                    fds_columns_to_add = [
+                        ('functional_requirements', 'TEXT'),
+                        ('process_description', 'TEXT'),
+                        ('control_philosophy', 'TEXT')
+                    ]
+
+                    for column_name, column_type in fds_columns_to_add:
+                        if column_name not in fds_columns:
+                            logger.info(f"Adding missing column {column_name} to fds_reports")
+                            try:
+                                conn.execute(text(f"ALTER TABLE fds_reports ADD COLUMN {column_name} {column_type}"))
+                                logger.info(f"Added column {column_name} to fds_reports successfully")
+                            except Exception as col_error:
+                                logger.warning(f"Could not add column {column_name} to fds_reports: {col_error}")
+                        else:
+                            logger.info(f"fds_reports column {column_name} already exists")
+                else:
+                    logger.warning("fds_reports table does not exist; creating tables via db.create_all()")
+                    db.create_all()
+
                 # Check if report_edits table exists, create if not
                 if 'report_edits' not in inspector.get_table_names():
                     logger.info("Creating report_edits table...")
@@ -116,7 +139,7 @@ def run_migration(app, db):
                     
                     try:
                         conn.execute(text(create_table_sql))
-                        logger.info("✓ Created report_edits table successfully")
+                        logger.info("Created report_edits table successfully")
                     except Exception as table_error:
                         logger.warning(f"Could not create report_edits table: {table_error}")
                 else:
@@ -305,7 +328,7 @@ def run_migration(app, db):
                 logger.error(f"Failed to add columns: {missing}")
                 return False
             
-            logger.info("✅ Database migration completed successfully!")
+            logger.info("Database migration completed successfully!")
             return True
             
         except Exception as e:
@@ -355,7 +378,7 @@ if __name__ == "__main__":
     success = ensure_database_ready(app, db)
     
     if success:
-        print("✅ Migration completed successfully!")
+        print("Migration completed successfully!")
         sys.exit(0)
     else:
         print("❌ Migration failed!")

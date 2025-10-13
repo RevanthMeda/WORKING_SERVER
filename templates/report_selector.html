@@ -244,9 +244,9 @@
     
     <div class="report-category">
         <div class="category-header">
-            <div class="category-badge">Coming Soon</div>
-            <h2 class="category-title">Future Report Types</h2>
-            <p class="category-description">Additional documentation types currently in development.</p>
+            <div class="category-badge">New</div>
+            <h2 class="category-title">Design Documentation</h2>
+            <p class="category-description">Create functional specifications or explore upcoming hardware documentation templates.</p>
         </div>
         
         <div class="report-card">
@@ -256,14 +256,14 @@
                 </div>
                 <div class="report-info">
                     <h3 class="report-title">Functional Design Specification (FDS)</h3>
-                    <span class="report-status status-coming-soon">Coming Soon</span>
+                    <span class="report-status status-available">Available</span>
                 </div>
             </div>
             <p class="report-description">Detailed functional requirements and design specifications for system components with approval workflows.</p>
-            <button class="report-action" disabled>
-                <i class="fas fa-clock"></i>
-                Coming Soon
-            </button>
+            <a href="{{ url_for('reports.new_fds') }}" class="report-action">
+                <i class="fas fa-arrow-right"></i>
+                Create FDS Report
+            </a>
         </div>
         
         <div class="report-card">

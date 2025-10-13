@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FDS Report Generator - Cully Automation</title>
+
+  <div id="form-mode-data"
+       data-edit-mode="{{ edit_mode|default(false)|tojson }}"
+       data-is-new-report="{{ is_new_report|default(true)|tojson }}"
+       data-submission-id="{{ submission_id|default('')|e }}"
+       style="display:none;"></div>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/welcome-cully.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/fds.css') }}"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+
+  <script src="{{ url_for('static', filename='js/fds_form.js') }}" defer></script>
+  <link rel="icon" href="{{ url_for('static', filename='img/favicon.ico') }}" type="image/x-icon">
+</head>
+
+<body class="cully-form">
+  <div class="admin-container">
+    <header class="admin-header">
+      <div class="header-content">
+        <div class="header-info">
+          <h1><i class="fas fa-cogs"></i> FDS Report Generator</h1>
+          <p>Produce Functional Design Specifications with consistent Cully styling.</p>
+        </div>
+        <img src="{{ url_for('static', filename='cully.png') }}" alt="Cully Logo" class="header-logo">
+      </div>
+    </header>
+
+    <nav class="dashboard-nav">
+      <div class="nav-left">
+        <a href="{{ url_for('dashboard.engineer') }}" class="nav-item">
+          <i class="fas fa-home"></i> Dashboard
+        </a>
+        <a href="{{ url_for('reports.new_sat_full') }}" class="nav-item">
+          <i class="fas fa-file-alt"></i> SAT Form
+        </a>
+      </div>
+      <div class="nav-right">
+        <a href="{{ url_for('auth.logout') }}" class="nav-item logout-btn">
+          <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+      </div>
+    </nav>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-messages">
+        {% for category, message in messages %}
+          <div class="flash-message">
+            <i class="fas fa-info-circle"></i>
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% endwith %}
+
+    <section class="horizontal-progress-bar">
+      <div class="progress-container">
+        {% set steps = [
+          (1, 'Basic Info', 'Document header details'),
+          (2, 'Approvals', 'Prepared and reviewed by'),
+          (3, 'Version Control', 'Revision history'),
+          (4, 'System Overview', 'Purpose and philosophy'),
+          (5, 'Equipment & Protocols', 'Hardware and comms'),
+          (6, 'I/O Mapping', 'Signals and registers'),
+          (7, 'Review & Submit', 'Final checks')
+        ] %}
+        {% for num, title, desc in steps %}
+        <div id="prog-{{ num }}"
+             class="progress-step {{ 'active' if num==1 else 'disabled' }}"
+             data-step="{{ num }}">
+          <div class="step-circle">{{ num }}</div>
+          <div class="step-info">
+            <span class="step-title">{{ title }}</span>
+            <span class="step-description">{{ desc }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <main class="full-width-content">
+      <img src="{{ url_for('static', filename='Cully_Watermark.jpg') }}" class="watermark" alt="Watermark"/>
+
+      <form id="fdsForm"
+            method="POST"
+            action="{{ url_for('reports.submit_fds') }}"
+            novalidate
+            onsubmit="return handleFormSubmit(event)">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <input type="hidden" name="submission_id" value="{{ submission_id }}"/>
+
+        {% include 'fds/steps/step1_basic.html' %}
+        {% include 'fds/steps/step2_approvals.html' %}
+        {% include 'fds/steps/step3_versions.html' %}
+        {% include 'fds/steps/step4_system.html' %}
+        {% include 'fds/steps/step5_equipment.html' %}
+        {% include 'fds/steps/step6_io.html' %}
+        {% include 'fds/steps/step7_review.html' %}
+      </form>
+
+      {% include 'fds/partials/templates.html' %}
+    </main>
+  </div>
+</body>
+</html>

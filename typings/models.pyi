@@ -143,6 +143,9 @@ class FDSReport:
     id: Any
     report_id: Any
     data_json: Any
+    functional_requirements: Any
+    process_description: Any
+    control_philosophy: Any
     query: _BaseQuery
 
 
