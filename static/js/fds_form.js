@@ -1,6 +1,7 @@
 // Lightweight form controller for the FDS wizard
 (function () {
   let currentStep = 1;
+  const STORAGE_PREFIX = 'fds-progress-';
 
   function getTotalSteps() {
     return document.querySelectorAll('.form-step').length;
@@ -95,6 +96,10 @@
     }
   }
 
+  function getSubmissionId() {
+    return document.querySelector('input[name="submission_id"]')?.value || '';
+  }
+
   function showAlert(message, type) {
     const form = document.getElementById('fdsForm');
     if (!form) {
@@ -103,8 +108,14 @@
 
     const alert = document.createElement('div');
     alert.className = `alert alert-${type}`;
+    const icon =
+      type === 'success'
+        ? 'check-circle'
+        : type === 'info'
+          ? 'info-circle'
+          : 'exclamation-triangle';
     alert.innerHTML = `
-      <i class="fa fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
+      <i class="fa fa-${icon}"></i>
       ${message}
     `;
 
@@ -112,6 +123,94 @@
     existingAlerts.forEach((node) => node.remove());
 
     form.prepend(alert);
+  }
+
+  function saveProgress(showMessage = true) {
+    const form = document.getElementById('fdsForm');
+    if (!form) {
+      return;
+    }
+
+    const submissionId = getSubmissionId();
+    if (!submissionId) {
+      if (showMessage) {
+        showAlert('Missing submission identifier. Unable to save progress.', 'error');
+      }
+      return;
+    }
+
+    const data = {};
+    const formData = new FormData(form);
+    formData.forEach((value, key) => {
+      if (data[key]) {
+        if (!Array.isArray(data[key])) {
+          data[key] = [data[key]];
+        }
+        data[key].push(value);
+      } else {
+        data[key] = value;
+      }
+    });
+
+    try {
+      localStorage.setItem(`${STORAGE_PREFIX}${submissionId}`, JSON.stringify(data));
+      if (showMessage) {
+        showAlert('Progress saved locally on this device.', 'success');
+      }
+    } catch (error) {
+      console.error('Failed to save FDS progress:', error);
+      if (showMessage) {
+        showAlert('Unable to save progress locally.', 'error');
+      }
+    }
+  }
+
+  function loadProgress() {
+    const form = document.getElementById('fdsForm');
+    if (!form) {
+      return;
+    }
+
+    const submissionId = getSubmissionId();
+    if (!submissionId) {
+      return;
+    }
+
+    const stored = localStorage.getItem(`${STORAGE_PREFIX}${submissionId}`);
+    if (!stored) {
+      return;
+    }
+
+    try {
+      const data = JSON.parse(stored);
+      Object.entries(data).forEach(([key, value]) => {
+        const elements = form.elements[key];
+        if (!elements) {
+          return;
+        }
+
+        if (Array.isArray(value)) {
+          const elementArray =
+            typeof RadioNodeList !== 'undefined' && elements instanceof RadioNodeList
+              ? Array.from(elements)
+              : Array.isArray(elements)
+                ? elements
+                : [elements];
+          value.forEach((val, index) => {
+            const el = elementArray[index];
+            if (el && !el.value) {
+              el.value = val;
+            }
+          });
+        } else if (!elements.value) {
+          elements.value = value;
+        }
+      });
+      showAlert('Restored saved draft from this device.', 'info');
+    } catch (error) {
+      console.error('Failed to load FDS progress:', error);
+      showAlert('Unable to restore saved progress.', 'error');
+    }
   }
 
   function handleFormSubmit(event) {
@@ -138,6 +237,11 @@
       .then((data) => {
         if (!data.success) {
           throw new Error(data.message || 'Unable to save report');
+        }
+
+        const submissionId = getSubmissionId();
+        if (submissionId) {
+          localStorage.removeItem(`${STORAGE_PREFIX}${submissionId}`);
         }
 
         showAlert(data.message || 'FDS saved successfully!', 'success');
@@ -175,6 +279,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     setActiveStep(currentStep);
     wireProgressSteps();
+    loadProgress();
 
     const form = document.getElementById('fdsForm');
     if (form) {
@@ -186,4 +291,5 @@
   window.addRow = addRow;
   window.removeRow = removeRow;
   window.handleFormSubmit = handleFormSubmit;
+  window.saveProgress = () => saveProgress(true);
 })();
