@@ -20,9 +20,9 @@ def init_db_command():
     """Initialize the database with migrations."""
     try:
         migration_manager.init_migrations()
-        click.echo('✅ Database migration system initialized')
+        click.echo('[+] Database migration system initialized')
     except Exception as e:
-        click.echo(f'❌ Failed to initialize migrations: {e}')
+        click.echo(f'[-] Failed to initialize migrations: {e}')
 
 
 @db_cli.command('migrate')
@@ -32,9 +32,9 @@ def migrate_command(message):
     """Create a new migration."""
     try:
         migration_manager.create_migration(message)
-        click.echo(f'✅ Migration created: {message or "Auto migration"}')
+        click.echo(f'[+] Migration created: {message or "Auto migration"}')
     except Exception as e:
-        click.echo(f'❌ Failed to create migration: {e}')
+        click.echo(f'[-] Failed to create migration: {e}')
 
 
 @db_cli.command('upgrade')
@@ -46,12 +46,12 @@ def upgrade_command(revision):
         # Create backup before upgrade
         backup_file = migration_manager.backup_database()
         if backup_file:
-            click.echo(f'📦 Backup created: {backup_file}')
+            click.echo(f'[B] Backup created: {backup_file}')
         
         migration_manager.upgrade_database(revision)
-        click.echo('✅ Database upgraded successfully')
+        click.echo('[+] Database upgraded successfully')
     except Exception as e:
-        click.echo(f'❌ Failed to upgrade database: {e}')
+        click.echo(f'[-] Failed to upgrade database: {e}')
 
 
 @db_cli.command('downgrade')
@@ -62,9 +62,9 @@ def downgrade_command(revision):
     try:
         if click.confirm(f'Downgrade to revision {revision}? This may cause data loss.'):
             migration_manager.downgrade_database(revision)
-            click.echo(f'✅ Database downgraded to: {revision}')
+            click.echo(f'[+] Database downgraded to: {revision}')
     except Exception as e:
-        click.echo(f'❌ Failed to downgrade database: {e}')
+        click.echo(f'[-] Failed to downgrade database: {e}')
 
 
 @db_cli.command('current')
@@ -74,7 +74,7 @@ def current_command():
     try:
         migration_manager.show_current_revision()
     except Exception as e:
-        click.echo(f'❌ Failed to show current revision: {e}')
+        click.echo(f'[-] Failed to show current revision: {e}')
 
 
 @db_cli.command('history')
@@ -84,7 +84,7 @@ def history_command():
     try:
         migration_manager.show_migration_history()
     except Exception as e:
-        click.echo(f'❌ Failed to show migration history: {e}')
+        click.echo(f'[-] Failed to show migration history: {e}')
 
 
 @db_cli.command('status')
@@ -94,17 +94,17 @@ def status_command():
     try:
         # Test connection
         db.engine.connect().close()
-        click.echo('✅ Database connection: OK')
+        click.echo('[+] Database connection: OK')
         
         # Show table counts
         inspector = db.inspect(db.engine)
         tables = inspector.get_table_names()
-        click.echo(f'📊 Tables: {len(tables)}')
+        click.echo(f'[T] Tables: {len(tables)}')
         
         # Show record counts
         try:
             user_count = User.query.count()
-            click.echo(f'👥 Users: {user_count}')
+            click.echo(f'[U] Users: {user_count}')
         except:
             pass
         
@@ -112,7 +112,7 @@ def status_command():
         migration_manager.show_current_revision()
         
     except Exception as e:
-        click.echo(f'❌ Database status check failed: {e}')
+        click.echo(f'[-] Database status check failed: {e}')
 
 
 @db_cli.command('backup')
@@ -122,11 +122,11 @@ def backup_command():
     try:
         backup_file = migration_manager.backup_database()
         if backup_file:
-            click.echo(f'✅ Backup created: {backup_file}')
+            click.echo(f'[+] Backup created: {backup_file}')
         else:
-            click.echo('⚠️  Backup not supported for this database type')
+            click.echo('[!]  Backup not supported for this database type')
     except Exception as e:
-        click.echo(f'❌ Failed to create backup: {e}')
+        click.echo(f'[-] Failed to create backup: {e}')
 
 
 @db_cli.command('create-admin')
@@ -139,7 +139,7 @@ def create_admin_command(email, password, name):
     try:
         existing = User.query.filter_by(email=email).first()
         if existing:
-            click.echo(f'⚠️  Admin {email} already exists')
+            click.echo(f'[!]  Admin {email} already exists')
             return
         
         admin = User(
@@ -152,12 +152,12 @@ def create_admin_command(email, password, name):
         db.session.add(admin)
         db.session.commit()
         
-        click.echo(f'✅ Admin created: {email}')
+        click.echo(f'[+] Admin created: {email}')
         click.echo(f'   Password: {password}')
-        click.echo('   ⚠️  Change password after first login!')
+        click.echo('   [!]  Change password after first login!')
         
     except Exception as e:
-        click.echo(f'❌ Failed to create admin: {e}')
+        click.echo(f'[-] Failed to create admin: {e}')
         db.session.rollback()
 
 
