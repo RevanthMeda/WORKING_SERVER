@@ -2,20 +2,18 @@
   <div class="step-header">
     <h1 class="step-legend">
       <i class="fas fa-users"></i>
-      Step 2 - Approvals & Workflow
+      Step 2 — Approvals & Workflow
     </h1>
-    <p style="color: #64748b;">
-      Confirm the key approvers for this FDS. These details feed the signature page and drive notification routing.
-    </p>
   </div>
 
   <div class="form-section">
-    <h4><i class="fas fa-user-check"></i> Prepared By</h4>
+    <h4><i class="fas fa-user-check"></i> Approval Personnel</h4>
+
     <div class="form-row">
       <div class="form-group">
-        <label for="prepared_by_name">Name</label>
+        <label for="prepared_by">Prepared By</label>
         <input
-          id="prepared_by_name"
+          id="prepared_by"
           name="prepared_by_name"
           type="text"
           readonly
@@ -24,18 +22,46 @@
         />
       </div>
       <div class="form-group">
-        <label for="prepared_by_role">Role / Title</label>
+        <label for="reviewed_by_tech_lead">Reviewed By (Automation Manager)</label>
         <input
-          id="prepared_by_role"
-          name="prepared_by_role"
+          id="reviewed_by_tech_lead"
+          name="reviewer1_name"
           type="text"
-          value="{{ submission_data.PREPARED_BY_ROLE or 'Automation Engineer' }}"
+          readonly
+          value="{{ submission_data.REVIEWER1_NAME }}"
+          placeholder="Will auto-populate from selection below"
+          style="background-color: #f8fafc; cursor: not-allowed;"
         />
       </div>
     </div>
+
     <div class="form-row">
       <div class="form-group">
-        <label for="prepared_by_date">Date &amp; Sign</label>
+        <label for="reviewed_by_pm">Reviewed By PM</label>
+        <input
+          id="reviewed_by_pm"
+          name="reviewer2_name"
+          type="text"
+          readonly
+          value="{{ submission_data.REVIEWER2_NAME }}"
+          placeholder="Will auto-populate from selection below"
+          style="background-color: #f8fafc; cursor: not-allowed;"
+        />
+      </div>
+      <div class="form-group">
+        <label for="approved_by_client">Approved By Client</label>
+        <input
+          id="approved_by_client"
+          name="client_approval_name"
+          type="text"
+          value="{{ submission_data.CLIENT_APPROVAL_NAME }}"
+        />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="prepared_by_date">Prepared Date</label>
         <input
           id="prepared_by_date"
           name="prepared_by_date"
@@ -50,139 +76,131 @@
           name="prepared_by_email"
           type="email"
           readonly
-          placeholder="notification email"
           value="{{ (submission_data.PREPARED_BY_EMAIL or (current_user.email if current_user.is_authenticated else '')) or '' }}"
           style="background-color: #f8fafc; cursor: not-allowed;"
+        />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="reviewer1_date">Automation Manager Date</label>
+        <input
+          id="reviewer1_date"
+          name="reviewer1_date"
+          type="date"
+          value="{{ submission_data.REVIEWER1_DATE }}"
+        />
+      </div>
+      <div class="form-group">
+        <label for="reviewer1_email_display">Automation Manager Email</label>
+        <input
+          id="reviewer1_email_display"
+          type="email"
+          readonly
+          value="{{ submission_data.REVIEWER1_EMAIL }}"
+          placeholder="Email will auto-populate when name is selected"
+          style="background-color: #f8fafc; cursor: not-allowed;"
+        />
+        <input type="hidden" id="reviewer1_email" name="reviewer1_email" value="{{ submission_data.REVIEWER1_EMAIL }}"/>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="reviewer2_date">Project Manager Date</label>
+        <input
+          id="reviewer2_date"
+          name="reviewer2_date"
+          type="date"
+          value="{{ submission_data.REVIEWER2_DATE }}"
+        />
+      </div>
+      <div class="form-group">
+        <label for="reviewer2_email_display">Project Manager Email</label>
+        <input
+          id="reviewer2_email_display"
+          type="email"
+          readonly
+          value="{{ submission_data.REVIEWER2_EMAIL }}"
+          placeholder="Email will auto-populate when name is selected"
+          style="background-color: #f8fafc; cursor: not-allowed;"
+        />
+        <input type="hidden" id="reviewer2_email" name="reviewer2_email" value="{{ submission_data.REVIEWER2_EMAIL }}"/>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="client_approval_date">Client Approval Date</label>
+        <input
+          id="client_approval_date"
+          name="client_approval_date"
+          type="date"
+          value="{{ submission_data.CLIENT_APPROVAL_DATE }}"
+        />
+      </div>
+      <div class="form-group">
+        <label for="client_approval_email">Client Email</label>
+        <input
+          id="client_approval_email"
+          name="client_approval_email"
+          type="email"
+          placeholder="optional"
+          value="{{ submission_data.CLIENT_APPROVAL_EMAIL }}"
         />
       </div>
     </div>
   </div>
 
   <div class="data-card">
-    <div class="card-header">
-      <span>Reviewer 1 (Automation Manager)</span>
-    </div>
+    <div class="card-header">Approval Workflow</div>
     <div class="card-body">
+      <p style="margin-bottom: 20px; color: var(--text-secondary);">
+        Select the approvers for this FDS. Names and emails will auto-populate the fields above.
+      </p>
+
       <div class="form-row">
         <div class="form-group">
-          <label for="reviewer1_name">Name</label>
+          <label for="approver_1_name_select"><i class="fas fa-user-cog"></i> Automation Manager Name</label>
+          <select id="approver_1_name_select" name="approver_1_name_select">
+            <option value="">Select Automation Manager...</option>
+          </select>
+          <input type="hidden" name="approver_1_name" id="approver_1_name" value="{{ submission_data.get('approver_1_name', '') }}"/>
+          <input type="hidden" name="approver_1_email" id="approver_1_email" value="{{ submission_data.get('approver_1_email', '') }}"/>
+          <label for="approver_1_email_display" style="margin-top: 8px;">Email Address</label>
           <input
-            id="reviewer1_name"
-            name="reviewer1_name"
-            type="text"
-            value="{{ submission_data.REVIEWER1_NAME }}"
-          />
-        </div>
-        <div class="form-group">
-          <label for="reviewer1_role">Role</label>
-          <input
-            id="reviewer1_role"
-            name="reviewer1_role"
-            type="text"
-            value="{{ submission_data.REVIEWER1_ROLE or 'Automation Manager' }}"
-          />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label for="reviewer1_date">Date &amp; Sign</label>
-          <input
-            id="reviewer1_date"
-            name="reviewer1_date"
-            type="date"
-            value="{{ submission_data.REVIEWER1_DATE }}"
-          />
-        </div>
-        <div class="form-group">
-          <label for="reviewer1_email">Notification Email</label>
-          <input
-            id="reviewer1_email"
-            name="reviewer1_email"
             type="email"
-            placeholder="optional"
-            value="{{ submission_data.REVIEWER1_EMAIL }}"
+            id="approver_1_email_display"
+            readonly
+            placeholder="Email will auto-populate when name is selected"
+            style="background-color: #f8fafc; cursor: not-allowed;"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="approver_2_name_select"><i class="fas fa-user"></i> Project Manager Name</label>
+          <select id="approver_2_name_select" name="approver_2_name_select">
+            <option value="">Select Project Manager...</option>
+          </select>
+          <input type="hidden" name="approver_2_name" id="approver_2_name" value="{{ submission_data.get('approver_2_name', '') }}"/>
+          <input type="hidden" name="approver_2_email" id="approver_2_email" value="{{ submission_data.get('approver_2_email', '') }}"/>
+          <label for="approver_2_email_display" style="margin-top: 8px;">Email Address</label>
+          <input
+            type="email"
+            id="approver_2_email_display"
+            readonly
+            placeholder="Email will auto-populate when name is selected"
+            style="background-color: #f8fafc; cursor: not-allowed;"
           />
         </div>
       </div>
     </div>
   </div>
 
-  <div class="data-card">
-    <div class="card-header">
-      <span>Reviewer 2 (Project Manager)</span>
-    </div>
-    <div class="card-body">
-      <div class="form-row">
-        <div class="form-group">
-          <label for="reviewer2_name">Name</label>
-          <input
-            id="reviewer2_name"
-            name="reviewer2_name"
-            type="text"
-            value="{{ submission_data.REVIEWER2_NAME }}"
-          />
-        </div>
-        <div class="form-group">
-          <label for="reviewer2_role">Role</label>
-          <input
-            id="reviewer2_role"
-            name="reviewer2_role"
-            type="text"
-            value="{{ submission_data.REVIEWER2_ROLE or 'Project Manager' }}"
-          />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label for="reviewer2_date">Date &amp; Sign</label>
-          <input
-            id="reviewer2_date"
-            name="reviewer2_date"
-            type="date"
-            value="{{ submission_data.REVIEWER2_DATE }}"
-          />
-        </div>
-        <div class="form-group">
-          <label for="reviewer2_email">Notification Email</label>
-          <input
-            id="reviewer2_email"
-            name="reviewer2_email"
-            type="email"
-            placeholder="optional"
-            value="{{ submission_data.REVIEWER2_EMAIL }}"
-          />
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="data-card">
-    <div class="card-header">
-      <span>Client Approval</span>
-    </div>
-    <div class="card-body">
-      <div class="form-row">
-        <div class="form-group">
-          <label for="client_approval_name">Client Approver</label>
-          <input
-            id="client_approval_name"
-            name="client_approval_name"
-            type="text"
-            value="{{ submission_data.CLIENT_APPROVAL_NAME }}"
-          />
-        </div>
-        <div class="form-group">
-          <label for="client_approval_date">Date &amp; Sign</label>
-          <input
-            id="client_approval_date"
-            name="client_approval_date"
-            type="date"
-            value="{{ submission_data.CLIENT_APPROVAL_DATE }}"
-          />
-        </div>
-      </div>
-    </div>
-  </div>
+  <input type="hidden" name="prepared_by_role" value="{{ submission_data.PREPARED_BY_ROLE or 'Automation Engineer' }}"/>
+  <input type="hidden" name="reviewer1_role" value="{{ submission_data.REVIEWER1_ROLE or 'Automation Manager' }}"/>
+  <input type="hidden" name="reviewer2_role" value="{{ submission_data.REVIEWER2_ROLE or 'Project Manager' }}"/>
 
   <div class="btn-group">
     <button type="button" class="btn btn-secondary" onclick="goToStep(1)">

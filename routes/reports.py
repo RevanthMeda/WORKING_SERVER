@@ -169,6 +169,7 @@ def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
 
     submission["CLIENT_APPROVAL_NAME"] = _get_first_value(client, "name", default=submission["CLIENT_APPROVAL_NAME"])
     submission["CLIENT_APPROVAL_DATE"] = _get_first_value(client, "date", default=submission.get("CLIENT_APPROVAL_DATE", ""))
+    submission["CLIENT_APPROVAL_EMAIL"] = _get_first_value(client, "email", default=submission.get("CLIENT_APPROVAL_EMAIL", ""))
 
     submission["VERSION_HISTORY"] = fds_payload.get("document_versions") or submission["VERSION_HISTORY"]
     submission["CONFIDENTIALITY_NOTICE"] = fds_payload.get("confidentiality_notice") or submission["CONFIDENTIALITY_NOTICE"]
@@ -339,6 +340,7 @@ def _build_empty_fds_submission() -> dict:
         "REVIEWER2_EMAIL": "",
         "CLIENT_APPROVAL_NAME": "Eoin Carragher",
         "CLIENT_APPROVAL_DATE": "",
+        "CLIENT_APPROVAL_EMAIL": "",
         "VERSION_HISTORY": version_history,
         "CONFIDENTIALITY_NOTICE": default_confidentiality,
         "SYSTEM_OVERVIEW": "",
