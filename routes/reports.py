@@ -162,10 +162,16 @@ def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
     submission["REVIEWER1_DATE"] = _get_first_value(reviewer1, "date", default=submission["REVIEWER1_DATE"])
     submission["REVIEWER1_EMAIL"] = _get_first_value(reviewer1, "email", default=submission.get("REVIEWER1_EMAIL", ""))
 
+    submission["approver_1_name"] = submission["REVIEWER1_NAME"]
+    submission["approver_1_email"] = submission.get("REVIEWER1_EMAIL", "")
+
     submission["REVIEWER2_NAME"] = _get_first_value(reviewer2, "name", default=submission["REVIEWER2_NAME"])
     submission["REVIEWER2_ROLE"] = _get_first_value(reviewer2, "role", default=submission["REVIEWER2_ROLE"])
     submission["REVIEWER2_DATE"] = _get_first_value(reviewer2, "date", default=submission["REVIEWER2_DATE"])
     submission["REVIEWER2_EMAIL"] = _get_first_value(reviewer2, "email", default=submission.get("REVIEWER2_EMAIL", ""))
+
+    submission["approver_2_name"] = submission["REVIEWER2_NAME"]
+    submission["approver_2_email"] = submission.get("REVIEWER2_EMAIL", "")
 
     submission["CLIENT_APPROVAL_NAME"] = _get_first_value(client, "name", default=submission["CLIENT_APPROVAL_NAME"])
     submission["CLIENT_APPROVAL_DATE"] = _get_first_value(client, "date", default=submission.get("CLIENT_APPROVAL_DATE", ""))
@@ -178,6 +184,8 @@ def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
     submission["SYSTEM_OVERVIEW"] = _get_first_value(system_overview, "overview", default=submission["SYSTEM_OVERVIEW"])
     submission["SYSTEM_PURPOSE"] = _get_first_value(system_overview, "purpose", default=submission["SYSTEM_PURPOSE"])
     submission["SCOPE_OF_WORK"] = _get_first_value(system_overview, "scope_of_work", default=submission["SCOPE_OF_WORK"])
+    submission["PURPOSE"] = _get_first_value(system_overview, "purpose", default=submission["PURPOSE"])
+    submission["SCOPE"] = _get_first_value(system_overview, "scope_of_work", default=submission["SCOPE"])
 
     submission["FUNCTIONAL_REQUIREMENTS"] = fds_payload.get("functional_requirements") or submission["FUNCTIONAL_REQUIREMENTS"]
     submission["PROCESS_DESCRIPTION"] = fds_payload.get("process_description") or submission["PROCESS_DESCRIPTION"]
@@ -263,85 +271,38 @@ def _build_empty_fds_submission() -> dict:
         "Unauthorized distribution or reproduction is strictly prohibited."
     )
 
-    version_history = [{
-        "Revision": "R0",
-        "Details": "Initial Document",
-        "Date": "2025-06-03"
-    }]
-
-    equipment_list = [
-        {"S_No": "1", "Model": "PM573-ETH", "Description": "ABB AC500 CPU Module", "Quantity": "1", "Remarks": "Ethernet, RS232/485"},
-        {"S_No": "2", "Model": "TB521-ETH", "Description": "Terminal Base for PM573 CPU", "Quantity": "1", "Remarks": "DIN rail mount"},
-        {"S_No": "3", "Model": "DA501", "Description": "ABB Digital I/O Module", "Quantity": "1", "Remarks": "8 DI, 8 DO"},
-        {"S_No": "4", "Model": "TB511-ETH", "Description": "Terminal Base for DA501", "Quantity": "1", "Remarks": "DIN rail mount"},
-        {"S_No": "5", "Model": "RUT906", "Description": "Teltonika Industrial Router", "Quantity": "1", "Remarks": "4G LTE, Ethernet, Dual SIM"},
-        {"S_No": "6", "Model": "PR1DK12", "Description": "DIN Rail Mounting Kit", "Quantity": "1", "Remarks": "For Teltonika Router"},
-        {"S_No": "7", "Model": "OMB.6912.03F21", "Description": "Taoglas LTE MIMO Antenna", "Quantity": "1", "Remarks": "698-2700 MHz, N-Type"},
-        {"S_No": "8", "Model": "Relay", "Description": "Phenix Contact Relay", "Quantity": "1", "Remarks": "Inhibit signal relay"}
-    ]
-
-    communication_protocols = [
-        {"Protocol_Type": "Modbus TCP/IP", "Communication_Details": "ABB AC500, Schneider PLC to SCADA", "Remarks": "Real-time monitoring"},
-        {"Protocol_Type": "Ethernet", "Communication_Details": "Internal Communication", "Remarks": "Networked devices"}
-    ]
-
-    detailed_io = [
-        {"Signal_Type": "Digital Input", "Signal_Tag": "DI_00_01_00 to DI_00_01_15", "Description": "General spare digital inputs for future expansion or additional discrete signals as required"},
-        {"Signal_Type": "Digital Output", "Signal_Tag": "DO_00_01_00 to DO_00_01_07", "Description": "Spare digital outputs available for control actions or alarm indicators"},
-        {"Signal_Type": "Analog Input", "Signal_Tag": "AI_00_01_00 to AI_00_01_03 (spares)", "Description": "Reserved analog inputs for additional future instrumentation"},
-        {"Signal_Type": "Analog Output", "Signal_Tag": "AO_00_01_00 to AO_00_01_01", "Description": "Spare analog outputs available for control signals or set points as required"}
-    ]
-
-    modbus_digital = [
-        {"Address": "MW2800.0", "Description": "Supply Healthy", "Tag": "Supply_Healthy", "Remarks": "Closed for Healthy"},
-        {"Address": "MW2800.1", "Description": "Generator Supply On", "Tag": "Generator_Supply_On", "Remarks": "Closed for Supply On"},
-        {"Address": "MW2800.2", "Description": "Pump No.1 Auto Available", "Tag": "Pump_1_Auto_Available", "Remarks": "Closed for Auto"},
-        {"Address": "MW2800.3", "Description": "Pump No.1 Run", "Tag": "Pump_1_Run", "Remarks": "Closed for Running"},
-        {"Address": "MW2800.4", "Description": "Pump No.1 Fault", "Tag": "Pump_1_Fault", "Remarks": "Closed for Fault"},
-        {"Address": "MW2800.5", "Description": "Pump No.1 Overheat", "Tag": "Pump_1_Overheat", "Remarks": "Closed for Fault"},
-        {"Address": "MW2800.6", "Description": "Pump No.1 Seal Fail", "Tag": "Pump_1_Seal_Fail", "Remarks": "Closed for Fault"},
-        {"Address": "MW2800.7", "Description": "Pump No.1 No Load Fault", "Tag": "Pump_1_No_Load_Fault", "Remarks": "Closed for Fault"},
-        {"Address": "MW2800.8", "Description": "Pump No.1 E-Stop Activated", "Tag": "Pump_1_E_Stop_Activated", "Remarks": "Closed for Fault"},
-        {"Address": "MW2800.9", "Description": "Pump No.2 Auto Available", "Tag": "Pump_2_Auto_Available", "Remarks": "Closed for Auto"}
-    ]
-
-    modbus_analog = [
-        {"Address": "MW110", "Description": "Wet Well Primary Level", "Range": "0-32000 / 0 - 4 m", "Tag": "Wet_Well_Primary_Level"},
-        {"Address": "MW111", "Description": "Bifurcation Manhole Overflow Signal", "Range": "0-32000 / 0 - 431 m3/hr", "Tag": "Bifurcation_Manhole_Overflow_Signal"},
-        {"Address": "MW112", "Description": "Outlet Flowrate", "Range": "0-32000 / 0 - 300 m3/hr", "Tag": "Outlet_Flowrate"},
-        {"Address": "MW114", "Description": "Pump No.1 Rising Main Pressure", "Range": "0-32000 / 0 - 10 Bar", "Tag": "Pump_1_Rising_Main_Pressure"},
-        {"Address": "MW115", "Description": "Pump No.2 Rising Main Pressure", "Range": "0-32000 / 0 - 10 Bar", "Tag": "Pump_2_Rising_Main_Pressure"},
-        {"Address": "MW2810", "Description": "Pump No.1 Frequency", "Range": "0 - 500 / 0 - 50.00 Hz", "Tag": "Pump_1_Frequency"},
-        {"Address": "MW2811", "Description": "Pump No.1 Current", "Range": "0 - 16 A", "Tag": "Pump_1_Current"},
-        {"Address": "MW2813", "Description": "Pump No.2 Frequency", "Range": "0 - 500 / 0 - 50.00 Hz", "Tag": "Pump_2_Frequency"}
-    ]
-
     return {
-        "DOCUMENT_TITLE": "Functional Design Specification",
-        "PROJECT_REFERENCE": "Midleton NW Pumping Station",
-        "DOCUMENT_REFERENCE": "PROJ.544.FDS.01.R1",
-        "DATE": "2025-06-03",
-        "PREPARED_FOR": "FM Environmental Ltd",
-        "REVISION": "R0",
+        "DOCUMENT_TITLE": "",
+        "PROJECT_REFERENCE": "",
+        "DOCUMENT_REFERENCE": "",
+        "DATE": "",
+        "PREPARED_FOR": "",
+        "REVISION": "",
         "REVISION_DETAILS": "",
         "REVISION_DATE": "",
         "USER_EMAIL": "",
-        "PREPARED_BY_NAME": "Revanth Meda",
-        "PREPARED_BY_ROLE": "Automation Engineer",
-        "PREPARED_BY_DATE": "2025-06-03",
+        "PREPARED_BY_NAME": "",
+        "PREPARED_BY_ROLE": "",
+        "PREPARED_BY_DATE": "",
         "PREPARED_BY_EMAIL": "",
-        "REVIEWER1_NAME": "Jinnu Chacko",
-        "REVIEWER1_ROLE": "Automation Manager",
+        "REVIEWER1_NAME": "",
+        "REVIEWER1_ROLE": "",
         "REVIEWER1_DATE": "",
         "REVIEWER1_EMAIL": "",
-        "REVIEWER2_NAME": "Dazel Borgie Lewis",
-        "REVIEWER2_ROLE": "Project Manager",
+        "REVIEWER2_NAME": "",
+        "REVIEWER2_ROLE": "",
         "REVIEWER2_DATE": "",
         "REVIEWER2_EMAIL": "",
-        "CLIENT_APPROVAL_NAME": "Eoin Carragher",
+        "CLIENT_APPROVAL_NAME": "",
         "CLIENT_APPROVAL_DATE": "",
         "CLIENT_APPROVAL_EMAIL": "",
-        "VERSION_HISTORY": version_history,
+        "PURPOSE": "",
+        "SCOPE": "",
+        "approver_1_name": "",
+        "approver_1_email": "",
+        "approver_2_name": "",
+        "approver_2_email": "",
+        "VERSION_HISTORY": [],
         "CONFIDENTIALITY_NOTICE": default_confidentiality,
         "SYSTEM_OVERVIEW": "",
         "SYSTEM_PURPOSE": "",
@@ -349,11 +310,11 @@ def _build_empty_fds_submission() -> dict:
         "FUNCTIONAL_REQUIREMENTS": "",
         "PROCESS_DESCRIPTION": "",
         "CONTROL_PHILOSOPHY": "",
-        "EQUIPMENT_LIST": equipment_list,
-        "COMMUNICATION_PROTOCOLS": communication_protocols,
-        "DETAILED_IO_LIST": detailed_io,
-        "MODBUS_DIGITAL_REGISTERS": modbus_digital,
-        "MODBUS_ANALOG_REGISTERS": modbus_analog
+        "EQUIPMENT_LIST": [],
+        "COMMUNICATION_PROTOCOLS": [],
+        "DETAILED_IO_LIST": [],
+        "MODBUS_DIGITAL_REGISTERS": [],
+        "MODBUS_ANALOG_REGISTERS": []
     }
 
 
@@ -795,6 +756,14 @@ def submit_fds():
         if not report.version or is_new_report:
             report.version = report.revision or 'R0'
 
+        purpose_html = (request.form.get('purpose', '') or '').strip()
+        scope_html = (request.form.get('scope', '') or '').strip()
+        if purpose_html in ('<p><br></p>', '<p></p>'):
+            purpose_html = ''
+        if scope_html in ('<p><br></p>', '<p></p>'):
+            scope_html = ''
+        scope_of_work_value = request.form.get('scope_of_work', '').strip() or scope_html
+
         document_header = {
             "document_title": report.document_title,
             "project_reference": report.project_reference,
@@ -905,8 +874,8 @@ def submit_fds():
             "confidentiality_notice": request.form.get('confidentiality_notice', '').strip(),
             "system_overview": {
                 "overview": request.form.get('system_overview', ''),
-                "purpose": request.form.get('system_purpose', ''),
-                "scope_of_work": request.form.get('scope_of_work', '')
+                "purpose": purpose_html or request.form.get('system_purpose', ''),
+                "scope_of_work": scope_of_work_value
             },
             "functional_requirements": request.form.get('functional_requirements', ''),
             "process_description": request.form.get('process_description', ''),

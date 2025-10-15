@@ -1,9 +1,66 @@
 <fieldset class="form-step" id="step-4">
   <div class="step-header">
     <h1 class="step-legend">
-      <i class="fas fa-project-diagram"></i>
-      Step 4 - System Overview & Philosophy
+      <i class="fas fa-history"></i>
+      Step 4 - Version Control & System Overview
     </h1>
+  </div>
+
+  <div class="data-card">
+    <div class="card-header">
+      <span>Document Version Control</span>
+    </div>
+    <div class="card-body">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Revision Number</th>
+              <th>Details</th>
+              <th>Date</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="version-history-body">
+            {% if submission_data.VERSION_HISTORY %}
+              {% for row in submission_data.VERSION_HISTORY %}
+              <tr>
+                <td><input name="version_revision[]" value="{{ row.Revision }}"/></td>
+                <td><input name="version_details[]" value="{{ row.Details }}"/></td>
+                <td><input name="version_date[]" type="date" value="{{ row.Date }}"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td><input name="version_revision[]" placeholder="R0"/></td>
+                <td><input name="version_details[]" placeholder="Initial Document"/></td>
+                <td><input name="version_date[]" type="date"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-add" onclick="addRow('tmpl-version-history', 'version-history-body')">
+        <i class="fas fa-plus"></i> Add Revision
+      </button>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h4><i class="fas fa-lock"></i> Confidentiality Notice</h4>
+    <div class="confidentiality-box">
+      <p>
+        This document contains confidential and proprietary information of Cully. Unauthorized distribution
+        or reproduction is strictly prohibited. Please ensure this notice accompanies the final FDS output.
+      </p>
+    </div>
+    <div class="form-group" style="margin-top:16px;">
+      <label for="confidentiality_notice">Custom Confidentiality Statement (optional)</label>
+      <textarea id="confidentiality_notice" name="confidentiality_notice"
+        placeholder="Enter an additional notice if required.">{{ submission_data.CONFIDENTIALITY_NOTICE }}</textarea>
+    </div>
   </div>
 
   <div class="form-section">

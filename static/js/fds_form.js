@@ -307,6 +307,125 @@
     }
   }
 
+  function updateButtonStates(toolbar, editor) {
+    if (!toolbar || !editor) {
+      return;
+    }
+    const buttons = toolbar.querySelectorAll('.toolbar-btn[data-command]');
+    buttons.forEach((button) => {
+      const command = button.dataset.command;
+      button.classList.remove('active');
+      try {
+        if (document.queryCommandState && document.queryCommandState(command)) {
+          button.classList.add('active');
+        }
+      } catch (error) {
+        // Unsupported command
+      }
+    });
+  }
+
+  function setupEditorToolbar(toolbar, editor, textarea) {
+    if (!toolbar || !editor || !textarea) {
+      return;
+    }
+
+    toolbar.addEventListener('click', (event) => {
+      const button = event.target.closest('.toolbar-btn');
+      if (!button) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+
+      const { command } = button.dataset;
+      const value = button.dataset.value || null;
+
+      editor.focus();
+      try {
+        if (command === 'formatBlock' && value) {
+          document.execCommand(command, false, value);
+        } else if (command === 'foreColor' || command === 'hiliteColor') {
+          const color = value || '#000000';
+          document.execCommand(command, false, color);
+        } else if (command === 'selectAll') {
+          document.execCommand(command, false);
+        } else {
+          document.execCommand(command, false, value);
+        }
+        textarea.value = editor.innerHTML;
+        updateButtonStates(toolbar, editor);
+      } catch (error) {
+        console.warn('Rich text command failed:', command, error);
+      }
+    });
+
+    const colorPickers = toolbar.querySelectorAll('.color-picker');
+    colorPickers.forEach((picker) => {
+      picker.addEventListener('change', (event) => {
+        editor.focus();
+        const command = picker.dataset.command;
+        document.execCommand(command, false, event.target.value);
+        textarea.value = editor.innerHTML;
+        updateButtonStates(toolbar, editor);
+      });
+    });
+
+    ['keyup', 'mouseup', 'focus'].forEach((evt) => {
+      editor.addEventListener(evt, () => updateButtonStates(toolbar, editor));
+    });
+  }
+
+  function setupRichTextEditor(editor, textarea, toolbar) {
+    if (!editor || !textarea) {
+      return;
+    }
+
+    editor.contentEditable = true;
+    editor.style.outline = 'none';
+    editor.innerHTML = textarea.value && textarea.value.trim() ? textarea.value : '<p><br></p>';
+
+    if (toolbar) {
+      setupEditorToolbar(toolbar, editor, textarea);
+    }
+
+    editor.addEventListener('input', () => {
+      textarea.value = editor.innerHTML;
+    });
+
+    editor.addEventListener('paste', (event) => {
+      event.preventDefault();
+      const text = (event.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+      textarea.value = editor.innerHTML;
+    });
+
+    editor.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        document.execCommand('insertHTML', false, '<br><br>');
+        textarea.value = editor.innerHTML;
+      }
+    });
+  }
+
+  function initializeRichTextEditors() {
+    const purposeEditor = document.getElementById('purpose-editor');
+    const purposeTextarea = document.getElementById('purpose');
+    const purposeToolbar = document.querySelector('[data-target="purpose-editor"]');
+
+    const scopeEditor = document.getElementById('scope-editor');
+    const scopeTextarea = document.getElementById('scope');
+    const scopeToolbar = document.querySelector('[data-target="scope-editor"]');
+
+    if (purposeEditor && purposeTextarea) {
+      setupRichTextEditor(purposeEditor, purposeTextarea, purposeToolbar);
+    }
+    if (scopeEditor && scopeTextarea) {
+      setupRichTextEditor(scopeEditor, scopeTextarea, scopeToolbar);
+    }
+  }
+
   function hydrateApprovalDisplays() {
     const reviewer1Field = document.getElementById('reviewed_by_tech_lead');
     if (reviewer1Field) {
@@ -470,10 +589,27 @@
       });
   }
 
+  function resetDraftState() {
+    const meta = document.getElementById('form-mode-data');
+    if (!meta) {
+      return;
+    }
+
+    const isNewReport = JSON.parse(meta.getAttribute('data-is-new-report') || 'true');
+    const submissionId = meta.getAttribute('data-submission-id') || '';
+
+    if (isNewReport && submissionId) {
+      localStorage.removeItem(`${STORAGE_PREFIX}${submissionId}`);
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     setActiveStep(currentStep);
     wireProgressSteps();
+    resetDraftState();
     loadProgress();
+    initializeRichTextEditors();
+    hydrateApprovalDisplays();
     initializeApprovalDropdowns();
 
     const form = document.getElementById('fdsForm');
