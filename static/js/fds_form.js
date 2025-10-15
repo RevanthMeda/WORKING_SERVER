@@ -309,17 +309,17 @@
 
   function hydrateApprovalDisplays() {
     const reviewer1Field = document.getElementById('reviewed_by_tech_lead');
-    if (reviewer1Field && reviewer1Field.value) {
-      setFieldEditable(reviewer1Field, true);
+    if (reviewer1Field) {
+      const hasValue = !!(document.getElementById('approver_1_name')?.value || reviewer1Field.value);
+      setFieldEditable(reviewer1Field, hasValue);
     }
 
     const reviewer2Field = document.getElementById('reviewed_by_pm');
-    if (reviewer2Field && reviewer2Field.value) {
-      setFieldEditable(reviewer2Field, true);
+    if (reviewer2Field) {
+      const hasValue = !!(document.getElementById('approver_2_name')?.value || reviewer2Field.value);
+      setFieldEditable(reviewer2Field, hasValue);
     }
 
-    updateEmailDisplay('reviewer1_email_display', document.getElementById('reviewer1_email')?.value || '');
-    updateEmailDisplay('reviewer2_email_display', document.getElementById('reviewer2_email')?.value || '');
     updateEmailDisplay('approver_1_email_display', document.getElementById('approver_1_email')?.value || '');
     updateEmailDisplay('approver_2_email_display', document.getElementById('approver_2_email')?.value || '');
   }
@@ -329,7 +329,8 @@
     hiddenNameId,
     hiddenEmailId,
     emailDisplayId,
-    reviewerFieldId
+    reviewerFieldId,
+    extraEmailId
   }) {
     if (!select) {
       return;
@@ -355,6 +356,12 @@
           reviewerField.value = name;
           setFieldEditable(reviewerField, true);
         }
+        if (extraEmailId) {
+          const extraHidden = document.getElementById(extraEmailId);
+          if (extraHidden) {
+            extraHidden.value = email;
+          }
+        }
 
         updateEmailDisplay(emailDisplayId, email);
       } else {
@@ -367,6 +374,12 @@
         if (reviewerField) {
           reviewerField.value = '';
           setFieldEditable(reviewerField, false);
+        }
+        if (extraEmailId) {
+          const extraHidden = document.getElementById(extraEmailId);
+          if (extraHidden) {
+            extraHidden.value = '';
+          }
         }
         updateEmailDisplay(emailDisplayId, '');
       }
@@ -390,7 +403,8 @@
       hiddenNameId: 'approver_1_name',
       hiddenEmailId: 'approver_1_email',
       emailDisplayId: 'approver_1_email_display',
-      reviewerFieldId: 'reviewed_by_tech_lead'
+      reviewerFieldId: 'reviewed_by_tech_lead',
+      extraEmailId: 'reviewer1_email'
     });
 
     handleApproverSelection({
@@ -398,7 +412,8 @@
       hiddenNameId: 'approver_2_name',
       hiddenEmailId: 'approver_2_email',
       emailDisplayId: 'approver_2_email_display',
-      reviewerFieldId: 'reviewed_by_pm'
+      reviewerFieldId: 'reviewed_by_pm',
+      extraEmailId: 'reviewer2_email'
     });
   }
 

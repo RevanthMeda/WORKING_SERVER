@@ -3,7 +3,7 @@ Database connection pooling optimization for SAT Report Generator.
 """
 import logging
 import time
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.pool import QueuePool, StaticPool, NullPool
 from sqlalchemy.engine import Engine
 from flask import current_app
@@ -353,7 +353,7 @@ class ConnectionPoolManager:
         try:
             # Test basic connectivity
             with engine.connect() as conn:
-                result = conn.execute("SELECT 1")
+                result = conn.execute(text("SELECT 1"))
                 result.close()
             
             # Get pool status
