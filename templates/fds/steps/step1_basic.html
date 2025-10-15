@@ -1,57 +1,131 @@
 <fieldset class="form-step active" id="step-1">
   <div class="step-header">
     <h1 class="step-legend">
-      <i class="fas fa-file-alt"></i>
-      Step 1 - Document Information
+      <i class="fas fa-info-circle"></i>
+      Step 1 - Basic Information
     </h1>
-    <p class="step-description-text">
-      Provide the header information for this Functional Design Specification. Fields marked with
+    <p style="color: #64748b;">
+      Provide the foundational information for this Functional Design Specification. Fields marked with
       <span class="required">*</span> are required.
     </p>
   </div>
 
   <div class="form-section">
-    <h4><i class="fas fa-info-circle"></i> Document Details</h4>
+    <h4><i class="fas fa-file-alt"></i> Document Information</h4>
+
     <div class="form-row">
       <div class="form-group">
         <label for="document_title">Document Title <span class="required">*</span></label>
-        <input id="document_title" name="document_title" type="text" required
-               placeholder="Functional Design Specification"
-               value="{{ submission_data.DOCUMENT_TITLE }}"/>
+        <input
+          id="document_title"
+          name="document_title"
+          type="text"
+          required
+          placeholder="Functional Design Specification"
+          value="{{ submission_data.DOCUMENT_TITLE }}"
+        />
       </div>
+
       <div class="form-group">
         <label for="project_reference">Project Reference <span class="required">*</span></label>
-        <input id="project_reference" name="project_reference" type="text" required
-               placeholder="e.g. PROJ-1234-FDS"
-               value="{{ submission_data.PROJECT_REFERENCE }}"/>
+        <input
+          id="project_reference"
+          name="project_reference"
+          type="text"
+          required
+          placeholder="e.g. PROJ-1234-FDS"
+          value="{{ submission_data.PROJECT_REFERENCE }}"
+        />
       </div>
     </div>
 
     <div class="form-row">
       <div class="form-group">
         <label for="document_reference">Document Reference</label>
-        <input id="document_reference" name="document_reference" type="text"
-               placeholder="PROJ.###.FDS.##.R#"
-               value="{{ submission_data.DOCUMENT_REFERENCE }}"/>
+        <input
+          id="document_reference"
+          name="document_reference"
+          type="text"
+          placeholder="e.g. PROJ.###.FDS.##.R#"
+          value="{{ submission_data.DOCUMENT_REFERENCE }}"
+        />
       </div>
+
       <div class="form-group">
-        <label for="date">Date</label>
-        <input id="date" name="date" type="date" value="{{ submission_data.DATE }}"/>
+        <label for="date">Date <span class="required">*</span></label>
+        <input
+          id="date"
+          name="date"
+          type="date"
+          required
+          value="{{ submission_data.DATE }}"
+        />
       </div>
     </div>
 
     <div class="form-row">
       <div class="form-group">
-        <label for="prepared_for">Prepared For</label>
-        <input id="prepared_for" name="prepared_for" type="text"
-               placeholder="Client or organisation"
-               value="{{ submission_data.PREPARED_FOR }}"/>
+        <label for="prepared_for">Client Name</label>
+        <input
+          id="prepared_for"
+          name="prepared_for"
+          type="text"
+          placeholder="Client or organisation"
+          value="{{ submission_data.PREPARED_FOR }}"
+        />
       </div>
+
       <div class="form-group">
         <label for="revision">Revision</label>
-        <input id="revision" name="revision" type="text"
-               placeholder="R0"
-               value="{{ submission_data.REVISION }}"/>
+        <input
+          id="revision"
+          name="revision"
+          type="text"
+          placeholder="e.g. R0"
+          value="{{ submission_data.REVISION }}"
+        />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="revision_details">Revision Details</label>
+        <input
+          id="revision_details"
+          name="revision_details"
+          type="text"
+          placeholder="Notes describing the revision update"
+          value="{{ submission_data.REVISION_DETAILS }}"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="revision_date">Revision Date</label>
+        <input
+          id="revision_date"
+          name="revision_date"
+          type="date"
+          value="{{ submission_data.REVISION_DATE }}"
+        />
+      </div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h4><i class="fas fa-envelope"></i> Contact Information</h4>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="user_email">Your Email <span class="required">*</span></label>
+        <input
+          id="user_email"
+          name="user_email"
+          type="email"
+          required
+          readonly
+          placeholder="your.email@company.com"
+          value="{{ (submission_data.USER_EMAIL or (current_user.email if current_user.is_authenticated else '')) or '' }}"
+          style="background-color: #f8fafc; cursor: not-allowed;"
+        />
       </div>
     </div>
   </div>

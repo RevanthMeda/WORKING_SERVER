@@ -1,120 +1,185 @@
 <fieldset class="form-step" id="step-2">
   <div class="step-header">
     <h1 class="step-legend">
-      <i class="fas fa-user-check"></i>
-      Step 2 - Document Approvals
+      <i class="fas fa-users"></i>
+      Step 2 - Approvals & Workflow
     </h1>
-    <p class="step-description-text">
-      Capture the responsible personnel and approval dates. These values appear on the signature page and drive notifications.
+    <p style="color: #64748b;">
+      Confirm the key approvers for this FDS. These details feed the signature page and drive notification routing.
     </p>
   </div>
 
   <div class="form-section">
-    <h4><i class="fas fa-pen"></i> Prepared By</h4>
+    <h4><i class="fas fa-user-check"></i> Prepared By</h4>
     <div class="form-row">
       <div class="form-group">
-        <label for="prepared_by_name">Prepared by</label>
-        <input id="prepared_by_name" name="prepared_by_name" type="text"
-               value="{{ submission_data.PREPARED_BY_NAME }}"/>
+        <label for="prepared_by_name">Name</label>
+        <input
+          id="prepared_by_name"
+          name="prepared_by_name"
+          type="text"
+          readonly
+          value="{{ (submission_data.PREPARED_BY_NAME or (current_user.full_name if current_user.is_authenticated else '')) or '' }}"
+          style="background-color: #f8fafc; cursor: not-allowed;"
+        />
       </div>
       <div class="form-group">
         <label for="prepared_by_role">Role / Title</label>
-        <input id="prepared_by_role" name="prepared_by_role" type="text"
-               value="{{ submission_data.PREPARED_BY_ROLE or 'Automation Engineer' }}"/>
+        <input
+          id="prepared_by_role"
+          name="prepared_by_role"
+          type="text"
+          value="{{ submission_data.PREPARED_BY_ROLE or 'Automation Engineer' }}"
+        />
       </div>
     </div>
     <div class="form-row">
       <div class="form-group">
         <label for="prepared_by_date">Date &amp; Sign</label>
-        <input id="prepared_by_date" name="prepared_by_date" type="date"
-               value="{{ submission_data.PREPARED_BY_DATE }}"/>
+        <input
+          id="prepared_by_date"
+          name="prepared_by_date"
+          type="date"
+          value="{{ submission_data.PREPARED_BY_DATE }}"
+        />
       </div>
       <div class="form-group">
         <label for="prepared_by_email">Notification Email</label>
-        <input id="prepared_by_email" name="prepared_by_email" type="email"
-               placeholder="optional"
-               value="{{ submission_data.PREPARED_BY_EMAIL or current_user.email }}"/>
+        <input
+          id="prepared_by_email"
+          name="prepared_by_email"
+          type="email"
+          readonly
+          placeholder="notification email"
+          value="{{ (submission_data.PREPARED_BY_EMAIL or (current_user.email if current_user.is_authenticated else '')) or '' }}"
+          style="background-color: #f8fafc; cursor: not-allowed;"
+        />
       </div>
     </div>
   </div>
 
-  <div class="form-section">
-    <h4><i class="fas fa-user-tie"></i> Reviewers</h4>
-    <div class="approver-card">
-      <div class="card-header"><span>Reviewer 1 (Automation Manager)</span></div>
-      <div class="card-body">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="reviewer1_name">Name</label>
-            <input id="reviewer1_name" name="reviewer1_name" type="text"
-                   value="{{ submission_data.REVIEWER1_NAME }}"/>
-          </div>
-          <div class="form-group">
-            <label for="reviewer1_role">Role</label>
-            <input id="reviewer1_role" name="reviewer1_role" type="text"
-                   value="{{ submission_data.REVIEWER1_ROLE or 'Automation Manager' }}"/>
-          </div>
+  <div class="data-card">
+    <div class="card-header">
+      <span>Reviewer 1 (Automation Manager)</span>
+    </div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="reviewer1_name">Name</label>
+          <input
+            id="reviewer1_name"
+            name="reviewer1_name"
+            type="text"
+            value="{{ submission_data.REVIEWER1_NAME }}"
+          />
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="reviewer1_date">Date &amp; Sign</label>
-            <input id="reviewer1_date" name="reviewer1_date" type="date"
-                   value="{{ submission_data.REVIEWER1_DATE }}"/>
-          </div>
-          <div class="form-group">
-            <label for="reviewer1_email">Notification Email</label>
-            <input id="reviewer1_email" name="reviewer1_email" type="email"
-                   placeholder="optional"
-                   value="{{ submission_data.REVIEWER1_EMAIL }}"/>
-          </div>
+        <div class="form-group">
+          <label for="reviewer1_role">Role</label>
+          <input
+            id="reviewer1_role"
+            name="reviewer1_role"
+            type="text"
+            value="{{ submission_data.REVIEWER1_ROLE or 'Automation Manager' }}"
+          />
         </div>
       </div>
-    </div>
-
-    <div class="approver-card">
-      <div class="card-header"><span>Reviewer 2 (Project Manager)</span></div>
-      <div class="card-body">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="reviewer2_name">Name</label>
-            <input id="reviewer2_name" name="reviewer2_name" type="text"
-                   value="{{ submission_data.REVIEWER2_NAME }}"/>
-          </div>
-          <div class="form-group">
-            <label for="reviewer2_role">Role</label>
-            <input id="reviewer2_role" name="reviewer2_role" type="text"
-                   value="{{ submission_data.REVIEWER2_ROLE or 'Project Manager' }}"/>
-          </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="reviewer1_date">Date &amp; Sign</label>
+          <input
+            id="reviewer1_date"
+            name="reviewer1_date"
+            type="date"
+            value="{{ submission_data.REVIEWER1_DATE }}"
+          />
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="reviewer2_date">Date &amp; Sign</label>
-            <input id="reviewer2_date" name="reviewer2_date" type="date"
-                   value="{{ submission_data.REVIEWER2_DATE }}"/>
-          </div>
-          <div class="form-group">
-            <label for="reviewer2_email">Notification Email</label>
-            <input id="reviewer2_email" name="reviewer2_email" type="email"
-                   placeholder="optional"
-                   value="{{ submission_data.REVIEWER2_EMAIL }}"/>
-          </div>
+        <div class="form-group">
+          <label for="reviewer1_email">Notification Email</label>
+          <input
+            id="reviewer1_email"
+            name="reviewer1_email"
+            type="email"
+            placeholder="optional"
+            value="{{ submission_data.REVIEWER1_EMAIL }}"
+          />
         </div>
       </div>
     </div>
   </div>
 
-  <div class="form-section">
-    <h4><i class="fas fa-handshake"></i> Client Approval</h4>
-    <div class="form-row">
-      <div class="form-group">
-        <label for="client_approval_name">Approval (Client)</label>
-        <input id="client_approval_name" name="client_approval_name" type="text"
-               value="{{ submission_data.CLIENT_APPROVAL_NAME }}"/>
+  <div class="data-card">
+    <div class="card-header">
+      <span>Reviewer 2 (Project Manager)</span>
+    </div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="reviewer2_name">Name</label>
+          <input
+            id="reviewer2_name"
+            name="reviewer2_name"
+            type="text"
+            value="{{ submission_data.REVIEWER2_NAME }}"
+          />
+        </div>
+        <div class="form-group">
+          <label for="reviewer2_role">Role</label>
+          <input
+            id="reviewer2_role"
+            name="reviewer2_role"
+            type="text"
+            value="{{ submission_data.REVIEWER2_ROLE or 'Project Manager' }}"
+          />
+        </div>
       </div>
-      <div class="form-group">
-        <label for="client_approval_date">Date &amp; Sign</label>
-        <input id="client_approval_date" name="client_approval_date" type="date"
-               value="{{ submission_data.CLIENT_APPROVAL_DATE }}"/>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="reviewer2_date">Date &amp; Sign</label>
+          <input
+            id="reviewer2_date"
+            name="reviewer2_date"
+            type="date"
+            value="{{ submission_data.REVIEWER2_DATE }}"
+          />
+        </div>
+        <div class="form-group">
+          <label for="reviewer2_email">Notification Email</label>
+          <input
+            id="reviewer2_email"
+            name="reviewer2_email"
+            type="email"
+            placeholder="optional"
+            value="{{ submission_data.REVIEWER2_EMAIL }}"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="data-card">
+    <div class="card-header">
+      <span>Client Approval</span>
+    </div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="client_approval_name">Client Approver</label>
+          <input
+            id="client_approval_name"
+            name="client_approval_name"
+            type="text"
+            value="{{ submission_data.CLIENT_APPROVAL_NAME }}"
+          />
+        </div>
+        <div class="form-group">
+          <label for="client_approval_date">Date &amp; Sign</label>
+          <input
+            id="client_approval_date"
+            name="client_approval_date"
+            type="date"
+            value="{{ submission_data.CLIENT_APPROVAL_DATE }}"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -124,7 +189,7 @@
       <i class="fas fa-arrow-left"></i> Previous
     </button>
     <button type="button" class="btn btn-primary" onclick="goToStep(3)">
-      <i class="fas fa-arrow-right"></i> Next Step
+      Next Step <i class="fas fa-arrow-right"></i>
     </button>
   </div>
 </fieldset>

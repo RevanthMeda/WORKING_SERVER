@@ -142,6 +142,9 @@ def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
     submission["DATE"] = _get_first_value(header, "date", default=submission["DATE"])
     submission["PREPARED_FOR"] = _get_first_value(header, "prepared_for", default=submission["PREPARED_FOR"])
     submission["REVISION"] = _get_first_value(header, "revision", default=submission["REVISION"])
+    submission["REVISION_DETAILS"] = _get_first_value(header, "revision_details", default=submission["REVISION_DETAILS"])
+    submission["REVISION_DATE"] = _get_first_value(header, "revision_date", default=submission["REVISION_DATE"])
+    submission["USER_EMAIL"] = _get_first_value(header, "user_email", default=submission["USER_EMAIL"])
 
     approvals = fds_payload.get("document_approvals", []) or []
     prepared = approvals[0] if len(approvals) > 0 else {}
@@ -319,6 +322,9 @@ def _build_empty_fds_submission() -> dict:
         "DATE": "2025-06-03",
         "PREPARED_FOR": "FM Environmental Ltd",
         "REVISION": "R0",
+        "REVISION_DETAILS": "",
+        "REVISION_DATE": "",
+        "USER_EMAIL": "",
         "PREPARED_BY_NAME": "Revanth Meda",
         "PREPARED_BY_ROLE": "Automation Engineer",
         "PREPARED_BY_DATE": "2025-06-03",
@@ -616,6 +622,7 @@ def new_fds():
         if current_user.is_authenticated:
             submission_data.setdefault('PREPARED_BY_NAME', current_user.full_name or submission_data['PREPARED_BY_NAME'])
             submission_data.setdefault('PREPARED_BY_EMAIL', current_user.email or submission_data.get('PREPARED_BY_EMAIL', ''))
+            submission_data['USER_EMAIL'] = current_user.email or submission_data.get('USER_EMAIL', '')
 
         return render_template(
             'FDS.html',
@@ -671,6 +678,9 @@ def fds_wizard():
 
         if current_user.is_authenticated and not submission_data.get('PREPARED_BY_EMAIL'):
             submission_data['PREPARED_BY_EMAIL'] = current_user.email
+
+        if not submission_data.get('USER_EMAIL'):
+            submission_data['USER_EMAIL'] = report.user_email or ''
 
         unread_count = get_unread_count()
 
@@ -777,6 +787,7 @@ def submit_fds():
         report.document_reference = request.form.get('document_reference', '').strip()
         report.client_name = request.form.get('prepared_for', '').strip()
         report.revision = request.form.get('revision', '').strip() or report.revision or 'R0'
+        report.prepared_by = request.form.get('prepared_by_name', '').strip() or report.prepared_by
         report.updated_at = datetime.utcnow()
 
         if not report.version or is_new_report:
@@ -789,6 +800,9 @@ def submit_fds():
             "date": request.form.get('date', ''),
             "prepared_for": report.client_name,
             "revision": report.revision,
+            "revision_details": request.form.get('revision_details', '').strip(),
+            "revision_date": request.form.get('revision_date', '').strip(),
+            "user_email": request.form.get('user_email', '').strip(),
         }
 
         approvals = [
