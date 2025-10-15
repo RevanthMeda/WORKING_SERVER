@@ -53,14 +53,20 @@ def generate_fds_from_sat(sat_report_data: dict) -> dict:
 
     # 3. Equipment and Hardware Integration
     key_components = context.get("KEY_COMPONENTS", [])
-    for component in key_components:
-        model_number = component.get("model_number")
+    for idx, component in enumerate(key_components, start=1):
+        model_number = (
+            component.get("model_number")
+            or component.get("Model")
+            or component.get("MODEL")
+            or component.get("model")
+        )
         datasheet_url = fetch_datasheet(model_number)
         fds_data["equipment_and_hardware"]["equipment_list"].append({
+            "S_No": component.get("S_No") or component.get("s_no") or str(idx),
             "model_number": model_number,
-            "description": component.get("description"),
-            "quantity": component.get("quantity"),
-            "remarks": "Generated from SAT",
+            "description": component.get("description") or component.get("Description"),
+            "quantity": component.get("quantity") or component.get("Quantity") or "",
+            "remarks": component.get("remarks") or component.get("Remarks") or "Generated from SAT",
             "datasheet_url": datasheet_url,
         })
 
