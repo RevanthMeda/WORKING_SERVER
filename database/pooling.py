@@ -221,7 +221,6 @@ class ConnectionPoolManager:
                 'checked_in': pool.checkedin(),
                 'checked_out': pool.checkedout(),
                 'overflow': pool.overflow(),
-                'invalid': pool.invalid(),
                 'stats': self.pool_stats.copy()
             }
             
@@ -364,9 +363,6 @@ class ConnectionPoolManager:
             
             if status.get('utilization', 0) > 95:
                 issues.append("Pool utilization is very high (>95%)")
-            
-            if status.get('invalid', 0) > 0:
-                issues.append(f"Pool has {status['invalid']} invalid connections")
             
             if self.pool_stats.get('connection_errors', 0) > 10:
                 issues.append(f"High number of connection errors: {self.pool_stats['connection_errors']}")
