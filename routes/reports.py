@@ -9,6 +9,7 @@ from services.fds_generator import generate_fds_from_sat
 import json
 import uuid
 from datetime import datetime
+from typing import Optional
 
 reports_bp = Blueprint('reports', __name__, url_prefix='/reports')
 
@@ -42,6 +43,179 @@ _SAT_LIST_FIELDS = {
     "ALARM_SCREENSHOTS"
 }
 
+
+def _get_first_value(source: dict, *keys, default: str = '') -> str:
+    """Return the first non-empty value found for the provided keys."""
+    if not isinstance(source, dict):
+        return default
+    for key in keys:
+        value = source.get(key)
+        if value not in (None, ''):
+            return value
+    return default
+
+
+def _normalize_equipment_rows(rows):
+    normalized = []
+    for index, raw in enumerate(rows or [], start=1):
+        if not isinstance(raw, dict):
+            continue
+        normalized.append({
+            "S_No": _get_first_value(raw, "S_No", "s_no", "serial_no", "order", default=str(index)),
+            "Model": _get_first_value(raw, "Model", "model", "model_number", "Model_Number"),
+            "Description": _get_first_value(raw, "Description", "description", "Details"),
+            "Quantity": _get_first_value(raw, "Quantity", "quantity", "Qty"),
+            "Remarks": _get_first_value(raw, "Remarks", "remarks", "Notes", "datasheet_url"),
+        })
+    return [row for row in normalized if any(value for value in row.values())]
+
+
+def _normalize_protocol_rows(rows):
+    normalized = []
+    for raw in rows or []:
+        if not isinstance(raw, dict):
+            continue
+        normalized.append({
+            "Protocol_Type": _get_first_value(raw, "Protocol_Type", "protocol_type", "type"),
+            "Communication_Details": _get_first_value(raw, "Communication_Details", "communication_details", "details"),
+            "Remarks": _get_first_value(raw, "Remarks", "remarks", "Notes"),
+        })
+    return [row for row in normalized if any(value for value in row.values())]
+
+
+def _normalize_io_rows(rows, fallback_type=None):
+    normalized = []
+    for raw in rows or []:
+        if not isinstance(raw, dict):
+            continue
+        signal_type = _get_first_value(raw, "Signal_Type", "signal_type", "Type", "type", default=fallback_type or '')
+        signal_tag = _get_first_value(raw, "Signal_Tag", "signal_tag", "Tag", "tag", "Name", "name")
+        description = _get_first_value(raw, "Description", "description", "Detail", "detail", "Notes", "notes")
+        if not any([signal_type, signal_tag, description]):
+            continue
+        normalized.append({
+            "Signal_Type": signal_type or (fallback_type or ''),
+            "Signal_Tag": signal_tag,
+            "Description": description
+        })
+    return normalized
+
+
+def _normalize_modbus_digital_rows(rows):
+    normalized = []
+    for raw in rows or []:
+        if not isinstance(raw, dict):
+            continue
+        normalized.append({
+            "Address": _get_first_value(raw, "Address", "address"),
+            "Description": _get_first_value(raw, "Description", "description"),
+            "Tag": _get_first_value(raw, "Tag", "tag"),
+            "Remarks": _get_first_value(raw, "Remarks", "remarks", "Notes")
+        })
+    return [row for row in normalized if any(value for value in row.values())]
+
+
+def _normalize_modbus_analog_rows(rows):
+    normalized = []
+    for raw in rows or []:
+        if not isinstance(raw, dict):
+            continue
+        normalized.append({
+            "Address": _get_first_value(raw, "Address", "address"),
+            "Description": _get_first_value(raw, "Description", "description"),
+            "Range": _get_first_value(raw, "Range", "range"),
+            "Tag": _get_first_value(raw, "Tag", "tag")
+        })
+    return [row for row in normalized if any(value for value in row.values())]
+
+
+def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
+    """Convert stored FDS JSON payload into the flat structure expected by the template."""
+    submission = _build_empty_fds_submission()
+    if not isinstance(fds_payload, dict):
+        return submission
+
+    header = fds_payload.get("document_header", {}) or {}
+    submission["DOCUMENT_TITLE"] = _get_first_value(header, "document_title", default=submission["DOCUMENT_TITLE"])
+    submission["PROJECT_REFERENCE"] = _get_first_value(header, "project_reference", default=submission["PROJECT_REFERENCE"])
+    submission["DOCUMENT_REFERENCE"] = _get_first_value(header, "document_reference", default=submission["DOCUMENT_REFERENCE"])
+    submission["DATE"] = _get_first_value(header, "date", default=submission["DATE"])
+    submission["PREPARED_FOR"] = _get_first_value(header, "prepared_for", default=submission["PREPARED_FOR"])
+    submission["REVISION"] = _get_first_value(header, "revision", default=submission["REVISION"])
+
+    approvals = fds_payload.get("document_approvals", []) or []
+    prepared = approvals[0] if len(approvals) > 0 else {}
+    reviewer1 = approvals[1] if len(approvals) > 1 else {}
+    reviewer2 = approvals[2] if len(approvals) > 2 else {}
+    client = approvals[3] if len(approvals) > 3 else {}
+
+    submission["PREPARED_BY_NAME"] = _get_first_value(prepared, "name", default=submission["PREPARED_BY_NAME"])
+    submission["PREPARED_BY_ROLE"] = _get_first_value(prepared, "role", default=submission["PREPARED_BY_ROLE"])
+    submission["PREPARED_BY_DATE"] = _get_first_value(prepared, "date", default=submission["PREPARED_BY_DATE"])
+    submission["PREPARED_BY_EMAIL"] = _get_first_value(prepared, "email", default=submission.get("PREPARED_BY_EMAIL", ""))
+
+    submission["REVIEWER1_NAME"] = _get_first_value(reviewer1, "name", default=submission["REVIEWER1_NAME"])
+    submission["REVIEWER1_ROLE"] = _get_first_value(reviewer1, "role", default=submission["REVIEWER1_ROLE"])
+    submission["REVIEWER1_DATE"] = _get_first_value(reviewer1, "date", default=submission["REVIEWER1_DATE"])
+    submission["REVIEWER1_EMAIL"] = _get_first_value(reviewer1, "email", default=submission.get("REVIEWER1_EMAIL", ""))
+
+    submission["REVIEWER2_NAME"] = _get_first_value(reviewer2, "name", default=submission["REVIEWER2_NAME"])
+    submission["REVIEWER2_ROLE"] = _get_first_value(reviewer2, "role", default=submission["REVIEWER2_ROLE"])
+    submission["REVIEWER2_DATE"] = _get_first_value(reviewer2, "date", default=submission["REVIEWER2_DATE"])
+    submission["REVIEWER2_EMAIL"] = _get_first_value(reviewer2, "email", default=submission.get("REVIEWER2_EMAIL", ""))
+
+    submission["CLIENT_APPROVAL_NAME"] = _get_first_value(client, "name", default=submission["CLIENT_APPROVAL_NAME"])
+    submission["CLIENT_APPROVAL_DATE"] = _get_first_value(client, "date", default=submission.get("CLIENT_APPROVAL_DATE", ""))
+
+    submission["VERSION_HISTORY"] = fds_payload.get("document_versions") or submission["VERSION_HISTORY"]
+    submission["CONFIDENTIALITY_NOTICE"] = fds_payload.get("confidentiality_notice") or submission["CONFIDENTIALITY_NOTICE"]
+
+    system_overview = fds_payload.get("system_overview", {}) or {}
+    submission["SYSTEM_OVERVIEW"] = _get_first_value(system_overview, "overview", default=submission["SYSTEM_OVERVIEW"])
+    submission["SYSTEM_PURPOSE"] = _get_first_value(system_overview, "purpose", default=submission["SYSTEM_PURPOSE"])
+    submission["SCOPE_OF_WORK"] = _get_first_value(system_overview, "scope_of_work", default=submission["SCOPE_OF_WORK"])
+
+    submission["FUNCTIONAL_REQUIREMENTS"] = fds_payload.get("functional_requirements") or submission["FUNCTIONAL_REQUIREMENTS"]
+    submission["PROCESS_DESCRIPTION"] = fds_payload.get("process_description") or submission["PROCESS_DESCRIPTION"]
+    submission["CONTROL_PHILOSOPHY"] = fds_payload.get("control_philosophy") or submission["CONTROL_PHILOSOPHY"]
+
+    hardware = fds_payload.get("equipment_and_hardware", {}) or {}
+    equipment_rows = _normalize_equipment_rows(hardware.get("equipment_list") or hardware.get("equipment") or [])
+    if equipment_rows:
+        submission["EQUIPMENT_LIST"] = equipment_rows
+
+    comms = fds_payload.get("communication_and_modbus", {}) or {}
+    protocol_rows = _normalize_protocol_rows(comms.get("protocols"))
+    if protocol_rows:
+        submission["COMMUNICATION_PROTOCOLS"] = protocol_rows
+
+    detailed_io_rows = _normalize_io_rows(
+        (fds_payload.get("io_signal_mapping") or {}).get("detailed_io_list")
+    )
+    if not detailed_io_rows:
+        mapping = fds_payload.get("io_signal_mapping") or {}
+        detailed_io_rows = (
+            _normalize_io_rows(mapping.get("digital_signals"), fallback_type="Digital Signal") +
+            _normalize_io_rows(mapping.get("analog_signals"), fallback_type="Analog Signal")
+        )
+    if detailed_io_rows:
+        submission["DETAILED_IO_LIST"] = detailed_io_rows
+
+    digital_registers = _normalize_modbus_digital_rows(comms.get("modbus_digital_registers"))
+    if not digital_registers:
+        mapping = fds_payload.get("io_signal_mapping") or {}
+        digital_registers = _normalize_modbus_digital_rows(mapping.get("modbus_digital_registers"))
+    if digital_registers:
+        submission["MODBUS_DIGITAL_REGISTERS"] = digital_registers
+
+    analog_registers = _normalize_modbus_analog_rows(comms.get("modbus_analog_registers"))
+    if not analog_registers:
+        mapping = fds_payload.get("io_signal_mapping") or {}
+        analog_registers = _normalize_modbus_analog_rows(mapping.get("modbus_analog_registers"))
+    if analog_registers:
+        submission["MODBUS_ANALOG_REGISTERS"] = analog_registers
+
+    return submission
 
 
 def no_cache(f):
@@ -455,6 +629,63 @@ def new_fds():
         current_app.logger.error(f"Error rendering FDS form: {exc}", exc_info=True)
         flash('Unable to load the FDS form. Please try again later.', 'error')
         return redirect(url_for('dashboard.engineer'))
+
+
+@reports_bp.route('/fds/wizard')
+@no_cache
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def fds_wizard():
+    """Load an existing FDS report for editing."""
+    try:
+        submission_id = request.args.get('submission_id')
+        edit_mode = request.args.get('edit_mode', 'false').lower() == 'true'
+
+        if not submission_id or not edit_mode:
+            return redirect(url_for('reports.new_fds'))
+
+        report = Report.query.get(submission_id)
+        if not report or report.type != 'FDS':
+            flash('FDS report not found.', 'error')
+            return redirect(url_for('dashboard.my_reports'))
+
+        if report.locked:
+            flash('This report is locked and cannot be edited.', 'warning')
+            return redirect(url_for('status.view_status', submission_id=submission_id))
+
+        if current_user.role == 'Engineer' and report.user_email != current_user.email:
+            flash('You do not have permission to edit this report.', 'error')
+            return redirect(url_for('dashboard.my_reports'))
+
+        fds_report = FDSReport.query.filter_by(report_id=submission_id).first()
+        stored_payload = {}
+        if fds_report and fds_report.data_json:
+            try:
+                stored_payload = json.loads(fds_report.data_json)
+            except json.JSONDecodeError:
+                current_app.logger.warning(
+                    "Unable to parse FDS JSON for report %s; falling back to defaults",
+                    submission_id
+                )
+        submission_data = _hydrate_fds_submission(stored_payload)
+
+        if current_user.is_authenticated and not submission_data.get('PREPARED_BY_EMAIL'):
+            submission_data['PREPARED_BY_EMAIL'] = current_user.email
+
+        unread_count = get_unread_count()
+
+        return render_template(
+            'FDS.html',
+            submission_data=submission_data,
+            submission_id=submission_id,
+            unread_count=unread_count,
+            is_new_report=False,
+            edit_mode=True
+        )
+    except Exception as exc:
+        current_app.logger.error(f"Error loading FDS report for editing: {exc}", exc_info=True)
+        flash('An error occurred while loading the FDS report.', 'error')
+        return redirect(url_for('dashboard.my_reports'))
 
 
 @reports_bp.route('/generate-fds/<sat_report_id>')

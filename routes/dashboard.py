@@ -6,6 +6,7 @@ from models import (
     User,
     Report,
     SATReport,
+    FDSReport,
     StorageConfig,
     StorageSettingsAudit,
     SystemSettings,
@@ -1196,20 +1197,40 @@ def my_reports():
 
     report_list = []
     for report in reports:
-        sat_report = SATReport.query.filter_by(report_id=report.id).first()
-        if not sat_report:
-            continue
+        document_title = report.document_title or f"{report.type} Report"
+        project_reference = report.project_reference or ''
+        client_name = report.client_name or ''
 
-        try:
-            stored_data = json.loads(sat_report.data_json)
-        except json.JSONDecodeError:
-            current_app.logger.warning(f"Could not decode SATReport data for report ID: {report.id}")
-            stored_data = {} # Handle malformed JSON
+        if report.type == 'SAT':
+            sat_report = getattr(report, 'sat_report', None) or SATReport.query.filter_by(report_id=report.id).first()
+            if sat_report and sat_report.data_json:
+                try:
+                    stored_data = json.loads(sat_report.data_json)
+                    context = stored_data.get('context', {})
+                    document_title = context.get('DOCUMENT_TITLE') or document_title
+                    project_reference = context.get('PROJECT_REFERENCE') or project_reference
+                    client_name = context.get('CLIENT_NAME') or client_name
+                except json.JSONDecodeError:
+                    current_app.logger.warning(f"Could not decode SAT report data for report ID: {report.id}")
+        elif report.type == 'FDS':
+            fds_report = getattr(report, 'fds_report', None) or FDSReport.query.filter_by(report_id=report.id).first()
+            if fds_report and fds_report.data_json:
+                try:
+                    fds_data = json.loads(fds_report.data_json)
+                    header = fds_data.get('document_header', {})
+                    document_title = header.get('document_title') or document_title
+                    project_reference = header.get('project_reference') or project_reference
+                    client_name = header.get('prepared_for') or client_name
+                except json.JSONDecodeError:
+                    current_app.logger.warning(f"Could not decode FDS report data for report ID: {report.id}")
+
+        # Fall back to descriptive defaults when metadata is still missing
+        if not document_title:
+            document_title = f"{report.type} Report"
 
         # Use the actual status from the database - DO NOT compute from approvals!
-        # The status field in the database is the source of truth
         actual_status = report.status if report.status else 'DRAFT'
-        
+
         # Normalize status for display (convert DRAFT -> draft, etc.)
         normalized_status = actual_status.lower() if actual_status else 'draft'
 
@@ -1245,9 +1266,9 @@ def my_reports():
 
         report_list.append({
             "id": report.id,
-            "document_title": stored_data.get("context", {}).get("DOCUMENT_TITLE", "SAT Report"),
-            "client_name": stored_data.get("context", {}).get("CLIENT_NAME", ""),
-            "project_reference": stored_data.get("context", {}).get("PROJECT_REFERENCE", ""),
+            "document_title": document_title,
+            "client_name": client_name,
+            "project_reference": project_reference,
             "created_at": report.created_at,
             "updated_at": report.updated_at,
             "status": normalized_status,

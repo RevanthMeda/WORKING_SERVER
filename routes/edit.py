@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
-from models import db, Report, SATReport, ReportEdit, User
+from models import db, Report, SATReport, FDSReport, ReportEdit, User
 import json
 import uuid
 from datetime import datetime
@@ -60,26 +60,34 @@ def edit_report(report_id):
         flash('You do not have permission to edit this report.', 'error')
         return redirect(url_for('dashboard.home'))
     
-    # Get SAT report data
-    sat_report = SATReport.query.filter_by(report_id=report_id).first()
-    if not sat_report:
-        flash('Report data not found.', 'error')
-        return redirect(url_for('dashboard.home'))
-    
-    # Parse the JSON data
-    try:
-        report_data = json.loads(sat_report.data_json)
-    except:
-        flash('Error loading report data.', 'error')
-        return redirect(url_for('dashboard.home'))
-    
-    # Get the context for the form
-    context = report_data.get('context', {})
-    
-    # Redirect to SAT wizard with edit mode
-    return redirect(url_for('reports.sat_wizard', 
-                           submission_id=report_id,
-                           edit_mode='true'))
+    if report.type == 'SAT':
+        sat_report = SATReport.query.filter_by(report_id=report_id).first()
+        if not sat_report:
+            flash('Report data not found.', 'error')
+            return redirect(url_for('dashboard.home'))
+
+        # Ensure JSON is readable before redirecting
+        try:
+            json.loads(sat_report.data_json)
+        except Exception:
+            flash('Error loading report data.', 'error')
+            return redirect(url_for('dashboard.home'))
+
+        return redirect(url_for('reports.sat_wizard',
+                                submission_id=report_id,
+                                edit_mode='true'))
+
+    if report.type == 'FDS':
+        fds_report = FDSReport.query.filter_by(report_id=report_id).first()
+        if not fds_report or not fds_report.data_json:
+            flash('FDS report data not found.', 'error')
+            return redirect(url_for('dashboard.my_reports'))
+        return redirect(url_for('reports.fds_wizard',
+                                submission_id=report_id,
+                                edit_mode='true'))
+
+    flash('Editing is not yet supported for this report type.', 'warning')
+    return redirect(url_for('dashboard.my_reports'))
 
 @edit_bp.route('/reports/<report_id>/save-edit', methods=['POST'])
 @login_required
