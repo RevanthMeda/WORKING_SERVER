@@ -2,106 +2,423 @@
   <div class="step-header">
     <h1 class="step-legend">
       <i class="fas fa-project-diagram"></i>
-      Step 5 - Version & System Overview
+      Step 5 - Signals & Testing
     </h1>
+  </div>
+
+  <div class="form-section">
+    <h4><i class="fas fa-stream"></i> Detailed I/O List</h4>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Signal Type</th>
+            <th>Signal Tag</th>
+            <th>Description</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="io-list-body">
+          {% if submission_data.DETAILED_IO_LIST %}
+            {% for row in submission_data.DETAILED_IO_LIST %}
+            <tr>
+              <td><input name="io_signal_type[]" value="{{ row.Signal_Type }}"/></td>
+              <td><input name="io_signal_tag[]" value="{{ row.Signal_Tag }}"/></td>
+              <td><input name="io_description[]" value="{{ row.Description }}"/></td>
+              <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td><input name="io_signal_type[]" placeholder="Digital Input"/></td>
+              <td><input name="io_signal_tag[]" placeholder="DI_00_01_00"/></td>
+              <td><input name="io_description[]" placeholder="Description"/></td>
+              <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    <button type="button" class="btn btn-add" onclick="addRow('tmpl-io', 'io-list-body')">
+      <i class="fas fa-plus"></i> Add Signal
+    </button>
   </div>
 
   <div class="data-card">
     <div class="card-header">
-      <span>Document Version Control</span>
+      <span>Digital Signals Configuration</span>
     </div>
     <div class="card-body">
       <div class="table-container">
         <table>
           <thead>
             <tr>
-              <th>Revision Number</th>
-              <th>Details</th>
-              <th>Date</th>
-              <th>Action</th>
+              <th>S.No</th><th>Rack</th><th>Pos</th><th>Signal TAG</th><th>Description</th>
+              <th>Result</th><th>Punch</th><th>Verified</th><th>Comment</th><th>Action</th>
             </tr>
           </thead>
-          <tbody id="version-history-body">
-            {% if submission_data.VERSION_HISTORY %}
-              {% for row in submission_data.VERSION_HISTORY %}
+          <tbody id="digital-signals-body">
+            {% if submission_data.DIGITAL_SIGNALS %}
+              {% for signal in submission_data.DIGITAL_SIGNALS %}
               <tr>
-                <td><input name="version_revision[]" value="{{ row.Revision }}"/></td>
-                <td><input name="version_details[]" value="{{ row.Details }}"/></td>
-                <td><input name="version_date[]" type="date" value="{{ row.Date }}"/></td>
+                <td><input name="digital_s_no[]" value="{{ signal.S_No }}"/></td>
+                <td><input name="digital_rack[]" value="{{ signal.Rack }}"/></td>
+                <td><input name="digital_pos[]" value="{{ signal.Pos }}"/></td>
+                <td><input name="digital_signal_tag[]" value="{{ signal.Signal_TAG }}"/></td>
+                <td><input name="digital_description[]" value="{{ signal.Description }}"/></td>
+                <td>
+                  <select name="digital_result[]">
+                    <option value="" {% if not signal.Result %}selected{% endif %}>--</option>
+                    <option value="Pass" {% if signal.Result=='Pass' %}selected{% endif %}>Pass</option>
+                    <option value="Fail" {% if signal.Result=='Fail' %}selected{% endif %}>Fail</option>
+                    <option value="N/A" {% if signal.Result=='N/A' %}selected{% endif %}>N/A</option>
+                  </select>
+                </td>
+                <td><input name="digital_punch[]" value="{{ signal.Punch }}"/></td>
+                <td><input name="digital_verified[]" value="{{ signal.Verified }}"/></td>
+                <td><input name="digital_comment[]" value="{{ signal.Comment }}"/></td>
                 <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
               </tr>
               {% endfor %}
             {% else %}
               <tr>
-                <td><input name="version_revision[]" placeholder="R0"/></td>
-                <td><input name="version_details[]" placeholder="Initial Document"/></td>
-                <td><input name="version_date[]" type="date"/></td>
+                <td><input name="digital_s_no[]" placeholder="1"/></td>
+                <td><input name="digital_rack[]" placeholder="Rack"/></td>
+                <td><input name="digital_pos[]" placeholder="Pos"/></td>
+                <td><input name="digital_signal_tag[]" placeholder="Signal TAG"/></td>
+                <td><input name="digital_description[]" placeholder="Description"/></td>
+                <td>
+                  <select name="digital_result[]">
+                    <option value="" selected>--</option>
+                    <option value="Pass">Pass</option>
+                    <option value="Fail">Fail</option>
+                    <option value="N/A">N/A</option>
+                  </select>
+                </td>
+                <td><input name="digital_punch[]" placeholder="Punch"/></td>
+                <td><input name="digital_verified[]" placeholder="Verified"/></td>
+                <td><input name="digital_comment[]" placeholder="Comment"/></td>
                 <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
               </tr>
             {% endif %}
           </tbody>
         </table>
       </div>
-      <button type="button" class="btn btn-add" onclick="addRow('tmpl-version-history', 'version-history-body')">
-        <i class="fas fa-plus"></i> Add Revision
+      <button type="button" class="btn btn-add" onclick="addRow('tmpl-digital-signal', 'digital-signals-body')">
+        <i class="fas fa-plus"></i> Add Digital Signal
       </button>
     </div>
   </div>
 
-  <div class="form-section">
-    <h4><i class="fas fa-lightbulb"></i> System Overview and Purpose</h4>
-    <div class="form-group">
-      <label for="system_overview">System Overview</label>
-      <textarea id="system_overview" name="system_overview"
-        placeholder="Describe the system, architecture and overall context.">{{ submission_data.SYSTEM_OVERVIEW }}</textarea>
+  <div class="data-card">
+    <div class="card-header">
+      <span>Analogue Input Signals</span>
     </div>
-    <div class="form-group">
-      <label for="system_purpose">System Purpose</label>
-      <textarea id="system_purpose" name="system_purpose"
-        placeholder="Outline the objectives and business outcomes">{{ submission_data.SYSTEM_PURPOSE }}</textarea>
+    <div class="card-body">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>S.No</th><th>Rack No</th><th>Module Position</th><th>Signal TAG</th><th>Description</th>
+              <th>Result</th><th>Punch Item</th><th>Verified By</th><th>Comment</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="analogue-inputs-body">
+            {% if submission_data.ANALOGUE_INPUT_SIGNALS %}
+              {% for signal in submission_data.ANALOGUE_INPUT_SIGNALS %}
+              <tr>
+                <td><input name="analogue_input_s_no[]" value="{{ signal.S_No }}"/></td>
+                <td><input name="analogue_input_rack_no[]" value="{{ signal.Rack_No }}"/></td>
+                <td><input name="analogue_input_module_position[]" value="{{ signal.Module_Position }}"/></td>
+                <td><input name="analogue_input_signal_tag[]" value="{{ signal.Signal_TAG }}"/></td>
+                <td><input name="analogue_input_description[]" value="{{ signal.Description }}"/></td>
+                <td>
+                  <select name="analogue_input_result[]">
+                    <option value="Pass" {% if signal.Result=='Pass' %}selected{% endif %}>Pass</option>
+                    <option value="Fail" {% if signal.Result=='Fail' %}selected{% endif %}>Fail</option>
+                    <option value="N/A" {% if signal.Result=='N/A' %}selected{% endif %}>N/A</option>
+                  </select>
+                </td>
+                <td><input name="analogue_input_punch_item[]" value="{{ signal.Punch_Item }}"/></td>
+                <td><input name="analogue_input_verified_by[]" value="{{ signal.Verified_by }}"/></td>
+                <td><input name="analogue_input_comment[]" value="{{ signal.Comment }}"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td><input name="analogue_input_s_no[]" placeholder="1"/></td>
+                <td><input name="analogue_input_rack_no[]" placeholder="Rack"/></td>
+                <td><input name="analogue_input_module_position[]" placeholder="Module Position"/></td>
+                <td><input name="analogue_input_signal_tag[]" placeholder="Signal TAG"/></td>
+                <td><input name="analogue_input_description[]" placeholder="Description"/></td>
+                <td>
+                  <select name="analogue_input_result[]">
+                    <option value="Pass">Pass</option>
+                    <option value="Fail">Fail</option>
+                    <option value="N/A">N/A</option>
+                  </select>
+                </td>
+                <td><input name="analogue_input_punch_item[]" placeholder="Punch Item"/></td>
+                <td><input name="analogue_input_verified_by[]" placeholder="Verified By"/></td>
+                <td><input name="analogue_input_comment[]" placeholder="Comment"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-add" onclick="addRow('tmpl-analogue-input', 'analogue-inputs-body')">
+        <i class="fas fa-plus"></i> Add Analogue Input
+      </button>
     </div>
   </div>
 
-  <div class="form-section">
-    <h4><i class="fas fa-tasks"></i> Scope of Work</h4>
-    <div class="form-group">
-      <label for="scope_of_work">Scope Definition</label>
-      <textarea id="scope_of_work" name="scope_of_work"
-        placeholder="List included subsystems, locations, constraints and exclusions">{{ submission_data.SCOPE_OF_WORK }}</textarea>
+  <div class="data-card">
+    <div class="card-header">
+      <span>Analogue Output Signals</span>
+    </div>
+    <div class="card-body">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>S.No</th><th>Rack No</th><th>Module Position</th><th>Signal TAG</th><th>Description</th>
+              <th>Result</th><th>Punch Item</th><th>Verified By</th><th>Comment</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="analogue-outputs-body">
+            {% if submission_data.ANALOGUE_OUTPUT_SIGNALS %}
+              {% for signal in submission_data.ANALOGUE_OUTPUT_SIGNALS %}
+              <tr>
+                <td><input name="analogue_output_s_no[]" value="{{ signal.S_No }}"/></td>
+                <td><input name="analogue_output_rack_no[]" value="{{ signal.Rack_No }}"/></td>
+                <td><input name="analogue_output_module_position[]" value="{{ signal.Module_Position }}"/></td>
+                <td><input name="analogue_output_signal_tag[]" value="{{ signal.Signal_TAG }}"/></td>
+                <td><input name="analogue_output_description[]" value="{{ signal.Description }}"/></td>
+                <td>
+                  <select name="analogue_output_result[]">
+                    <option value="Pass" {% if signal.Result=='Pass' %}selected{% endif %}>Pass</option>
+                    <option value="Fail" {% if signal.Result=='Fail' %}selected{% endif %}>Fail</option>
+                    <option value="N/A" {% if signal.Result=='N/A' %}selected{% endif %}>N/A</option>
+                  </select>
+                </td>
+                <td><input name="analogue_output_punch_item[]" value="{{ signal.Punch_Item }}"/></td>
+                <td><input name="analogue_output_verified_by[]" value="{{ signal.Verified_by }}"/></td>
+                <td><input name="analogue_output_comment[]" value="{{ signal.Comment }}"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td><input name="analogue_output_s_no[]" placeholder="1"/></td>
+                <td><input name="analogue_output_rack_no[]" placeholder="Rack"/></td>
+                <td><input name="analogue_output_module_position[]" placeholder="Module Position"/></td>
+                <td><input name="analogue_output_signal_tag[]" placeholder="Signal TAG"/></td>
+                <td><input name="analogue_output_description[]" placeholder="Description"/></td>
+                <td>
+                  <select name="analogue_output_result[]">
+                    <option value="Pass">Pass</option>
+                    <option value="Fail">Fail</option>
+                    <option value="N/A">N/A</option>
+                  </select>
+                </td>
+                <td><input name="analogue_output_punch_item[]" placeholder="Punch Item"/></td>
+                <td><input name="analogue_output_verified_by[]" placeholder="Verified By"/></td>
+                <td><input name="analogue_output_comment[]" placeholder="Comment"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-add" onclick="addRow('tmpl-analogue-output', 'analogue-outputs-body')">
+        <i class="fas fa-plus"></i> Add Analogue Output
+      </button>
     </div>
   </div>
 
-  <div class="form-section">
-    <h4><i class="fas fa-list-alt"></i> Functional Requirements & Control Philosophy</h4>
-    <div class="form-group">
-      <label for="functional_requirements">Functional Requirements</label>
-      <textarea id="functional_requirements" name="functional_requirements"
-        placeholder="Detail the functional behaviour expected from the control system">{{ submission_data.FUNCTIONAL_REQUIREMENTS }}</textarea>
+  <div class="data-card">
+    <div class="card-header">
+      <span>Digital Output Signals</span>
     </div>
-    <div class="form-group">
-      <label for="process_description">Process Description</label>
-      <textarea id="process_description" name="process_description"
-        placeholder="Describe the process flow supported by this automation">{{ submission_data.PROCESS_DESCRIPTION }}</textarea>
-    </div>
-    <div class="form-group">
-      <label for="control_philosophy">Control Philosophy</label>
-      <textarea id="control_philosophy" name="control_philosophy"
-        placeholder="Document the control strategy, sequences and interlocks">{{ submission_data.CONTROL_PHILOSOPHY }}</textarea>
+    <div class="card-body">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>S.No</th><th>Rack No</th><th>Module Position</th><th>Signal TAG</th><th>Description</th>
+              <th>Result</th><th>Punch Item</th><th>Verified By</th><th>Comment</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="digital-outputs-body">
+            {% if submission_data.DIGITAL_OUTPUT_SIGNALS %}
+              {% for signal in submission_data.DIGITAL_OUTPUT_SIGNALS %}
+              <tr>
+                <td><input name="digital_output_s_no[]" value="{{ signal.S_No }}"/></td>
+                <td><input name="digital_output_rack_no[]" value="{{ signal.Rack_No }}"/></td>
+                <td><input name="digital_output_module_position[]" value="{{ signal.Module_Position }}"/></td>
+                <td><input name="digital_output_signal_tag[]" value="{{ signal.Signal_TAG }}"/></td>
+                <td><input name="digital_output_description[]" value="{{ signal.Description }}"/></td>
+                <td>
+                  <select name="digital_output_result[]">
+                    <option value="Pass" {% if signal.Result=='Pass' %}selected{% endif %}>Pass</option>
+                    <option value="Fail" {% if signal.Result=='Fail' %}selected{% endif %}>Fail</option>
+                    <option value="N/A" {% if signal.Result=='N/A' %}selected{% endif %}>N/A</option>
+                  </select>
+                </td>
+                <td><input name="digital_output_punch_item[]" value="{{ signal.Punch_Item }}"/></td>
+                <td><input name="digital_output_verified_by[]" value="{{ signal.Verified_by }}"/></td>
+                <td><input name="digital_output_comment[]" value="{{ signal.Comment }}"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td><input name="digital_output_s_no[]" placeholder="1"/></td>
+                <td><input name="digital_output_rack_no[]" placeholder="Rack"/></td>
+                <td><input name="digital_output_module_position[]" placeholder="Module Position"/></td>
+                <td><input name="digital_output_signal_tag[]" placeholder="Signal TAG"/></td>
+                <td><input name="digital_output_description[]" placeholder="Description"/></td>
+                <td>
+                  <select name="digital_output_result[]">
+                    <option value="Pass">Pass</option>
+                    <option value="Fail">Fail</option>
+                    <option value="N/A">N/A</option>
+                  </select>
+                </td>
+                <td><input name="digital_output_punch_item[]" placeholder="Punch Item"/></td>
+                <td><input name="digital_output_verified_by[]" placeholder="Verified By"/></td>
+                <td><input name="digital_output_comment[]" placeholder="Comment"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-add" onclick="addRow('tmpl-digital-output', 'digital-outputs-body')">
+        <i class="fas fa-plus"></i> Add Digital Output
+      </button>
     </div>
   </div>
 
-  <div class="form-section">
-    <h4><i class="fas fa-lock"></i> Confidentiality Notice</h4>
-    <div class="confidentiality-box">
-      <p>
-        This document contains confidential and proprietary information of Cully. Unauthorized distribution
-        or reproduction is strictly prohibited. Please ensure this notice accompanies the final FDS output.
-      </p>
+  <div class="data-card">
+    <div class="card-header">
+      <span>Modbus Digital Signals</span>
     </div>
-    <div class="form-group" style="margin-top:16px;">
-      <label for="confidentiality_notice">Custom Confidentiality Statement (optional)</label>
-      <textarea id="confidentiality_notice" name="confidentiality_notice"
-        placeholder="Enter an additional notice if required.">{{ submission_data.CONFIDENTIALITY_NOTICE }}</textarea>
+    <div class="card-body">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Address</th><th>Description</th><th>Remarks</th><th>Result</th>
+              <th>Punch Item</th><th>Verified By</th><th>Comment</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="modbus-digital-signals-body">
+            {% if submission_data.MODBUS_DIGITAL_SIGNALS %}
+              {% for signal in submission_data.MODBUS_DIGITAL_SIGNALS %}
+              <tr>
+                <td><input name="modbus_digital_signal_address[]" value="{{ signal.Address }}"/></td>
+                <td><input name="modbus_digital_signal_description[]" value="{{ signal.Description }}"/></td>
+                <td><input name="modbus_digital_signal_remarks[]" value="{{ signal.Remarks }}"/></td>
+                <td>
+                  <select name="modbus_digital_signal_result[]">
+                    <option value="Pass" {% if signal.Result=='Pass' %}selected{% endif %}>Pass</option>
+                    <option value="Fail" {% if signal.Result=='Fail' %}selected{% endif %}>Fail</option>
+                    <option value="N/A" {% if signal.Result=='N/A' %}selected{% endif %}>N/A</option>
+                  </select>
+                </td>
+                <td><input name="modbus_digital_signal_punch_item[]" value="{{ signal.Punch_Item }}"/></td>
+                <td><input name="modbus_digital_signal_verified_by[]" value="{{ signal.Verified_by }}"/></td>
+                <td><input name="modbus_digital_signal_comment[]" value="{{ signal.Comment }}"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td><input name="modbus_digital_signal_address[]" placeholder="Address"/></td>
+                <td><input name="modbus_digital_signal_description[]" placeholder="Description"/></td>
+                <td><input name="modbus_digital_signal_remarks[]" placeholder="Remarks"/></td>
+                <td>
+                  <select name="modbus_digital_signal_result[]">
+                    <option value="Pass">Pass</option>
+                    <option value="Fail">Fail</option>
+                    <option value="N/A">N/A</option>
+                  </select>
+                </td>
+                <td><input name="modbus_digital_signal_punch_item[]" placeholder="Punch Item"/></td>
+                <td><input name="modbus_digital_signal_verified_by[]" placeholder="Verified By"/></td>
+                <td><input name="modbus_digital_signal_comment[]" placeholder="Comment"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-add" onclick="addRow('tmpl-modbus-digital-signal', 'modbus-digital-signals-body')">
+        <i class="fas fa-plus"></i> Add Modbus Digital Signal
+      </button>
+    </div>
+  </div>
+
+  <div class="data-card">
+    <div class="card-header">
+      <span>Modbus Analogue Signals</span>
+    </div>
+    <div class="card-body">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Address</th><th>Description</th><th>Range</th><th>Result</th>
+              <th>Punch Item</th><th>Verified By</th><th>Comment</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="modbus-analogue-signals-body">
+            {% if submission_data.MODBUS_ANALOGUE_SIGNALS %}
+              {% for signal in submission_data.MODBUS_ANALOGUE_SIGNALS %}
+              <tr>
+                <td><input name="modbus_analogue_signal_address[]" value="{{ signal.Address }}"/></td>
+                <td><input name="modbus_analogue_signal_description[]" value="{{ signal.Description }}"/></td>
+                <td><input name="modbus_analogue_signal_range[]" value="{{ signal.Range }}"/></td>
+                <td>
+                  <select name="modbus_analogue_signal_result[]">
+                    <option value="Pass" {% if signal.Result=='Pass' %}selected{% endif %}>Pass</option>
+                    <option value="Fail" {% if signal.Result=='Fail' %}selected{% endif %}>Fail</option>
+                    <option value="N/A" {% if signal.Result=='N/A' %}selected{% endif %}>N/A</option>
+                  </select>
+                </td>
+                <td><input name="modbus_analogue_signal_punch_item[]" value="{{ signal.Punch_Item }}"/></td>
+                <td><input name="modbus_analogue_signal_verified_by[]" value="{{ signal.Verified_by }}"/></td>
+                <td><input name="modbus_analogue_signal_comment[]" value="{{ signal.Comment }}"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td><input name="modbus_analogue_signal_address[]" placeholder="Address"/></td>
+                <td><input name="modbus_analogue_signal_description[]" placeholder="Description"/></td>
+                <td><input name="modbus_analogue_signal_range[]" placeholder="Range"/></td>
+                <td>
+                  <select name="modbus_analogue_signal_result[]">
+                    <option value="Pass">Pass</option>
+                    <option value="Fail">Fail</option>
+                    <option value="N/A">N/A</option>
+                  </select>
+                </td>
+                <td><input name="modbus_analogue_signal_punch_item[]" placeholder="Punch Item"/></td>
+                <td><input name="modbus_analogue_signal_verified_by[]" placeholder="Verified By"/></td>
+                <td><input name="modbus_analogue_signal_comment[]" placeholder="Comment"/></td>
+                <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-add" onclick="addRow('tmpl-modbus-analogue-signal', 'modbus-analogue-signals-body')">
+        <i class="fas fa-plus"></i> Add Modbus Analogue Signal
+      </button>
     </div>
   </div>
 
@@ -114,3 +431,4 @@
     </button>
   </div>
 </fieldset>
+

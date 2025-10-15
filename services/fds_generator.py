@@ -72,18 +72,52 @@ def generate_fds_from_sat(sat_report_data: dict) -> dict:
 
     # 4. I/O Signal Mapping
     digital_signals = context.get("DIGITAL_SIGNALS", [])
-    fds_data["io_signal_mapping"]["digital_signals"] = digital_signals
+    analogue_inputs = context.get("ANALOGUE_INPUT_SIGNALS", [])
+    analogue_outputs = context.get("ANALOGUE_OUTPUT_SIGNALS", [])
+    digital_outputs = context.get("DIGITAL_OUTPUT_SIGNALS", [])
 
-    analog_inputs = context.get("ANALOGUE_INPUT_SIGNALS", [])
-    analog_outputs = context.get("ANALOGUE_OUTPUT_SIGNALS", [])
-    fds_data["io_signal_mapping"]["analog_signals"] = analog_inputs + analog_outputs
+    fds_data["digital_signals"] = digital_signals
+    fds_data["analogue_input_signals"] = analogue_inputs
+    fds_data["analogue_output_signals"] = analogue_outputs
+    fds_data["digital_output_signals"] = digital_outputs
+
+    fds_data["io_signal_mapping"]["digital_signals"] = digital_signals
+    fds_data["io_signal_mapping"]["analogue_input_signals"] = analogue_inputs
+    fds_data["io_signal_mapping"]["analogue_output_signals"] = analogue_outputs
+    fds_data["io_signal_mapping"]["digital_output_signals"] = digital_outputs
+    fds_data["io_signal_mapping"]["analog_signals"] = analogue_inputs + analogue_outputs
+
+    detailed_io = []
+
+    def _append_signals(rows, signal_type):
+        for row in rows or []:
+            tag = row.get("Signal_TAG") or row.get("Signal_Tag") or row.get("Signal Tag")
+            description = row.get("Description") or row.get("description") or ""
+            if not tag and not description:
+                continue
+            detailed_io.append({
+                "Signal_Type": signal_type,
+                "Signal_Tag": tag or "",
+                "Description": description
+            })
+
+    _append_signals(digital_signals, "Digital Signal")
+    _append_signals(analogue_inputs, "Analogue Input")
+    _append_signals(analogue_outputs, "Analogue Output")
+    _append_signals(digital_outputs, "Digital Output")
+
+    fds_data["io_signal_mapping"]["detailed_io_list"] = detailed_io
 
     # 5. Communication and Modbus Integration
     modbus_digital = context.get("MODBUS_DIGITAL_SIGNALS", [])
-    fds_data["communication_and_modbus"]["modbus_digital_registers"] = modbus_digital
-
     modbus_analog = context.get("MODBUS_ANALOGUE_SIGNALS", [])
-    fds_data["communication_and_modbus"]["modbus_analog_registers"] = modbus_analog
+
+    fds_data["communication_and_modbus"]["modbus_digital_registers"] = context.get("MODBUS_DIGITAL_LISTS", [])
+    fds_data["communication_and_modbus"]["modbus_analog_registers"] = context.get("MODBUS_ANALOGUE_LISTS", [])
+    fds_data["communication_and_modbus"]["modbus_digital_signals"] = modbus_digital
+    fds_data["communication_and_modbus"]["modbus_analogue_signals"] = modbus_analog
+    fds_data["modbus_digital_signals"] = modbus_digital
+    fds_data["modbus_analogue_signals"] = modbus_analog
     
     current_app.logger.info("FDS generation complete.")
     return fds_data

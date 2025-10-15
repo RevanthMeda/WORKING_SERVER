@@ -191,6 +191,28 @@ def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
     submission["PROCESS_DESCRIPTION"] = fds_payload.get("process_description") or submission["PROCESS_DESCRIPTION"]
     submission["CONTROL_PHILOSOPHY"] = fds_payload.get("control_philosophy") or submission["CONTROL_PHILOSOPHY"]
 
+    io_mapping = fds_payload.get("io_signal_mapping", {}) or {}
+    submission["DIGITAL_SIGNALS"] = (
+        fds_payload.get("digital_signals")
+        or io_mapping.get("digital_signals")
+        or submission["DIGITAL_SIGNALS"]
+    )
+    submission["ANALOGUE_INPUT_SIGNALS"] = (
+        fds_payload.get("analogue_input_signals")
+        or io_mapping.get("analogue_input_signals")
+        or submission["ANALOGUE_INPUT_SIGNALS"]
+    )
+    submission["ANALOGUE_OUTPUT_SIGNALS"] = (
+        fds_payload.get("analogue_output_signals")
+        or io_mapping.get("analogue_output_signals")
+        or submission["ANALOGUE_OUTPUT_SIGNALS"]
+    )
+    submission["DIGITAL_OUTPUT_SIGNALS"] = (
+        fds_payload.get("digital_output_signals")
+        or io_mapping.get("digital_output_signals")
+        or submission["DIGITAL_OUTPUT_SIGNALS"]
+    )
+
     hardware = fds_payload.get("equipment_and_hardware", {}) or {}
     equipment_rows = _normalize_equipment_rows(hardware.get("equipment_list") or hardware.get("equipment") or [])
     if equipment_rows:
@@ -201,14 +223,25 @@ def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
     if protocol_rows:
         submission["COMMUNICATION_PROTOCOLS"] = protocol_rows
 
-    detailed_io_rows = _normalize_io_rows(
-        (fds_payload.get("io_signal_mapping") or {}).get("detailed_io_list")
+    submission["MODBUS_DIGITAL_SIGNALS"] = (
+        fds_payload.get("modbus_digital_signals")
+        or comms.get("modbus_digital_signals")
+        or submission["MODBUS_DIGITAL_SIGNALS"]
     )
+    submission["MODBUS_ANALOGUE_SIGNALS"] = (
+        fds_payload.get("modbus_analogue_signals")
+        or comms.get("modbus_analogue_signals")
+        or submission["MODBUS_ANALOGUE_SIGNALS"]
+    )
+
+    detailed_io_rows = _normalize_io_rows(io_mapping.get("detailed_io_list"))
     if not detailed_io_rows:
-        mapping = fds_payload.get("io_signal_mapping") or {}
         detailed_io_rows = (
-            _normalize_io_rows(mapping.get("digital_signals"), fallback_type="Digital Signal") +
-            _normalize_io_rows(mapping.get("analog_signals"), fallback_type="Analog Signal")
+            _normalize_io_rows(submission["DIGITAL_SIGNALS"], fallback_type="Digital Signal") +
+            _normalize_io_rows(submission["ANALOGUE_INPUT_SIGNALS"], fallback_type="Analogue Input") +
+            _normalize_io_rows(submission["ANALOGUE_OUTPUT_SIGNALS"], fallback_type="Analogue Output") +
+            _normalize_io_rows(submission["DIGITAL_OUTPUT_SIGNALS"], fallback_type="Digital Output") +
+            _normalize_io_rows(io_mapping.get("analog_signals"), fallback_type="Analog Signal")
         )
     if detailed_io_rows:
         submission["DETAILED_IO_LIST"] = detailed_io_rows
@@ -314,7 +347,13 @@ def _build_empty_fds_submission() -> dict:
         "COMMUNICATION_PROTOCOLS": [],
         "DETAILED_IO_LIST": [],
         "MODBUS_DIGITAL_REGISTERS": [],
-        "MODBUS_ANALOG_REGISTERS": []
+        "MODBUS_ANALOG_REGISTERS": [],
+        "DIGITAL_SIGNALS": [],
+        "ANALOGUE_INPUT_SIGNALS": [],
+        "ANALOGUE_OUTPUT_SIGNALS": [],
+        "DIGITAL_OUTPUT_SIGNALS": [],
+        "MODBUS_DIGITAL_SIGNALS": [],
+        "MODBUS_ANALOGUE_SIGNALS": []
     }
 
 
@@ -867,6 +906,98 @@ def submit_fds():
             add_placeholder=False
         )
 
+        digital_signals_rows = process_table_rows(
+            request.form,
+            {
+                "digital_s_no[]": "S_No",
+                "digital_rack[]": "Rack",
+                "digital_pos[]": "Pos",
+                "digital_signal_tag[]": "Signal_TAG",
+                "digital_description[]": "Description",
+                "digital_result[]": "Result",
+                "digital_punch[]": "Punch",
+                "digital_verified[]": "Verified",
+                "digital_comment[]": "Comment"
+            },
+            add_placeholder=False
+        )
+
+        analogue_input_rows = process_table_rows(
+            request.form,
+            {
+                "analogue_input_s_no[]": "S_No",
+                "analogue_input_rack_no[]": "Rack_No",
+                "analogue_input_module_position[]": "Module_Position",
+                "analogue_input_signal_tag[]": "Signal_TAG",
+                "analogue_input_description[]": "Description",
+                "analogue_input_result[]": "Result",
+                "analogue_input_punch_item[]": "Punch_Item",
+                "analogue_input_verified_by[]": "Verified_by",
+                "analogue_input_comment[]": "Comment"
+            },
+            add_placeholder=False
+        )
+
+        analogue_output_rows = process_table_rows(
+            request.form,
+            {
+                "analogue_output_s_no[]": "S_No",
+                "analogue_output_rack_no[]": "Rack_No",
+                "analogue_output_module_position[]": "Module_Position",
+                "analogue_output_signal_tag[]": "Signal_TAG",
+                "analogue_output_description[]": "Description",
+                "analogue_output_result[]": "Result",
+                "analogue_output_punch_item[]": "Punch_Item",
+                "analogue_output_verified_by[]": "Verified_by",
+                "analogue_output_comment[]": "Comment"
+            },
+            add_placeholder=False
+        )
+
+        digital_output_rows = process_table_rows(
+            request.form,
+            {
+                "digital_output_s_no[]": "S_No",
+                "digital_output_rack_no[]": "Rack_No",
+                "digital_output_module_position[]": "Module_Position",
+                "digital_output_signal_tag[]": "Signal_TAG",
+                "digital_output_description[]": "Description",
+                "digital_output_result[]": "Result",
+                "digital_output_punch_item[]": "Punch_Item",
+                "digital_output_verified_by[]": "Verified_by",
+                "digital_output_comment[]": "Comment"
+            },
+            add_placeholder=False
+        )
+
+        modbus_digital_signal_rows = process_table_rows(
+            request.form,
+            {
+                "modbus_digital_signal_address[]": "Address",
+                "modbus_digital_signal_description[]": "Description",
+                "modbus_digital_signal_remarks[]": "Remarks",
+                "modbus_digital_signal_result[]": "Result",
+                "modbus_digital_signal_punch_item[]": "Punch_Item",
+                "modbus_digital_signal_verified_by[]": "Verified_by",
+                "modbus_digital_signal_comment[]": "Comment"
+            },
+            add_placeholder=False
+        )
+
+        modbus_analogue_signal_rows = process_table_rows(
+            request.form,
+            {
+                "modbus_analogue_signal_address[]": "Address",
+                "modbus_analogue_signal_description[]": "Description",
+                "modbus_analogue_signal_range[]": "Range",
+                "modbus_analogue_signal_result[]": "Result",
+                "modbus_analogue_signal_punch_item[]": "Punch_Item",
+                "modbus_analogue_signal_verified_by[]": "Verified_by",
+                "modbus_analogue_signal_comment[]": "Comment"
+            },
+            add_placeholder=False
+        )
+
         fds_data = {
             "document_header": document_header,
             "document_approvals": approvals,
@@ -886,11 +1017,23 @@ def submit_fds():
             "communication_and_modbus": {
                 "protocols": protocol_rows,
                 "modbus_digital_registers": modbus_digital_rows,
-                "modbus_analog_registers": modbus_analog_rows
+                "modbus_analog_registers": modbus_analog_rows,
+                "modbus_digital_signals": modbus_digital_signal_rows,
+                "modbus_analogue_signals": modbus_analogue_signal_rows
             },
             "io_signal_mapping": {
-                "detailed_io_list": detailed_io_rows
-            }
+                "detailed_io_list": detailed_io_rows,
+                "digital_signals": digital_signals_rows,
+                "analogue_input_signals": analogue_input_rows,
+                "analogue_output_signals": analogue_output_rows,
+                "digital_output_signals": digital_output_rows
+            },
+            "digital_signals": digital_signals_rows,
+            "analogue_input_signals": analogue_input_rows,
+            "analogue_output_signals": analogue_output_rows,
+            "digital_output_signals": digital_output_rows,
+            "modbus_digital_signals": modbus_digital_signal_rows,
+            "modbus_analogue_signals": modbus_analogue_signal_rows
         }
 
         fds_report = FDSReport.query.filter_by(report_id=submission_id).first()
@@ -936,3 +1079,6 @@ def submit_fds():
             return jsonify({"success": False, "message": message}), 500
         flash(message, 'error')
         return redirect(url_for('dashboard.engineer'))
+
+
+
