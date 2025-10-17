@@ -2,6 +2,7 @@ import copy
 import json
 import os
 import math
+import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from urllib.parse import quote_plus
@@ -98,6 +99,99 @@ def _build_placeholder_result(query: str) -> Dict:
     }
 
 
+def _extract_first_json(payload: str) -> Optional[Dict]:
+    if not payload:
+        return None
+    try:
+        return json.loads(payload)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    match = re.search(r"\{[\s\S]+\}", payload)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return None
+
+
+def _search_image_via_gemini(query: str, description: Optional[str]) -> Optional[Dict]:
+    api_key = current_app.config.get("GEMINI_API_KEY")
+    if not api_key:
+        return None
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        current_app.logger.warning("google-generativeai library is not available for Gemini image lookup.")
+        return None
+
+    try:
+        genai.configure(api_key=api_key)
+        model_name = (
+            current_app.config.get("GEMINI_IMAGE_MODEL")
+            or current_app.config.get("GEMINI_MODEL")
+            or "gemini-2.5-pro"
+        )
+        try:
+            tool = genai.protos.Tool(google_search=genai.protos.GoogleSearchTool())
+            model = genai.GenerativeModel(model_name, tools=[tool])
+        except AttributeError:
+            current_app.logger.warning("Gemini search tool not available for %s; proceeding without Google Search.", model_name)
+            model = genai.GenerativeModel(model_name)
+        generation_config = genai.types.GenerationConfig(
+            temperature=0.2,
+            top_p=0.8,
+            top_k=32,
+            max_output_tokens=512,
+            response_mime_type="application/json"
+        )
+        prompt = (
+            "You find verified product photography for industrial automation devices. "
+            "Return a JSON object with keys 'image_url', 'thumbnail_url', 'source', and 'confidence'. "
+            "Requirements:\n"
+            "- image_url must be a direct HTTPS link to a manufacturer-grade product image (jpg/jpeg/png/webp).\n"
+            "- Favour manufacturer or authorised distributor domains (abb.com, siemens.com, schneider-electric.com, rockwellautomation.com, etc.).\n"
+            "- If no trustworthy image exists, return {\"image_url\": \"\", \"thumbnail_url\": \"\", \"source\": \"unavailable\", \"confidence\": 0}.\n"
+            f"Device model: {query}\n"
+            f"Additional description: {description or 'Not provided'}"
+        )
+        response = model.generate_content(prompt, generation_config=generation_config)
+        output_text = getattr(response, "text", "") or ""
+        data = _extract_first_json(output_text.strip())
+        if not isinstance(data, dict):
+            return None
+        image_url = (data.get("image_url") or "").strip()
+        if not image_url:
+            return None
+        allowed_extensions = (".jpg", ".jpeg", ".png", ".webp")
+        if not any(image_url.lower().endswith(ext) for ext in allowed_extensions):
+            # Try to infer usable image from alternate field
+            alt_url = (data.get("thumbnail_url") or data.get("source_url") or "").strip()
+            if alt_url and any(alt_url.lower().endswith(ext) for ext in allowed_extensions):
+                image_url = alt_url
+            else:
+                return None
+        try:
+            confidence_value = float(data.get("confidence") or 0.65)
+        except (TypeError, ValueError):
+            confidence_value = 0.65
+        confidence_value = max(0.0, min(confidence_value, 1.0))
+
+        return {
+            "image_url": image_url,
+            "thumbnail_url": (data.get("thumbnail_url") or image_url) if image_url else None,
+            "source": data.get("source") or data.get("source_url") or "gemini",
+            "confidence": confidence_value,
+            "metadata": {
+                "provider": "gemini",
+                "raw": data
+            }
+        }
+    except Exception as exc:
+        current_app.logger.warning("Gemini image lookup failed for %s: %s", query, exc)
+        return None
+
+
 def _search_remote_image(query: str, description: Optional[str] = None) -> Optional[Dict]:
     """
     Search for an equipment image using configured provider.
@@ -120,37 +214,42 @@ def _search_remote_image(query: str, description: Optional[str] = None) -> Optio
         "imageType": "Photo",
     }
 
+    search_result: Optional[Dict] = None
+
     if api_key:
         headers["Ocp-Apim-Subscription-Key"] = api_key
-    else:
-        # Without an API key, fall back to a deterministic placeholder to avoid remote 503s.
-        return _build_placeholder_result(search_terms)
+        try:
+            response = requests.get(endpoint, headers=headers, params=params, timeout=15)
+            response.raise_for_status()
+            payload = response.json()
+            results = payload.get("value") or []
+            if results:
+                best = results[0]
+                search_result = {
+                    "image_url": best.get("contentUrl"),
+                    "thumbnail_url": best.get("thumbnailUrl"),
+                    "source": payload.get("_type", "bing"),
+                    "confidence": best.get("confidenceScore") or 0.75,
+                    "metadata": {
+                        "width": best.get("width"),
+                        "height": best.get("height"),
+                        "encoding_format": best.get("encodingFormat"),
+                        "host_page_url": best.get("hostPageUrl"),
+                        "name": best.get("name"),
+                        "content_size": best.get("contentSize"),
+                    },
+                }
+        except Exception as exc:
+            current_app.logger.warning("Image search failed for %s using primary provider: %s", query, exc)
 
-    try:
-        response = requests.get(endpoint, headers=headers, params=params, timeout=15)
-        response.raise_for_status()
-        payload = response.json()
-        results = payload.get("value") or []
-        if not results:
-            return _build_placeholder_result(search_terms)
-        best = results[0]
-        return {
-            "image_url": best.get("contentUrl"),
-            "thumbnail_url": best.get("thumbnailUrl"),
-            "source": payload.get("_type", "bing"),
-            "confidence": best.get("confidenceScore") or 0.75,
-            "metadata": {
-                "width": best.get("width"),
-                "height": best.get("height"),
-                "encoding_format": best.get("encodingFormat"),
-                "host_page_url": best.get("hostPageUrl"),
-                "name": best.get("name"),
-                "content_size": best.get("contentSize"),
-            },
-        }
-    except Exception as exc:
-        current_app.logger.warning("Image search failed for %s: %s", query, exc)
+    if not search_result:
+        gemini_result = _search_image_via_gemini(query, description)
+        if gemini_result:
+            search_result = gemini_result
+
+    if not search_result:
         return _build_placeholder_result(search_terms)
+    return search_result
 
 
 def ensure_asset_for_model(model_name: str, description: Optional[str] = None) -> Optional[EquipmentAsset]:
