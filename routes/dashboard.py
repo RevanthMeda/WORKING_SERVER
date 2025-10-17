@@ -1217,10 +1217,15 @@ def my_reports():
             if fds_report and fds_report.data_json:
                 try:
                     fds_data = json.loads(fds_report.data_json)
-                    header = fds_data.get('document_header', {})
+                    header = fds_data.get('document_header', {}) or {}
                     document_title = header.get('document_title') or document_title
                     project_reference = header.get('project_reference') or project_reference
                     client_name = header.get('prepared_for') or client_name
+
+                    context = fds_data.get('context', {}) or {}
+                    document_title = context.get('DOCUMENT_TITLE') or document_title
+                    project_reference = context.get('PROJECT_REFERENCE') or project_reference
+                    client_name = context.get('PREPARED_FOR') or client_name
                 except json.JSONDecodeError:
                     current_app.logger.warning(f"Could not decode FDS report data for report ID: {report.id}")
 

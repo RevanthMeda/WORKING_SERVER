@@ -145,6 +145,25 @@ def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
         return submission
 
     header = fds_payload.get("document_header", {}) or {}
+    context_block = fds_payload.get("context", {}) or {}
+    if context_block:
+        merged_header = dict(header)
+        context_header = {
+            "document_title": context_block.get("DOCUMENT_TITLE"),
+            "project_reference": context_block.get("PROJECT_REFERENCE"),
+            "document_reference": context_block.get("DOCUMENT_REFERENCE"),
+            "date": context_block.get("DATE"),
+            "prepared_for": context_block.get("PREPARED_FOR"),
+            "revision": context_block.get("REVISION"),
+            "revision_details": context_block.get("REVISION_DETAILS"),
+            "revision_date": context_block.get("REVISION_DATE"),
+            "user_email": context_block.get("USER_EMAIL"),
+        }
+        for key, value in context_header.items():
+            if value not in (None, "") and key not in merged_header:
+                merged_header[key] = value
+        header = merged_header
+
     submission["DOCUMENT_TITLE"] = _get_first_value(header, "document_title", default=submission["DOCUMENT_TITLE"])
     submission["PROJECT_REFERENCE"] = _get_first_value(header, "project_reference", default=submission["PROJECT_REFERENCE"])
     submission["DOCUMENT_REFERENCE"] = _get_first_value(header, "document_reference", default=submission["DOCUMENT_REFERENCE"])
@@ -275,6 +294,81 @@ def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
             submission["SYSTEM_ARCHITECTURE_LAYOUT"] = json.dumps(architecture_layout)
         except (TypeError, ValueError):
             current_app.logger.warning("Unable to serialise stored architecture layout for submission preload.")
+
+    if context_block:
+        submission["DOCUMENT_TITLE"] = context_block.get("DOCUMENT_TITLE", submission["DOCUMENT_TITLE"])
+        submission["PROJECT_REFERENCE"] = context_block.get("PROJECT_REFERENCE", submission["PROJECT_REFERENCE"])
+        submission["DOCUMENT_REFERENCE"] = context_block.get("DOCUMENT_REFERENCE", submission["DOCUMENT_REFERENCE"])
+        submission["DATE"] = context_block.get("DATE", submission["DATE"])
+        submission["PREPARED_FOR"] = context_block.get("PREPARED_FOR", submission["PREPARED_FOR"])
+        submission["REVISION"] = context_block.get("REVISION", submission["REVISION"])
+        submission["REVISION_DETAILS"] = context_block.get("REVISION_DETAILS", submission["REVISION_DETAILS"])
+        submission["REVISION_DATE"] = context_block.get("REVISION_DATE", submission["REVISION_DATE"])
+        submission["USER_EMAIL"] = context_block.get("USER_EMAIL", submission["USER_EMAIL"])
+
+        submission["PREPARED_BY_NAME"] = context_block.get("PREPARED_BY_NAME", submission["PREPARED_BY_NAME"])
+        submission["PREPARED_BY_ROLE"] = context_block.get("PREPARED_BY_ROLE", submission["PREPARED_BY_ROLE"])
+        submission["PREPARED_BY_DATE"] = context_block.get("PREPARED_BY_DATE", submission["PREPARED_BY_DATE"])
+        submission["PREPARED_BY_EMAIL"] = context_block.get("PREPARED_BY_EMAIL", submission.get("PREPARED_BY_EMAIL", ""))
+
+        submission["REVIEWER1_NAME"] = context_block.get("REVIEWER1_NAME", submission["REVIEWER1_NAME"])
+        submission["REVIEWER1_ROLE"] = context_block.get("REVIEWER1_ROLE", submission["REVIEWER1_ROLE"])
+        submission["REVIEWER1_DATE"] = context_block.get("REVIEWER1_DATE", submission["REVIEWER1_DATE"])
+        submission["REVIEWER1_EMAIL"] = context_block.get("REVIEWER1_EMAIL", submission.get("REVIEWER1_EMAIL", ""))
+        submission["approver_1_name"] = submission["REVIEWER1_NAME"]
+        submission["approver_1_email"] = submission.get("REVIEWER1_EMAIL", "")
+
+        submission["REVIEWER2_NAME"] = context_block.get("REVIEWER2_NAME", submission["REVIEWER2_NAME"])
+        submission["REVIEWER2_ROLE"] = context_block.get("REVIEWER2_ROLE", submission["REVIEWER2_ROLE"])
+        submission["REVIEWER2_DATE"] = context_block.get("REVIEWER2_DATE", submission["REVIEWER2_DATE"])
+        submission["REVIEWER2_EMAIL"] = context_block.get("REVIEWER2_EMAIL", submission.get("REVIEWER2_EMAIL", ""))
+        submission["approver_2_name"] = submission["REVIEWER2_NAME"]
+        submission["approver_2_email"] = submission.get("REVIEWER2_EMAIL", "")
+
+        submission["CLIENT_APPROVAL_NAME"] = context_block.get("CLIENT_APPROVAL_NAME", submission["CLIENT_APPROVAL_NAME"])
+        submission["CLIENT_APPROVAL_DATE"] = context_block.get("CLIENT_APPROVAL_DATE", submission.get("CLIENT_APPROVAL_DATE", ""))
+        submission["CLIENT_APPROVAL_EMAIL"] = context_block.get("CLIENT_APPROVAL_EMAIL", submission.get("CLIENT_APPROVAL_EMAIL", ""))
+
+        if not submission["VERSION_HISTORY"]:
+            submission["VERSION_HISTORY"] = context_block.get("VERSION_HISTORY", submission["VERSION_HISTORY"])
+        if not submission["CONFIDENTIALITY_NOTICE"]:
+            submission["CONFIDENTIALITY_NOTICE"] = context_block.get("CONFIDENTIALITY_NOTICE", submission["CONFIDENTIALITY_NOTICE"])
+
+        submission["SYSTEM_OVERVIEW"] = context_block.get("SYSTEM_OVERVIEW", submission["SYSTEM_OVERVIEW"])
+        submission["SYSTEM_PURPOSE"] = context_block.get("SYSTEM_PURPOSE", submission["SYSTEM_PURPOSE"])
+        submission["SCOPE_OF_WORK"] = context_block.get("SCOPE_OF_WORK", submission["SCOPE_OF_WORK"])
+        submission["PURPOSE"] = context_block.get("SYSTEM_PURPOSE", submission["PURPOSE"])
+        submission["SCOPE"] = context_block.get("SCOPE_OF_WORK", submission["SCOPE"])
+
+        submission["FUNCTIONAL_REQUIREMENTS"] = context_block.get("FUNCTIONAL_REQUIREMENTS", submission["FUNCTIONAL_REQUIREMENTS"])
+        submission["PROCESS_DESCRIPTION"] = context_block.get("PROCESS_DESCRIPTION", submission["PROCESS_DESCRIPTION"])
+        submission["CONTROL_PHILOSOPHY"] = context_block.get("CONTROL_PHILOSOPHY", submission["CONTROL_PHILOSOPHY"])
+
+        if not submission["EQUIPMENT_LIST"]:
+            submission["EQUIPMENT_LIST"] = context_block.get("EQUIPMENT_LIST", submission["EQUIPMENT_LIST"])
+        if not submission["COMMUNICATION_PROTOCOLS"]:
+            submission["COMMUNICATION_PROTOCOLS"] = context_block.get("COMMUNICATION_PROTOCOLS", submission["COMMUNICATION_PROTOCOLS"])
+        if not submission["DETAILED_IO_LIST"]:
+            submission["DETAILED_IO_LIST"] = context_block.get("DETAILED_IO_LIST", submission["DETAILED_IO_LIST"])
+
+        submission["DIGITAL_SIGNALS"] = context_block.get("DIGITAL_SIGNALS", submission["DIGITAL_SIGNALS"])
+        submission["ANALOGUE_INPUT_SIGNALS"] = context_block.get("ANALOGUE_INPUT_SIGNALS", submission["ANALOGUE_INPUT_SIGNALS"])
+        submission["ANALOGUE_OUTPUT_SIGNALS"] = context_block.get("ANALOGUE_OUTPUT_SIGNALS", submission["ANALOGUE_OUTPUT_SIGNALS"])
+        submission["DIGITAL_OUTPUT_SIGNALS"] = context_block.get("DIGITAL_OUTPUT_SIGNALS", submission["DIGITAL_OUTPUT_SIGNALS"])
+
+        if not submission["MODBUS_DIGITAL_REGISTERS"]:
+            submission["MODBUS_DIGITAL_REGISTERS"] = context_block.get("MODBUS_DIGITAL_REGISTERS", submission["MODBUS_DIGITAL_REGISTERS"])
+        if not submission["MODBUS_ANALOG_REGISTERS"]:
+            submission["MODBUS_ANALOG_REGISTERS"] = context_block.get("MODBUS_ANALOG_REGISTERS", submission["MODBUS_ANALOG_REGISTERS"])
+
+        submission["MODBUS_DIGITAL_SIGNALS"] = context_block.get("MODBUS_DIGITAL_SIGNALS", submission["MODBUS_DIGITAL_SIGNALS"])
+        submission["MODBUS_ANALOGUE_SIGNALS"] = context_block.get("MODBUS_ANALOGUE_SIGNALS", submission["MODBUS_ANALOGUE_SIGNALS"])
+
+        if "SYSTEM_ARCHITECTURE_LAYOUT" in context_block and not submission.get("SYSTEM_ARCHITECTURE_LAYOUT"):
+            try:
+                submission["SYSTEM_ARCHITECTURE_LAYOUT"] = json.dumps(context_block["SYSTEM_ARCHITECTURE_LAYOUT"])
+            except (TypeError, ValueError):
+                current_app.logger.warning("Unable to serialise architecture layout from context for submission preload.")
 
     return submission
 
@@ -1108,7 +1202,62 @@ def submit_fds():
             except (TypeError, ValueError):
                 current_app.logger.warning("Received invalid architecture layout JSON for submission %s", submission_id)
 
+        prepared_block = approvals[0] if len(approvals) > 0 else {}
+        reviewer1_block = approvals[1] if len(approvals) > 1 else {}
+        reviewer2_block = approvals[2] if len(approvals) > 2 else {}
+        client_block = approvals[3] if len(approvals) > 3 else {}
+
+        context = {
+            "DOCUMENT_TITLE": document_header.get("document_title", ""),
+            "PROJECT_REFERENCE": document_header.get("project_reference", ""),
+            "DOCUMENT_REFERENCE": document_header.get("document_reference", ""),
+            "DATE": document_header.get("date", ""),
+            "PREPARED_FOR": document_header.get("prepared_for", ""),
+            "REVISION": document_header.get("revision", ""),
+            "REVISION_DETAILS": document_header.get("revision_details", ""),
+            "REVISION_DATE": document_header.get("revision_date", ""),
+            "USER_EMAIL": document_header.get("user_email", ""),
+            "PREPARED_BY_NAME": prepared_block.get("name", ""),
+            "PREPARED_BY_ROLE": prepared_block.get("role", ""),
+            "PREPARED_BY_DATE": prepared_block.get("date", ""),
+            "PREPARED_BY_EMAIL": prepared_block.get("email", ""),
+            "REVIEWER1_NAME": reviewer1_block.get("name", ""),
+            "REVIEWER1_ROLE": reviewer1_block.get("role", ""),
+            "REVIEWER1_DATE": reviewer1_block.get("date", ""),
+            "REVIEWER1_EMAIL": reviewer1_block.get("email", ""),
+            "REVIEWER2_NAME": reviewer2_block.get("name", ""),
+            "REVIEWER2_ROLE": reviewer2_block.get("role", ""),
+            "REVIEWER2_DATE": reviewer2_block.get("date", ""),
+            "REVIEWER2_EMAIL": reviewer2_block.get("email", ""),
+            "CLIENT_APPROVAL_NAME": client_block.get("name", ""),
+            "CLIENT_APPROVAL_DATE": client_block.get("date", ""),
+            "CLIENT_APPROVAL_EMAIL": client_block.get("email", ""),
+            "VERSION_HISTORY": version_history,
+            "CONFIDENTIALITY_NOTICE": request.form.get('confidentiality_notice', '').strip(),
+            "SYSTEM_OVERVIEW": request.form.get('system_overview', ''),
+            "SYSTEM_PURPOSE": purpose_html or request.form.get('system_purpose', ''),
+            "SCOPE_OF_WORK": scope_of_work_value,
+            "FUNCTIONAL_REQUIREMENTS": request.form.get('functional_requirements', ''),
+            "PROCESS_DESCRIPTION": request.form.get('process_description', ''),
+            "CONTROL_PHILOSOPHY": request.form.get('control_philosophy', ''),
+            "DIGITAL_SIGNALS": digital_signals_rows,
+            "ANALOGUE_INPUT_SIGNALS": analogue_input_rows,
+            "ANALOGUE_OUTPUT_SIGNALS": analogue_output_rows,
+            "DIGITAL_OUTPUT_SIGNALS": digital_output_rows,
+            "MODBUS_DIGITAL_SIGNALS": modbus_digital_signal_rows,
+            "MODBUS_ANALOGUE_SIGNALS": modbus_analogue_signal_rows,
+            "MODBUS_DIGITAL_REGISTERS": modbus_digital_rows,
+            "MODBUS_ANALOG_REGISTERS": modbus_analog_rows,
+            "COMMUNICATION_PROTOCOLS": protocol_rows,
+            "EQUIPMENT_LIST": equipment_rows,
+            "DETAILED_IO_LIST": detailed_io_rows,
+        }
+
+        if architecture_layout:
+            context["SYSTEM_ARCHITECTURE_LAYOUT"] = architecture_layout
+
         fds_data = {
+            "context": context,
             "document_header": document_header,
             "document_approvals": approvals,
             "document_versions": version_history,
