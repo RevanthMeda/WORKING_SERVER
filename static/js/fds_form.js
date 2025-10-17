@@ -57,6 +57,10 @@
     currentStep = target;
     setActiveStep(currentStep);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (currentStep === 6) {
+      document.dispatchEvent(new CustomEvent('step6-activated'));
+    }
   }
 
   function cloneTemplateRow(templateId) {

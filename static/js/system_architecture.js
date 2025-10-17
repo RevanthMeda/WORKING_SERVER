@@ -2179,7 +2179,7 @@
     }
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('step6-activated', () => {
     const designer = new ArchitectureDesigner();
     designer.init();
   });
