@@ -683,6 +683,7 @@ def init_db(app):
 
         # Check if we should fall back to SQLite
         db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        disable_fallback = os.environ.get('DISABLE_SQLITE_FALLBACK') == '1'
         
         # If PostgreSQL connection fails, fall back to SQLite
         if 'postgresql' in db_uri:
@@ -696,6 +697,8 @@ def init_db(app):
                 app.logger.info("PostgreSQL connection successful")
             except Exception as pg_error:
                 app.logger.warning(f"PostgreSQL connection failed: {pg_error}")
+                if disable_fallback:
+                    raise
                 app.logger.info("Falling back to SQLite database...")
                 
                 # Fall back to SQLite
