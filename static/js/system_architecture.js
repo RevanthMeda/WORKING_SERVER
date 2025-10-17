@@ -434,26 +434,33 @@
     }
 
     activateTool(tool) {
+      if (this.currentTool === tool) {
+        this.updateCursor();
+        return;
+      }
+      if (this.currentTool === 'connector' && tool !== 'connector') {
+        this.endConnectorMode();
+      }
       this.currentTool = tool;
       this.toolButtons.forEach((button) => {
         button.classList.toggle('is-active', button.dataset.tool === tool);
       });
-      if (tool !== 'connector') {
-        this.endConnectorMode();
-      } else {
+      if (tool === 'connector') {
+        this.clearSelection();
         this.beginConnectorMode();
+        this.stage?.draggable(false);
+      } else {
+        this.stage?.draggable(true);
       }
       if (tool !== 'text') {
         this.cancelAnnotation();
       }
+      this.updateCursor();
     }
 
     beginConnectorMode() {
       this.connectorDraft = null;
       this.connectorState = null;
-      if (this.stage?.container()) {
-        this.stage.container().style.cursor = 'crosshair';
-      }
       this.nodes.forEach((nodeEntry) => {
         if (nodeEntry.portLayer) {
           nodeEntry.portLayer.opacity(1);
@@ -465,9 +472,6 @@
 
     endConnectorMode() {
       this.cancelConnector(true);
-      if (this.stage?.container()) {
-        this.stage.container().style.cursor = 'default';
-      }
       this.nodes.forEach((nodeEntry) => {
         if (nodeEntry.portLayer) {
           nodeEntry.portLayer.opacity(0);
@@ -475,6 +479,7 @@
         }
       });
       this.layers.nodes.batchDraw();
+      this.updateCursor();
     }
 
     cancelAnnotation() {
@@ -625,12 +630,27 @@
       base.assetLibrary = Array.isArray(layout.assetLibrary)
         ? layout.assetLibrary.map((asset) => ({
             ...asset,
-            image_url: normaliseImageUrl(asset.image_url) || asset.image_url,
-            thumbnail_url: normaliseImageUrl(asset.thumbnail_url) || asset.thumbnail_url,
+            image_url: this.normaliseImageUrl(asset.image_url) || asset.image_url,
+            thumbnail_url: this.normaliseImageUrl(asset.thumbnail_url) || asset.thumbnail_url,
           }))
         : [];
       return base;
     }
+     normaliseImageUrl(value) {
+    if (!value) {
+      return null;
+    }
+    if (/^(https?:)?\/\//i.test(value) || value.startsWith('data:')) {
+      return value;
+    }
+    let path = value.replace(/\\/g, '/').replace(/^\.\//, '');
+    if (path.startsWith('static/')) {
+      path = `/${path}`;
+    } else if (!path.startsWith('/')) {
+      path = `/static/assets/${path}`;
+    }
+    return path;
+  }
     normaliseNode(node, index) {
       const size = {
         width: Number.parseFloat(node?.size?.width) || DEFAULT_NODE_SIZE.width,
@@ -664,8 +684,8 @@
           shadowOpacity: node.style?.shadowOpacity ?? 0.6,
         },
         image: {
-          url: normaliseImageUrl(node.image?.url || node.image_url) || PLACEHOLDER_IMAGE,
-          thumbnail: normaliseImageUrl(node.image?.thumbnail || node.thumbnail_url),
+          url: this.normaliseImageUrl(node.image?.url || node.image_url) || PLACEHOLDER_IMAGE,
+          thumbnail: this.normaliseImageUrl(node.image?.thumbnail || node.thumbnail_url),
           source: node.image?.source || node.assetSource || 'placeholder',
         },
         ports: Array.isArray(node.ports) && node.ports.length ? node.ports.map((port) => ({ ...port })) : defaultPorts(size),
@@ -762,13 +782,13 @@
       }
     }
 
-    createNode(nodeData) {
+   createNode(nodeData) {
       const node = deepClone(nodeData);
       if (!node.image) {
         node.image = {};
       }
-      node.image.url = normaliseImageUrl(node.image.url) || PLACEHOLDER_IMAGE;
-      node.image.thumbnail = normaliseImageUrl(node.image.thumbnail);
+      node.image.url = this.normaliseImageUrl(node.image.url) || PLACEHOLDER_IMAGE;
+      node.image.thumbnail = this.normaliseImageUrl(node.image.thumbnail);
       const group = new Konva.Group({
         id: node.id,
         x: node.position.x,
@@ -780,15 +800,17 @@
       const background = new Konva.Rect({
         width: node.size.width,
         height: node.size.height,
-        fill: node.style.fill,
-        stroke: node.style.stroke,
-        strokeWidth: node.style.strokeWidth,
-        cornerRadius: node.style.cornerRadius,
-        shadowColor: node.style.shadowColor,
-        shadowBlur: node.style.shadowBlur,
-        shadowOffsetX: node.style.shadowOffset.x,
-        shadowOffsetY: node.style.shadowOffset.y,
-        shadowOpacity: node.style.shadowOpacity,
+        fillLinearGradientColorStops: [0, '#ffffff', 1, '#f0f4ff'],
+        fillLinearGradientStartPoint: { x: 0, y: 0 },
+        fillLinearGradientEndPoint: { x: node.size.width, y: node.size.height },
+        stroke: '#b9c9ee',
+        strokeWidth: 1,
+        cornerRadius: 14,
+        shadowColor: 'rgba(45, 128, 255, 0.15)',
+        shadowBlur: 16,
+        shadowOffsetX: 0,
+        shadowOffsetY: 6,
+        shadowOpacity: 0.8,
       });
       group.add(background);
 
@@ -798,10 +820,10 @@
         width: node.size.width - 24,
         height: node.size.height - 86,
         cornerRadius: 10,
-        fillLinearGradientColorStops: [0, '#ffffff', 1, '#dde5fb'],
+        fillLinearGradientColorStops: [0, '#eef2ff', 1, '#dde5fb'],
         fillLinearGradientStartPoint: { x: 0, y: 0 },
-        fillLinearGradientEndPoint: { x: node.size.width - 24, y: node.size.height - 86 },
-        stroke: 'rgba(47,74,132,0.18)',
+        fillLinearGradientEndPoint: { x: 0, y: node.size.height - 86 },
+        stroke: 'rgba(47, 74, 132, 0.1)',
         strokeWidth: 1,
       });
       group.add(imageHolder);
@@ -814,16 +836,26 @@
         listening: false,
       });
       group.add(imageNode);
+      
+      const fallbackIcon = new Konva.Path({
+        x: (node.size.width - 48) / 2,
+        y: (node.size.height - 86 - 48) / 2 + 12,
+        data: 'M48,6.28,43.43,3.32a2,2,0,0,0-2.86,2.86L42.14,9,38.29,6.14a2,2,0,0,0-2.58,3.09L38.57,12,34,9.43a2,2,0,0,0-2,3.46L36.57,15,31.43,12.43a2,2,0,0,0-1.43,3.75l6,2.57L32.29,21.43a2,2,0,0,0,1.43,3.75L38,22.57l-2.57,6a2,2,0,0,0,3.75,1.43L42,25.43l2.86,4.57a2,2,0,0,0,3.46-2L45.43,25l4.57,4.57a2,2,0,0,0,2.86-2.86L50,24l2.86,1.57a2,2,0,0,0,2.58-3.09L52.57,20l4.57,2.57a2,2,0,0,0,2-3.46L54.57,17l5.14,2.57a2,2,0,0,0,1.43-3.75l-6-2.57L59.71,10.57A2,2,0,0,0,58.29,6.82L54,9.43,56.57,5a2,2,0,0,0-3.75-1.43L50,6.14,48,6.28ZM60,46H4a2,2,0,0,0-2,2V58a2,2,0,0,0,2,2H60a2,2,0,0,0,2-2V48A2,2,0,0,0,60,46Zm-4,8H8V50H56Z',
+        fill: '#8a9fce',
+        scale: { x: 1, y: 1 },
+        visible: false,
+      });
+      group.add(fallbackIcon);
 
       const label = new Konva.Text({
         text: node.label || 'Device',
         width: node.size.width,
         align: 'center',
-        fontFamily: 'Montserrat',
+        fontFamily: "'Montserrat', sans-serif",
         fontSize: 16,
         fontStyle: '600',
         fill: '#1f2d4f',
-        y: node.size.height - 70,
+        y: node.size.height - 68,
       });
       group.add(label);
 
@@ -831,26 +863,27 @@
         text: this.buildNodeMetaString(node),
         width: node.size.width,
         align: 'center',
-        fontFamily: 'Montserrat',
+        fontFamily: "'Montserrat', sans-serif",
         fontSize: 12,
         fill: '#5a688f',
-        y: node.size.height - 46,
+        y: node.size.height - 44,
+        lineHeight: 1.4,
       });
       group.add(meta);
 
-      const portLayer = new Konva.Group({ listening: true, opacity: 0 });
+      const portLayer = new Konva.Group({ listening: false, opacity: 0 });
       group.add(portLayer);
 
       const portMap = new Map();
       node.ports.forEach((port) => {
-        const baseFill = 'rgba(45,128,255,0.15)';
-        const hoverFill = 'rgba(45,128,255,0.35)';
+        const baseFill = 'rgba(45, 128, 255, 0.25)';
+        const hoverFill = 'rgba(45, 128, 255, 0.5)';
         const circle = new Konva.Circle({
           x: port.position.x,
           y: port.position.y,
-          radius: 7,
+          radius: 8,
           fill: baseFill,
-          stroke: 'rgba(45,128,255,0.45)',
+          stroke: 'rgba(45, 128, 255, 0.6)',
           strokeWidth: 1,
         });
         circle.setAttr('portId', port.id);
@@ -858,7 +891,7 @@
           if (this.currentTool === 'connector') {
             circle.scale({ x: 1.2, y: 1.2 });
             circle.fill(hoverFill);
-            circle.stroke('rgba(45,128,255,0.9)');
+            circle.stroke('rgba(45, 128, 255, 0.9)');
             this.layers.nodes.batchDraw();
             if (this.stage?.container()) {
               this.stage.container().style.cursor = 'crosshair';
@@ -868,7 +901,7 @@
         circle.on('mouseleave', () => {
           circle.scale({ x: 1, y: 1 });
           circle.fill(baseFill);
-          circle.stroke('rgba(45,128,255,0.45)');
+          circle.stroke('rgba(45, 128, 255, 0.6)');
           this.layers.nodes.batchDraw();
           if (this.stage?.container()) {
             this.stage.container().style.cursor = this.currentTool === 'connector' ? 'crosshair' : 'default';
@@ -918,19 +951,25 @@
       });
 
       const imageUrl = node.image?.url || PLACEHOLDER_IMAGE;
+      const showFallback = () => {
+        imageNode.hide();
+        fallbackIcon.show();
+        imageHolder.fillLinearGradientColorStops([0, '#e0e7fa', 1, '#cdd8f6']);
+        group.getLayer()?.batchDraw();
+      };
+
       loadImage(imageUrl)
         .then((img) => {
           imageNode.image(img);
-          imageNode.getLayer().batchDraw();
+          imageNode.show();
+          fallbackIcon.hide();
+          group.getLayer()?.batchDraw();
         })
-        .catch(() =>
-          loadImage(PLACEHOLDER_IMAGE)
-            .then((img) => {
-              imageNode.image(img);
-              imageNode.getLayer().batchDraw();
-            })
-            .catch(() => {})
-        );
+        .catch((err) => {
+          console.warn(`Image failed to load for node ${node.id}:`, imageUrl, err);
+          showFallback();
+        });
+    }
     }
     buildNodeMetaString(node) {
       const lines = [];
