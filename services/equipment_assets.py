@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import math
@@ -8,8 +9,17 @@ from urllib.parse import quote_plus
 import requests
 from flask import current_app
 from sqlalchemy.exc import IntegrityError
+from werkzeug.utils import secure_filename
 
 from models import db, EquipmentAsset
+from services.system_architecture import (
+    default_connection_style,
+    default_node_metadata,
+    default_node_size,
+    default_node_style,
+    default_ports_for_size,
+    ensure_layout,
+)
 
 DEFAULT_CACHE_TTL_DAYS = 45
 LOCAL_STORAGE_SUBDIR = "static/equipment_assets"
@@ -232,17 +242,48 @@ def prepare_layout_nodes(enriched_assets: List[Dict]) -> List[Dict]:
         raw = payload.get("raw") or {}
         asset = payload.get("asset") or {}
 
+        node_id = f"node-{payload.get('model_key') or index}"
+        size = default_node_size()
+        style = default_node_style()
+        metadata = default_node_metadata()
+        metadata.update(
+            {
+                "equipment": {
+                    "model": raw.get("Model"),
+                    "description": raw.get("Description"),
+                    "quantity": raw.get("Quantity"),
+                    "remarks": raw.get("Remarks"),
+                },
+                "asset": asset,
+                "linkedEquipmentIndex": index,
+            }
+        )
+
+        image_payload = {
+            "url": asset.get("local_path") or asset.get("image_url"),
+            "thumbnail": asset.get("thumbnail_url"),
+            "source": asset.get("asset_source"),
+            "placeholder": (asset.get("asset_source") or "placeholder") == "placeholder",
+        }
+
         nodes.append(
             {
-                "id": f"node-{payload.get('model_key') or index}",
+                "id": node_id,
+                "label": asset.get("display_name") or raw.get("Model") or "Device",
                 "model": raw.get("Model"),
                 "description": raw.get("Description"),
                 "quantity": raw.get("Quantity"),
                 "remarks": raw.get("Remarks"),
-                "image_url": asset.get("local_path") or asset.get("image_url"),
-                "thumbnail_url": asset.get("thumbnail_url"),
-                "asset_source": asset.get("asset_source"),
                 "position": {"x": x, "y": y},
+                "size": size,
+                "rotation": 0,
+                "shape": "rectangle",
+                "image": image_payload,
+                "style": style,
+                "ports": default_ports_for_size(size),
+                "metadata": metadata,
+                "equipmentIndex": index,
+                "assetSource": asset.get("asset_source"),
             }
         )
     return nodes
@@ -255,20 +296,106 @@ def build_architecture_payload(equipment_rows: List[Dict], existing_layout: Opti
     enriched_assets = bulk_ensure_assets(equipment_rows)
     default_nodes = prepare_layout_nodes(enriched_assets)
 
-    layout = existing_layout or {}
-    saved_nodes = {node.get("id"): node for node in (layout.get("nodes") or []) if node.get("id")}
+    layout = ensure_layout(existing_layout, default_nodes, equipment_rows)
 
-    merged_nodes = []
-    for node in default_nodes:
-        if node["id"] in saved_nodes:
-            saved = saved_nodes[node["id"]]
-            merged_nodes.append({**node, **saved})
-        else:
-            merged_nodes.append(node)
+    asset_library_index = {}
+    for payload in enriched_assets:
+        asset = payload.get("asset") or {}
+        model_key = payload.get("model_key")
+        if not model_key or not asset:
+            continue
+        asset_library_index[model_key] = {
+            "model_key": model_key,
+            "display_name": asset.get("display_name") or model_key,
+            "manufacturer": asset.get("manufacturer"),
+            "image_url": asset.get("local_path") or asset.get("image_url"),
+            "thumbnail_url": asset.get("thumbnail_url"),
+            "source": asset.get("asset_source"),
+            "confidence": asset.get("confidence"),
+            "metadata": asset.get("metadata"),
+            "is_user_override": asset.get("is_user_override"),
+        }
 
-    payload = {
-        "nodes": merged_nodes,
-        "connections": layout.get("connections") or [],
-        "generated_at": datetime.utcnow().isoformat(),
-    }
-    return payload
+    layout.setdefault("metadata", {})
+    layout["metadata"].update(
+        {
+            "generated_at": datetime.utcnow().isoformat(),
+            "equipment_count": len(equipment_rows or []),
+        }
+    )
+    layout["assetLibrary"] = list(asset_library_index.values())
+    layout["connectionDefaults"] = default_connection_style()
+    return layout
+
+
+def save_user_asset_image(model_name: str, storage, user_email: Optional[str] = None) -> Dict:
+    """
+    Persist a user-uploaded asset image and mark the asset as an override.
+    """
+    if not storage:
+        raise ValueError("File storage payload is required")
+
+    filename = secure_filename(storage.filename or "")
+    if not filename:
+        filename = f"{model_name or 'device'}-{int(datetime.utcnow().timestamp())}.png"
+
+    model_key = EquipmentAsset.normalize_model_key(model_name or filename)
+    if not model_key:
+        raise ValueError("Unable to derive model key for asset storage")
+
+    asset = EquipmentAsset.query.filter_by(model_key=model_key).first()
+    if not asset:
+        asset = EquipmentAsset(model_key=model_key, display_name=model_name or model_key.upper())
+        db.session.add(asset)
+
+    storage_root = _get_storage_root()
+    user_dir = os.path.join(storage_root, "user")
+    os.makedirs(user_dir, exist_ok=True)
+
+    base_name, ext = os.path.splitext(filename)
+    ext = ext or ".png"
+    unique_name = f"{model_key}-{int(datetime.utcnow().timestamp())}{ext}"
+    destination = os.path.join(user_dir, unique_name)
+
+    storage.save(destination)
+
+    rel_path = os.path.relpath(destination, current_app.root_path).replace("\\", "/")
+    if not rel_path.startswith("/"):
+        rel_path = f"/{rel_path}"
+
+    metadata = {}
+    if asset.metadata_json:
+        try:
+            metadata = json.loads(asset.metadata_json)
+        except Exception:
+            metadata = {}
+    metadata.update(
+        {
+            "uploaded_by": user_email,
+            "uploaded_at": datetime.utcnow().isoformat(),
+            "original_filename": storage.filename,
+        }
+    )
+
+    asset.display_name = model_name or asset.display_name or model_key.upper()
+    asset.image_url = rel_path
+    asset.thumbnail_url = rel_path
+    asset.local_path = rel_path.lstrip("/")
+    asset.asset_source = "user-upload"
+    asset.is_user_override = True
+    asset.metadata_json = json.dumps(metadata)
+    asset.updated_at = datetime.utcnow()
+
+    db.session.commit()
+    return asset.to_dict()
+
+
+def list_cached_assets(limit: int = 300) -> List[Dict]:
+    """
+    Return cached equipment assets for building the local library.
+    """
+    query = EquipmentAsset.query.order_by(EquipmentAsset.display_name.asc())
+    if limit:
+        query = query.limit(limit)
+    assets = query.all()
+    return [asset.to_dict() for asset in assets]

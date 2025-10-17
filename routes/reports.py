@@ -1,12 +1,26 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, make_response, abort
 from functools import wraps
 from flask_login import login_required, current_user
-from models import db, Report, User, SATReport, FDSReport
+from models import db, Report, User, SATReport, FDSReport, SystemArchitectureVersion
 from auth import login_required, role_required
 from utils import setup_approval_workflow_db, create_new_submission_notification, get_unread_count, process_table_rows
 from services.sat_tables import migrate_context_tables
 from services.fds_generator import generate_fds_from_sat
-from services.equipment_assets import build_architecture_payload
+from services.equipment_assets import (
+    build_architecture_payload,
+    list_cached_assets,
+    save_user_asset_image,
+)
+from services.system_architecture import (
+    ensure_layout,
+    fetch_template,
+    fetch_version,
+    list_templates,
+    list_versions,
+    persist_layout,
+    record_version_snapshot,
+    save_template,
+)
 import json
 import uuid
 from datetime import datetime
@@ -952,6 +966,340 @@ def fetch_system_architecture(submission_id):
     })
 
 
+@reports_bp.route('/system-architecture/layout/<submission_id>', methods=['PUT'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def update_system_architecture_layout(submission_id):
+    """Persist a live-updated architecture layout snapshot."""
+    report = Report.query.get(submission_id)
+    _assert_report_access(report)
+
+    payload = request.get_json(silent=True) or {}
+    layout_payload = payload.get("layout", payload)
+    note = payload.get("note")
+    version_label = payload.get("version_label")
+
+    if not isinstance(layout_payload, (dict, list, str)):
+        return jsonify({
+            "success": False,
+            "message": "Invalid layout payload received."
+        }), 400
+
+    try:
+        normalised_layout = ensure_layout(layout_payload)
+    except Exception as exc:
+        current_app.logger.warning("Failed to normalise architecture layout for %s: %s", submission_id, exc, exc_info=True)
+        return jsonify({
+            "success": False,
+            "message": "Unable to process architecture layout."
+        }), 400
+
+    persist_layout(
+        report,
+        normalised_layout,
+        created_by=current_user.email,
+        note=note,
+        version_label=version_label,
+    )
+
+    response = {
+        "success": True,
+        "payload": normalised_layout,
+    }
+    if version_label:
+        latest_versions = list_versions(submission_id, limit=1)
+        if latest_versions:
+            response["version"] = latest_versions[0]
+
+    return jsonify(response)
+
+
+@reports_bp.route('/system-architecture/templates', methods=['GET'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def list_architecture_templates():
+    """Return available architecture templates for the current user."""
+    include_shared = request.args.get("include_shared", "1") != "0"
+    owned_only = request.args.get("owned_only", "0") == "1"
+    templates = list_templates(
+        include_shared=include_shared and not owned_only,
+        owned_by=current_user.email if owned_only else None,
+    )
+    if owned_only:
+        templates = [
+            template for template in templates
+            if template.get("created_by") == current_user.email
+            or template.get("updated_by") == current_user.email
+        ]
+    return jsonify({
+        "success": True,
+        "templates": templates,
+    })
+
+
+@reports_bp.route('/system-architecture/templates', methods=['POST'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def create_architecture_template():
+    """Persist a new reusable architecture template."""
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return jsonify({"success": False, "message": "Template name is required."}), 400
+
+    layout_payload = payload.get("layout")
+    if not layout_payload:
+        return jsonify({"success": False, "message": "Template layout payload is required."}), 400
+
+    description = (payload.get("description") or "").strip() or None
+    category = (payload.get("category") or "").strip() or None
+    is_shared = bool(payload.get("is_shared", True))
+
+    try:
+        normalised_layout = ensure_layout(layout_payload)
+        template = save_template(
+            name=name,
+            layout=normalised_layout,
+            user_email=current_user.email,
+            description=description,
+            category=category,
+            is_shared=is_shared,
+            template_id=None,
+        )
+    except ValueError as exc:
+        return jsonify({"success": False, "message": str(exc)}), 400
+
+    return jsonify({
+        "success": True,
+        "template": template.to_dict(include_layout=True),
+    }), 201
+
+
+@reports_bp.route('/system-architecture/templates/<int:template_id>', methods=['GET'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def get_architecture_template(template_id: int):
+    """Fetch a template, including the layout payload."""
+    payload = fetch_template(template_id, include_layout=True)
+    if not payload:
+        return jsonify({"success": False, "message": "Template not found."}), 404
+    return jsonify({"success": True, "template": payload})
+
+
+@reports_bp.route('/system-architecture/templates/<int:template_id>', methods=['PUT'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def update_architecture_template(template_id: int):
+    """Update an existing template."""
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get("name") or "").strip()
+    description = (payload.get("description") or "").strip() or None
+    category = (payload.get("category") or "").strip() or None
+    is_shared = bool(payload.get("is_shared", True))
+    layout_payload = payload.get("layout")
+
+    existing_template = fetch_template(template_id, include_layout=True)
+    if not existing_template:
+        return jsonify({"success": False, "message": "Template not found."}), 404
+
+    try:
+        normalised_layout = ensure_layout(layout_payload) if layout_payload else None
+        template = save_template(
+            name=name or existing_template.get("name") or f"Template {template_id}",
+            layout=normalised_layout or existing_template.get("layout") or {},
+            user_email=current_user.email,
+            description=description,
+            category=category,
+            is_shared=is_shared,
+            template_id=template_id,
+        )
+    except ValueError as exc:
+        return jsonify({"success": False, "message": str(exc)}), 400
+
+    return jsonify({"success": True, "template": template.to_dict(include_layout=True)})
+
+
+@reports_bp.route('/system-architecture/templates/<int:template_id>', methods=['DELETE'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def delete_architecture_template(template_id: int):
+    """Remove a template."""
+    success = delete_template(template_id)
+    if not success:
+        return jsonify({"success": False, "message": "Template not found."}), 404
+    return jsonify({"success": True})
+
+
+@reports_bp.route('/system-architecture/versions/<submission_id>', methods=['GET'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def list_architecture_versions(submission_id: str):
+    """Return version history for a submission."""
+    report = Report.query.get(submission_id)
+    _assert_report_access(report)
+
+    limit_param = request.args.get("limit")
+    try:
+        limit = max(1, min(100, int(limit_param))) if limit_param else 20
+    except ValueError:
+        limit = 20
+
+    versions = list_versions(submission_id, limit=limit)
+    return jsonify({"success": True, "versions": versions})
+
+
+@reports_bp.route('/system-architecture/versions/<submission_id>/<int:version_id>', methods=['GET'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def get_architecture_version(submission_id: str, version_id: int):
+    """Return a specific version payload."""
+    report = Report.query.get(submission_id)
+    _assert_report_access(report)
+
+    payload = fetch_version(version_id)
+    if not payload or payload.get("report_id") != submission_id:
+        return jsonify({"success": False, "message": "Version not found."}), 404
+    return jsonify({"success": True, "version": payload})
+
+
+@reports_bp.route('/system-architecture/versions/<submission_id>', methods=['POST'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def create_architecture_version(submission_id: str):
+    """Create a manual snapshot of the current layout."""
+    report = Report.query.get(submission_id)
+    _assert_report_access(report)
+
+    payload = request.get_json(silent=True) or {}
+    layout_payload = payload.get("layout")
+    note = payload.get("note")
+    version_label = payload.get("version_label")
+
+    if not layout_payload:
+        fds_report = report.fds_report
+        layout_payload = fds_report.get_system_architecture() if fds_report else {}
+        if not layout_payload:
+            return jsonify({"success": False, "message": "No layout found to snapshot."}), 400
+
+    try:
+        normalised_layout = ensure_layout(layout_payload)
+    except Exception:
+        return jsonify({"success": False, "message": "Invalid layout payload supplied."}), 400
+
+    snapshot = record_version_snapshot(
+        submission_id,
+        normalised_layout,
+        created_by=current_user.email,
+        note=note,
+        version_label=version_label,
+    )
+    if not snapshot:
+        return jsonify({"success": False, "message": "Unable to record version snapshot."}), 500
+
+    return jsonify({"success": True, "version": snapshot.to_dict(include_layout=True)}), 201
+
+
+@reports_bp.route('/system-architecture/assets/library', methods=['GET'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def list_architecture_assets():
+    """Return cached assets for the local asset library."""
+    try:
+        limit_param = request.args.get("limit")
+        limit = max(0, min(500, int(limit_param))) if limit_param else 300
+    except ValueError:
+        limit = 300
+    assets = list_cached_assets(limit=limit)
+    return jsonify({"success": True, "assets": assets})
+
+
+@reports_bp.route('/system-architecture/assets/upload', methods=['POST'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def upload_architecture_asset():
+    """Upload a custom image to the asset library."""
+    model_name = (request.form.get("model_name") or "").strip()
+    storage = request.files.get("file")
+
+    if not storage:
+        return jsonify({"success": False, "message": "No file supplied for upload."}), 400
+
+    try:
+        asset = save_user_asset_image(model_name, storage, user_email=current_user.email)
+    except ValueError as exc:
+        return jsonify({"success": False, "message": str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.error("Asset upload failed: %s", exc, exc_info=True)
+        return jsonify({"success": False, "message": "Unable to upload asset image."}), 500
+
+    return jsonify({"success": True, "asset": asset}), 201
+
+
+@reports_bp.route('/system-architecture/live/<submission_id>', methods=['GET'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def poll_architecture_updates(submission_id: str):
+    """
+    Poll for architecture updates since a timestamp to support lightweight collaboration.
+    """
+    report = Report.query.get(submission_id)
+    _assert_report_access(report)
+
+    since_param = request.args.get("since")
+    since_dt = None
+    if since_param:
+        try:
+            since_dt = datetime.fromisoformat(since_param)
+        except ValueError:
+            since_dt = None
+    query = SystemArchitectureVersion.query.filter_by(report_id=submission_id)
+    if since_dt:
+        query = query.filter(SystemArchitectureVersion.created_at > since_dt)
+    updates = (
+        query.order_by(SystemArchitectureVersion.created_at.asc())
+        .limit(25)
+        .all()
+    )
+
+    updates_payload = [version.to_dict(include_layout=True) for version in updates]
+    for update in updates_payload:
+        layout_payload = update.get("layout") or update.get("layout_raw")
+        if isinstance(layout_payload, str):
+            try:
+                layout_payload = json.loads(layout_payload)
+            except Exception:
+                layout_payload = None
+        if layout_payload:
+            try:
+                update["layout"] = ensure_layout(layout_payload)
+            except Exception:
+                update["layout"] = layout_payload
+        update.pop("layout_raw", None)
+
+    latest_layout = None
+    if updates_payload:
+        latest_layout = updates_payload[-1].get("layout")
+    else:
+        fds_report = report.fds_report
+        stored_layout = fds_report.get_system_architecture() if fds_report else None
+        if stored_layout:
+            try:
+                latest_layout = ensure_layout(stored_layout)
+            except Exception:
+                latest_layout = stored_layout
+
+    if isinstance(latest_layout, str):
+        try:
+            latest_layout = json.loads(latest_layout)
+        except Exception:
+            pass
+
+    return jsonify({
+        "success": True,
+        "updates": updates_payload,
+        "latest": latest_layout,
+        "timestamp": datetime.utcnow().isoformat(),
+    })
 @reports_bp.route('/submit-fds', methods=['POST'])
 @login_required
 @role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
@@ -1201,6 +1549,11 @@ def submit_fds():
                 architecture_layout = json.loads(layout_raw)
             except (TypeError, ValueError):
                 current_app.logger.warning("Received invalid architecture layout JSON for submission %s", submission_id)
+        if architecture_layout:
+            try:
+                architecture_layout = ensure_layout(architecture_layout, equipment_rows=equipment_rows)
+            except Exception as exc:
+                current_app.logger.warning("Failed to normalise architecture layout for submission %s: %s", submission_id, exc, exc_info=True)
 
         prepared_block = approvals[0] if len(approvals) > 0 else {}
         reviewer1_block = approvals[1] if len(approvals) > 1 else {}

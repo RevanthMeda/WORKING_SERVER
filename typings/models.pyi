@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from datetime import datetime
 
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
@@ -143,10 +144,53 @@ class FDSReport:
     id: Any
     report_id: Any
     data_json: Any
+    system_architecture_json: Any
     functional_requirements: Any
     process_description: Any
     control_philosophy: Any
     query: _BaseQuery
+    def get_system_architecture(self) -> Any: ...
+    def set_system_architecture(self, payload: Any) -> None: ...
+    def record_architecture_version(
+        self,
+        payload: Any,
+        *,
+        created_by: Optional[str] = ...,
+        note: Optional[str] = ...,
+        version_label: Optional[str] = ...,
+    ) -> Optional["SystemArchitectureVersion"]: ...
+
+
+class SystemArchitectureTemplate:
+    id: int
+    name: str
+    slug: str
+    description: Optional[str]
+    category: Optional[str]
+    thumbnail_path: Optional[str]
+    layout_json: str
+    is_shared: bool
+    created_by: Optional[str]
+    updated_by: Optional[str]
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+    query: _BaseQuery
+    @staticmethod
+    def slugify(name: str) -> str: ...
+    def to_dict(self, include_layout: bool = ...) -> Dict[str, Any]: ...
+
+
+class SystemArchitectureVersion:
+    id: int
+    report_id: str
+    version_label: Optional[str]
+    note: Optional[str]
+    checksum: Optional[str]
+    layout_json: str
+    created_by: Optional[str]
+    created_at: Optional[datetime]
+    query: _BaseQuery
+    def to_dict(self, include_layout: bool = ...) -> Dict[str, Any]: ...
 
 
 class HDSReport:

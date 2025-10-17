@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import hashlib
 import requests
 from datetime import datetime, timedelta
 from typing import Dict, Optional
@@ -246,6 +247,42 @@ class FDSReport(db.Model):
         else:
             self.system_architecture_json = payload
 
+    def record_architecture_version(self, payload, *, created_by: Optional[str] = None,
+                                    note: Optional[str] = None, version_label: Optional[str] = None) -> Optional["SystemArchitectureVersion"]:
+        """Persist a snapshot of the architecture layout."""
+        if not payload:
+            return None
+
+        if isinstance(payload, (dict, list)):
+            payload_json = json.dumps(payload, separators=(',', ':'))
+        elif isinstance(payload, str):
+            payload_json = payload
+        else:
+            return None
+
+        checksum = hashlib.sha256(payload_json.encode('utf-8')).hexdigest()
+
+        # Avoid duplicate snapshots with the same hash
+        last_version = (
+            SystemArchitectureVersion.query
+            .filter_by(report_id=self.report_id)
+            .order_by(SystemArchitectureVersion.created_at.desc())
+            .first()
+        )
+        if last_version and last_version.checksum == checksum:
+            return last_version
+
+        snapshot = SystemArchitectureVersion(
+            report_id=self.report_id,
+            layout_json=payload_json,
+            checksum=checksum,
+            created_by=created_by,
+            note=note,
+            version_label=version_label,
+        )
+        db.session.add(snapshot)
+        return snapshot
+
 
 class EquipmentAsset(db.Model):
     """Cached mapping between equipment models and representative imagery."""
@@ -312,6 +349,90 @@ class EquipmentAsset(db.Model):
         db.session.add(asset)
         db.session.commit()
         return asset
+
+
+class SystemArchitectureTemplate(db.Model):
+    """Reusable architecture layouts for Step 6."""
+    __tablename__ = 'system_architecture_templates'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(160), nullable=False)
+    slug = db.Column(db.String(180), nullable=False, unique=True)
+    description = db.Column(db.Text, nullable=True)
+    category = db.Column(db.String(80), nullable=True)
+    thumbnail_path = db.Column(db.String(500), nullable=True)
+    layout_json = db.Column(db.Text, nullable=False)
+    is_shared = db.Column(db.Boolean, nullable=False, default=True)
+    created_by = db.Column(db.String(120), nullable=True)
+    updated_by = db.Column(db.String(120), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        db.Index('idx_system_architecture_templates_category', 'category'),
+    )
+
+    @staticmethod
+    def slugify(name: str) -> str:
+        """Generate a slug from the template name."""
+        base = re.sub(r'[^a-z0-9]+', '-', (name or '').strip().lower())
+        return base.strip('-')
+
+    def to_dict(self, include_layout: bool = False) -> Dict:
+        payload = {
+            "id": self.id,
+            "name": self.name,
+            "slug": self.slug,
+            "description": self.description,
+            "category": self.category,
+            "thumbnail_path": self.thumbnail_path,
+            "is_shared": self.is_shared,
+            "created_by": self.created_by,
+            "updated_by": self.updated_by,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+        if include_layout:
+            try:
+                payload["layout"] = json.loads(self.layout_json)
+            except Exception:
+                payload["layout_raw"] = self.layout_json
+        return payload
+
+
+class SystemArchitectureVersion(db.Model):
+    """Version history snapshots for FDS architecture diagrams."""
+    __tablename__ = 'system_architecture_versions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    report_id = db.Column(db.String(36), db.ForeignKey('reports.id'), nullable=False)
+    version_label = db.Column(db.String(40), nullable=True)
+    note = db.Column(db.String(255), nullable=True)
+    checksum = db.Column(db.String(64), nullable=True)
+    layout_json = db.Column(db.Text, nullable=False)
+    created_by = db.Column(db.String(120), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        db.Index('idx_system_architecture_versions_report', 'report_id', 'created_at'),
+    )
+
+    def to_dict(self, include_layout: bool = False) -> Dict:
+        payload = {
+            "id": self.id,
+            "report_id": self.report_id,
+            "version_label": self.version_label,
+            "note": self.note,
+            "checksum": self.checksum,
+            "created_by": self.created_by,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+        if include_layout:
+            try:
+                payload["layout"] = json.loads(self.layout_json)
+            except Exception:
+                payload["layout_raw"] = self.layout_json
+        return payload
 
 class HDSReport(db.Model):
     __tablename__ = 'hds_reports'
