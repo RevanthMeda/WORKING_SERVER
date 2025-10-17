@@ -219,6 +219,8 @@
       return;
     }
     portsVisible = show;
+    diagram.toolManager.draggingTool.isEnabled = !show;
+    diagram.toolManager.linkingTool.isEnabled = true;
     diagram.nodes.each((node) => {
       node.ports.each((port) => {
         port.fill = show ? 'rgba(45,128,255,0.25)' : 'transparent';
@@ -248,6 +250,14 @@
     diagram.toolManager.draggingTool.isGridSnapEnabled = true;
     diagram.toolManager.linkingTool.portGravity = 20;
     diagram.toolManager.relinkingTool.portGravity = 20;
+    diagram.toolManager.linkingTool.direction = go.LinkingTool.ForwardsOnly;
+    diagram.toolManager.linkingTool.archetypeLinkData = {
+      color: '#1f2937',
+      width: 2,
+      arrow: 'Standard',
+      arrowStart: 'none',
+      metadata: {},
+    };
 
     diagram.grid = $go(
       go.Panel,
@@ -356,6 +366,56 @@
     );
 
     diagram.nodeTemplate = nodeTemplate;
+
+    const groupTemplate = $go(
+      go.Group,
+      'Auto',
+      {
+        layout: $go(go.GridLayout, {
+          wrappingColumn: Infinity,
+          spacing: new go.Size(28, 28),
+          alignment: go.GridLayout.Position,
+        }),
+        selectionAdornmentTemplate: $go(
+          go.Adornment,
+          'Auto',
+          $go(go.Shape, 'RoundedRectangle', { fill: null, stroke: '#1f4ad6', strokeWidth: 2, parameter1: 14 }),
+          $go(go.Placeholder, { padding: 6 })
+        ),
+        computesBoundsAfterDrag: true,
+        handlesDragDropForMembers: true,
+        mouseDrop: (event, group) => {
+          if (!(group instanceof go.Group)) {
+            return;
+          }
+          group.addMembers(group.diagram.selection.filter((part) => part instanceof go.Node), true);
+        },
+      },
+      new go.Binding('location', 'loc', go.Point.parse).makeTwoWay(go.Point.stringify),
+      $go(
+        go.Panel,
+        'Auto',
+        $go(go.Shape, 'RoundedRectangle', { fill: 'rgba(47,74,132,0.08)', stroke: 'rgba(47,74,132,0.3)', strokeWidth: 1.2, parameter1: 14 }),
+        $go(
+          go.Panel,
+          'Vertical',
+          { margin: 12 },
+          $go(
+            go.TextBlock,
+            {
+              font: '600 14px "Montserrat", sans-serif',
+              stroke: '#1f2d4f',
+              editable: true,
+            },
+            new go.Binding('text', 'text').makeTwoWay()
+          ),
+          $go(go.Placeholder, { padding: 12 })
+        )
+      )
+    );
+
+    diagram.groupTemplate = groupTemplate;
+    diagram.commandHandler.archetypeGroupData = { isGroup: true, text: 'Group', category: '', loc: '0 0' };
 
     diagram.linkTemplate = $go(
       go.Link,
@@ -510,12 +570,18 @@
       const size = node.size || {};
       const width = Number.parseFloat(size.width) || DEFAULT_NODE_SIZE.width;
       const height = Number.parseFloat(size.height) || DEFAULT_NODE_SIZE.height;
+      const imageUrl =
+        normaliseImageUrl(node.image?.url) ||
+        normaliseImageUrl(node.image_url) ||
+        normaliseImageUrl(node.metadata?.asset?.image_url) ||
+        normaliseImageUrl(node.metadata?.asset?.local_path) ||
+        '';
       nodeDataArray.push({
         key,
         title: node.label || node.model || 'Device',
         name: node.label || node.model || 'Device',
         subtitle: node.description || node.metadata?.equipment?.description || node.label || '',
-        image: node.image?.url || node.image_url || '',
+        image: imageUrl,
         metadata: node.metadata || {},
         loc: `${x} ${y}`,
         size: `${width} ${height}`,
@@ -703,10 +769,12 @@
 
   function handleToolSelect() {
     togglePorts(false);
+    showStatus('Select tool enabled', 'synced');
   }
 
   function handleToolConnector() {
     togglePorts(true);
+    showStatus('Connector tool: drag from a blue port to another device', 'saving');
   }
 
   function handleToolAnnotation() {
@@ -740,13 +808,29 @@
   }
 
   function handleGroup() {
-    diagram?.commandHandler.groupSelection();
+    if (!diagram) {
+      return;
+    }
+    if (!diagram.commandHandler.canGroupSelection()) {
+      window.alert('Select two or more items to group.');
+      return;
+    }
+    diagram.commandHandler.groupSelection();
     schedulePersist();
+    showStatus('Group created', 'synced');
   }
 
   function handleUngroup() {
-    diagram?.commandHandler.ungroupSelection();
+    if (!diagram) {
+      return;
+    }
+    if (!diagram.commandHandler.canUngroupSelection()) {
+      window.alert('Select an existing group to ungroup.');
+      return;
+    }
+    diagram.commandHandler.ungroupSelection();
     schedulePersist();
+    showStatus('Group released', 'synced');
   }
 
   function alignSelection(mode) {
@@ -768,6 +852,7 @@
     }
     diagram.commitTransaction('align');
     schedulePersist();
+    showStatus('Devices aligned', 'synced');
   }
 
   function handleUndo() {
