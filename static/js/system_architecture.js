@@ -1,5 +1,7 @@
 (() => {
   const workspace = document.getElementById('architecture-workspace');
+  const canvas = document.getElementById('architecture-canvas');
+  const canvasCtx = canvas ? canvas.getContext('2d') : null;
   const generateBtn = document.getElementById('btn-generate-architecture');
   const resetBtn = document.getElementById('btn-architecture-reset');
   const saveBtn = document.getElementById('btn-architecture-save');
@@ -7,7 +9,8 @@
   const emptyState = document.getElementById('architecture-empty-state');
   const submissionIdInput = document.querySelector('input[name="submission_id"]');
   const submissionId = submissionIdInput ? submissionIdInput.value : '';
-  const placeholderImage = 'https://dummyimage.com/320x220/dae3f9/1c2545.png&text=Device';
+  const placeholderImage = 'https://via.placeholder.com/320x200.png?text=Device';
+  const NODE_PADDING = 60;
 
   if (!workspace || !generateBtn || !hiddenInput) {
     return;
@@ -17,6 +20,7 @@
     nodes: [],
     connections: []
   };
+  let redrawQueued = false;
 
   function parseHiddenLayout() {
     if (!hiddenInput || !hiddenInput.value) {
@@ -77,21 +81,32 @@
     return url.startsWith('/') ? url : `/${url}`;
   }
 
+  function ensureWorkspaceBounds(nodeEl) {
+    const posX = parseFloat(nodeEl.dataset.posX || '0');
+    const posY = parseFloat(nodeEl.dataset.posY || '0');
+    const requiredWidth = posX + nodeEl.offsetWidth + NODE_PADDING;
+    const requiredHeight = posY + nodeEl.offsetHeight + NODE_PADDING;
+
+    if (requiredHeight > workspace.clientHeight) {
+      workspace.style.height = `${requiredHeight}px`;
+    }
+    if (requiredWidth > workspace.clientWidth) {
+      workspace.style.minWidth = `${requiredWidth}px`;
+    }
+  }
+
   function setNodePosition(nodeEl, x, y) {
     nodeEl.style.left = `${x}px`;
     nodeEl.style.top = `${y}px`;
     nodeEl.dataset.posX = String(x);
     nodeEl.dataset.posY = String(y);
+    ensureWorkspaceBounds(nodeEl);
+    queueRedraw();
   }
 
   function clampPosition(x, y) {
-    const bounds = workspace.getBoundingClientRect();
-    const width = workspace.scrollWidth;
-    const height = workspace.scrollHeight;
-
-    const maxX = Math.max(0, width - 220);
-    const maxY = Math.max(0, height - 200);
-
+    const maxX = Math.max(0, (workspace.clientWidth || 0) + 800);
+    const maxY = Math.max(0, (workspace.clientHeight || 0) + 600);
     return {
       x: Math.min(Math.max(0, x), maxX),
       y: Math.min(Math.max(0, y), maxY)
@@ -180,7 +195,7 @@
     if (node.remarks) {
       details.push(node.remarks);
     }
-    meta.textContent = details.join(' • ');
+    meta.textContent = details.join(' | ');
     nodeEl.appendChild(meta);
 
     const toolbar = document.createElement('div');
@@ -198,44 +213,162 @@
 
     const position = node.position || { x: 40, y: 40 };
     setNodePosition(nodeEl, position.x || 0, position.y || 0);
-
     attachDragHandlers(nodeEl);
     return nodeEl;
   }
 
-  function renderConnections() {
-    Array.from(workspace.querySelectorAll('.arch-connection')).forEach((el) => el.remove());
-    if (!Array.isArray(currentLayout.connections)) {
+  function calculateExtent() {
+    let maxWidth = workspace.clientWidth;
+    let maxHeight = workspace.clientHeight;
+
+    Array.from(workspace.querySelectorAll('.architecture-node')).forEach((nodeEl) => {
+      const width = parseFloat(nodeEl.dataset.posX || '0') + nodeEl.offsetWidth;
+      const height = parseFloat(nodeEl.dataset.posY || '0') + nodeEl.offsetHeight;
+      if (width > maxWidth) {
+        maxWidth = width;
+      }
+      if (height > maxHeight) {
+        maxHeight = height;
+      }
+    });
+    return {
+      width: maxWidth + NODE_PADDING,
+      height: maxHeight + NODE_PADDING
+    };
+  }
+
+  function resizeCanvasToFit() {
+    if (!canvasCtx) {
       return;
     }
+    const extent = calculateExtent();
+    const targetWidth = Math.max(extent.width, workspace.clientWidth || 0);
+    const targetHeight = Math.max(extent.height, workspace.clientHeight || 420);
 
-    currentLayout.connections.forEach((connection) => {
-      const from = workspace.querySelector(`.architecture-node[data-node-id="${connection.from}"]`);
-      const to = workspace.querySelector(`.architecture-node[data-node-id="${connection.to}"]`);
-      if (!from || !to) {
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      workspace.style.height = `${targetHeight}px`;
+      workspace.style.minWidth = `${targetWidth}px`;
+    }
+  }
+
+  function drawGrid() {
+    if (!canvasCtx) {
+      return;
+    }
+    const step = 60;
+    canvasCtx.save();
+    canvasCtx.strokeStyle = 'rgba(99, 127, 206, 0.15)';
+    canvasCtx.lineWidth = 1;
+    for (let x = 0; x < canvas.width; x += step) {
+      canvasCtx.beginPath();
+      canvasCtx.moveTo(x, 0);
+      canvasCtx.lineTo(x, canvas.height);
+      canvasCtx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += step) {
+      canvasCtx.beginPath();
+      canvasCtx.moveTo(0, y);
+      canvasCtx.lineTo(canvas.width, y);
+      canvasCtx.stroke();
+    }
+    canvasCtx.restore();
+  }
+
+  function buildSequentialConnections(ids) {
+    const filtered = ids.filter(Boolean);
+    const result = [];
+    for (let i = 0; i < filtered.length - 1; i += 1) {
+      result.push({ from: filtered[i], to: filtered[i + 1] });
+    }
+    return result;
+  }
+
+  function sanitiseConnections(connections, nodeIds) {
+    const valid = new Set(nodeIds);
+    return (connections || []).filter((conn) => conn && valid.has(conn.from) && valid.has(conn.to) && conn.from !== conn.to);
+  }
+
+  function queueRedraw() {
+    if (!canvasCtx) {
+      return;
+    }
+    if (redrawQueued) {
+      return;
+    }
+    redrawQueued = true;
+    window.requestAnimationFrame(() => {
+      redrawQueued = false;
+      drawConnections();
+    });
+  }
+
+  function drawConnections() {
+    if (!canvasCtx) {
+      return;
+    }
+    resizeCanvasToFit();
+    canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+    drawGrid();
+
+    const nodeEls = Array.from(workspace.querySelectorAll('.architecture-node'));
+    if (!nodeEls.length) {
+      return;
+    }
+    const nodeMap = new Map(nodeEls.map((el) => [el.dataset.nodeId, el]));
+    const nodeIds = nodeEls.map((el) => el.dataset.nodeId);
+    let connections = sanitiseConnections(currentLayout.connections, nodeIds);
+    if (!connections.length) {
+      connections = buildSequentialConnections(nodeIds);
+    }
+
+    canvasCtx.strokeStyle = '#3a7ff6';
+    canvasCtx.lineWidth = 2;
+    canvasCtx.fillStyle = '#3a7ff6';
+
+    connections.forEach((connection) => {
+      const fromEl = nodeMap.get(connection.from);
+      const toEl = nodeMap.get(connection.to);
+      if (!fromEl || !toEl) {
         return;
       }
-      const line = document.createElement('div');
-      line.className = 'arch-connection';
-      const x1 = parseFloat(from.dataset.posX || '0') + from.offsetWidth / 2;
-      const y1 = parseFloat(from.dataset.posY || '0') + from.offsetHeight / 2;
-      const x2 = parseFloat(to.dataset.posX || '0') + to.offsetWidth / 2;
-      const y2 = parseFloat(to.dataset.posY || '0') + to.offsetHeight / 2;
-      const distance = Math.hypot(x2 - x1, y2 - y1);
-      const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
-      line.style.width = `${distance}px`;
-      line.style.transform = `translate(${x1}px, ${y1}px) rotate(${angle}deg)`;
-      workspace.appendChild(line);
+      const startX = parseFloat(fromEl.dataset.posX || '0') + fromEl.offsetWidth / 2;
+      const startY = parseFloat(fromEl.dataset.posY || '0') + fromEl.offsetHeight / 2;
+      const endX = parseFloat(toEl.dataset.posX || '0') + toEl.offsetWidth / 2;
+      const endY = parseFloat(toEl.dataset.posY || '0') + toEl.offsetHeight / 2;
+
+      canvasCtx.beginPath();
+      canvasCtx.moveTo(startX, startY);
+      canvasCtx.lineTo(endX, endY);
+      canvasCtx.stroke();
+
+      const angle = Math.atan2(endY - startY, endX - startX);
+      const arrowLength = 12;
+      canvasCtx.beginPath();
+      canvasCtx.moveTo(endX, endY);
+      canvasCtx.lineTo(
+        endX - arrowLength * Math.cos(angle - Math.PI / 6),
+        endY - arrowLength * Math.sin(angle - Math.PI / 6)
+      );
+      canvasCtx.lineTo(
+        endX - arrowLength * Math.cos(angle + Math.PI / 6),
+        endY - arrowLength * Math.sin(angle + Math.PI / 6)
+      );
+      canvasCtx.closePath();
+      canvasCtx.fill();
     });
   }
 
   function renderWorkspace() {
     workspace.querySelectorAll('.architecture-node').forEach((node) => node.remove());
-    Array.from(workspace.querySelectorAll('.arch-connection')).forEach((conn) => conn.remove());
 
     if (!currentLayout.nodes || currentLayout.nodes.length === 0) {
       if (emptyState) {
         emptyState.style.display = 'flex';
+      }
+      if (canvasCtx) {
+        canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
       }
       return;
     }
@@ -248,7 +381,8 @@
       const nodeEl = createNodeElement(node);
       workspace.appendChild(nodeEl);
     });
-    renderConnections();
+
+    queueRedraw();
   }
 
   function persistLayoutFromWorkspace() {
@@ -267,21 +401,31 @@
         }
       });
     });
+    const nodeIds = nodes.map((node) => node.id);
+    let connections = sanitiseConnections(currentLayout.connections, nodeIds);
+    if (!connections.length && nodeIds.length > 1) {
+      connections = buildSequentialConnections(nodeIds);
+    }
     currentLayout = {
       ...currentLayout,
-      nodes
+      nodes,
+      connections
     };
     updateHiddenInput();
+    queueRedraw();
   }
 
   function loadLayout(layout) {
     if (!layout || typeof layout !== 'object') {
       currentLayout = { nodes: [], connections: [] };
     } else {
-      currentLayout = {
-        nodes: Array.isArray(layout.nodes) ? layout.nodes : [],
-        connections: Array.isArray(layout.connections) ? layout.connections : []
-      };
+      const nodes = Array.isArray(layout.nodes) ? layout.nodes : [];
+      const nodeIds = nodes.map((node) => node.id);
+      let connections = sanitiseConnections(layout.connections, nodeIds);
+      if (!connections.length && nodeIds.length > 1) {
+        connections = buildSequentialConnections(nodeIds);
+      }
+      currentLayout = { nodes, connections };
     }
     updateHiddenInput();
     renderWorkspace();
@@ -351,6 +495,7 @@
 
   function handleReset() {
     loadLayout({ nodes: [], connections: [] });
+    queueRedraw();
   }
 
   function handleSave() {
@@ -365,11 +510,14 @@
   if (saveBtn) {
     saveBtn.addEventListener('click', handleSave);
   }
+  window.addEventListener('resize', queueRedraw);
 
   const initial = parseHiddenLayout();
   if (initial) {
     loadLayout(initial);
   } else if (submissionId) {
     fetchSavedLayout();
+  } else {
+    queueRedraw();
   }
 })(); 

@@ -7,6 +7,7 @@ from urllib.parse import quote_plus
 
 import requests
 from flask import current_app
+from sqlalchemy.exc import IntegrityError
 
 from models import db, EquipmentAsset
 
@@ -65,12 +66,23 @@ def _download_asset(model_key: str, url: str) -> Optional[str]:
         return None
 
 
+def _build_placeholder_result(query: str) -> Dict:
+    safe_query = quote_plus(query or "Device")
+    return {
+        "image_url": f"https://via.placeholder.com/320x200.png?text={safe_query}",
+        "thumbnail_url": None,
+        "source": "placeholder",
+        "confidence": 0.0,
+        "metadata": {"provider": "placeholder"}
+    }
+
+
 def _search_remote_image(query: str, description: Optional[str] = None) -> Optional[Dict]:
     """
     Search for an equipment image using configured provider.
     """
     if not query:
-        return None
+        return _build_placeholder_result("Device")
 
     api_key = current_app.config.get("IMAGE_SEARCH_API_KEY")
     endpoint = current_app.config.get("IMAGE_SEARCH_ENDPOINT", "https://api.bing.microsoft.com/v7.0/images/search")
@@ -90,16 +102,8 @@ def _search_remote_image(query: str, description: Optional[str] = None) -> Optio
     if api_key:
         headers["Ocp-Apim-Subscription-Key"] = api_key
     else:
-        # Fallback to Unsplash featured search style (no API key required)
-        # Provide placeholder image
-        placeholder_url = f"https://source.unsplash.com/featured/?{quote_plus(search_terms)}"
-        return {
-            "image_url": placeholder_url,
-            "thumbnail_url": None,
-            "source": "unsplash-featured",
-            "confidence": 0.05,
-            "metadata": {"provider": "unsplash_featured"},
-        }
+        # Without an API key, fall back to a deterministic placeholder to avoid remote 503s.
+        return _build_placeholder_result(search_terms)
 
     try:
         response = requests.get(endpoint, headers=headers, params=params, timeout=15)
@@ -107,7 +111,7 @@ def _search_remote_image(query: str, description: Optional[str] = None) -> Optio
         payload = response.json()
         results = payload.get("value") or []
         if not results:
-            return None
+            return _build_placeholder_result(search_terms)
         best = results[0]
         return {
             "image_url": best.get("contentUrl"),
@@ -125,7 +129,7 @@ def _search_remote_image(query: str, description: Optional[str] = None) -> Optio
         }
     except Exception as exc:
         current_app.logger.warning("Image search failed for %s: %s", query, exc)
-        return None
+        return _build_placeholder_result(search_terms)
 
 
 def ensure_asset_for_model(model_name: str, description: Optional[str] = None) -> Optional[EquipmentAsset]:
@@ -140,38 +144,47 @@ def ensure_asset_for_model(model_name: str, description: Optional[str] = None) -
         return None
 
     asset = EquipmentAsset.query.filter_by(model_key=model_key).first()
-
-    if asset and not _should_refresh(asset):
-        return asset
+    is_new_asset = False
 
     if not asset:
-        asset = EquipmentAsset(model_key=model_key, display_name=model_name)
+        asset = EquipmentAsset(model_key=model_key, display_name=model_name or model_key.upper())
         db.session.add(asset)
+        is_new_asset = True
 
-    search_result = _search_remote_image(model_name, description)
+    should_lookup = not asset.is_user_override and (is_new_asset or _should_refresh(asset))
+    search_result = None
 
-    if search_result:
-        asset.image_url = search_result.get("image_url")
-        asset.thumbnail_url = search_result.get("thumbnail_url")
-        asset.asset_source = search_result.get("source")
-        asset.confidence = search_result.get("confidence")
-        metadata = search_result.get("metadata")
-        if metadata:
-            asset.metadata_json = json.dumps(metadata)
+    if should_lookup:
+        search_result = _search_remote_image(model_name or model_key, description)
+        if search_result:
+            asset.image_url = search_result.get("image_url")
+            asset.thumbnail_url = search_result.get("thumbnail_url")
+            asset.asset_source = search_result.get("source")
+            asset.confidence = search_result.get("confidence")
+            metadata = search_result.get("metadata")
+            asset.metadata_json = json.dumps(metadata) if metadata else None
+            asset.fetched_at = datetime.utcnow()
 
-        asset.display_name = asset.display_name or model_name
-        asset.fetched_at = datetime.utcnow()
-
-        local_path = _download_asset(model_key, asset.image_url)
-        if local_path:
+            if search_result.get("source") != "placeholder":
+                local_path = _download_asset(model_key, asset.image_url)
+            else:
+                local_path = None
             asset.local_path = local_path
+        else:
+            asset.asset_source = "unavailable"
+            asset.fetched_at = datetime.utcnow()
 
-    else:
-        asset.asset_source = "unavailable"
-        asset.fetched_at = datetime.utcnow()
+    if not asset.display_name and model_name:
+        asset.display_name = model_name
 
     asset.updated_at = datetime.utcnow()
-    db.session.commit()
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        asset = EquipmentAsset.query.filter_by(model_key=model_key).first()
+
     return asset
 
 
