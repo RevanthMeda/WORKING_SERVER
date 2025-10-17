@@ -156,8 +156,18 @@ def _search_image_via_gemini(query: str, description: Optional[str]) -> Optional
             f"Additional description: {description or 'Not provided'}"
         )
         response = model.generate_content(prompt, generation_config=generation_config)
-        output_text = getattr(response, "text", "") or ""
-        data = _extract_first_json(output_text.strip())
+        candidate = (getattr(response, "candidates", None) or [None])[0]
+        finish_reason = getattr(candidate, "finish_reason", None)
+        if finish_reason not in (
+            None,
+            getattr(genai.protos.FinishReason, "FINISH_REASON_UNSPECIFIED", 0)
+        ):
+            current_app.logger.warning("Gemini declined %s (finish_reason=%s)", query, finish_reason)
+            return None
+        content = getattr(candidate, "content", None)
+        parts = getattr(content, "parts", []) if content else []
+        output_text = "".join(getattr(part, "text", "") for part in parts)
+        data = _extract_first_json((output_text or "").strip())
         if not isinstance(data, dict):
             return None
         image_url = (data.get("image_url") or "").strip()
@@ -438,7 +448,8 @@ def build_architecture_payload(equipment_rows: List[Dict], existing_layout: Opti
     return layout
 
 
-def save_user_asset_image(model_name: str, storage, user_email: Optional[str] = None) -> Dict:
+def save_user_asset_image(model_name: str, storage, user_email: Optional[str] = None,
+                          display_name: Optional[str] = None) -> Dict:
     """
     Persist a user-uploaded asset image and mark the asset as an override.
     """
@@ -449,13 +460,14 @@ def save_user_asset_image(model_name: str, storage, user_email: Optional[str] = 
     if not filename:
         filename = f"{model_name or 'device'}-{int(datetime.utcnow().timestamp())}.png"
 
-    model_key = EquipmentAsset.normalize_model_key(model_name or filename)
+    preferred_name = (display_name or model_name or "").strip()
+    model_key = EquipmentAsset.normalize_model_key(model_name or preferred_name or filename)
     if not model_key:
         raise ValueError("Unable to derive model key for asset storage")
 
     asset = EquipmentAsset.query.filter_by(model_key=model_key).first()
     if not asset:
-        asset = EquipmentAsset(model_key=model_key, display_name=model_name or model_key.upper())
+        asset = EquipmentAsset(model_key=model_key, display_name=preferred_name or model_key.upper())
         db.session.add(asset)
 
     storage_root = _get_storage_root()
@@ -484,10 +496,15 @@ def save_user_asset_image(model_name: str, storage, user_email: Optional[str] = 
             "uploaded_by": user_email,
             "uploaded_at": datetime.utcnow().isoformat(),
             "original_filename": storage.filename,
+            "display_name": preferred_name or asset.display_name,
+            "model_name": model_name,
         }
     )
 
-    asset.display_name = model_name or asset.display_name or model_key.upper()
+    if preferred_name:
+        asset.display_name = preferred_name
+    elif not asset.display_name:
+        asset.display_name = model_name or model_key.upper()
     asset.image_url = rel_path
     asset.thumbnail_url = rel_path
     asset.local_path = rel_path.lstrip("/")
@@ -508,4 +525,17 @@ def list_cached_assets(limit: int = 300) -> List[Dict]:
     if limit:
         query = query.limit(limit)
     assets = query.all()
-    return [asset.to_dict() for asset in assets]
+    enriched = []
+    for asset in assets:
+        data = asset.to_dict()
+        metadata = data.get("metadata") or {}
+        if not metadata and data.get("metadata_raw"):
+            try:
+                metadata = json.loads(data.pop("metadata_raw"))
+            except Exception:
+                metadata = {}
+        if metadata:
+            data["uploaded_by"] = metadata.get("uploaded_by")
+            data["uploaded_at"] = metadata.get("uploaded_at")
+        enriched.append(data)
+    return enriched

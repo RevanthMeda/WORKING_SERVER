@@ -1219,13 +1219,19 @@ def list_architecture_assets():
 def upload_architecture_asset():
     """Upload a custom image to the asset library."""
     model_name = (request.form.get("model_name") or "").strip()
+    asset_label = (request.form.get("asset_label") or "").strip()
     storage = request.files.get("file")
 
     if not storage:
         return jsonify({"success": False, "message": "No file supplied for upload."}), 400
 
     try:
-        asset = save_user_asset_image(model_name, storage, user_email=current_user.email)
+        asset = save_user_asset_image(
+            model_name,
+            storage,
+            user_email=current_user.email,
+            display_name=asset_label or model_name
+        )
     except ValueError as exc:
         return jsonify({"success": False, "message": str(exc)}), 400
     except Exception as exc:

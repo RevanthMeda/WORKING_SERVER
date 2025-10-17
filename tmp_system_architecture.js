@@ -250,7 +250,7 @@
     diagram.toolManager.draggingTool.isGridSnapEnabled = true;
     diagram.toolManager.linkingTool.portGravity = 20;
     diagram.toolManager.relinkingTool.portGravity = 20;
-    diagram.toolManager.linkingTool.direction = go.LinkingTool.ForwardsAndBackwards;
+    diagram.toolManager.linkingTool.direction = go.LinkingTool.ForwardsOnly;
     diagram.toolManager.linkingTool.archetypeLinkData = {
       color: '#1f2937',
       width: 2,
@@ -1454,7 +1454,4 @@
 
   document.addEventListener('DOMContentLoaded', init);
 })();
-
-
-
 
