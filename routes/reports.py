@@ -108,9 +108,9 @@ def _normalize_modbus_digital_rows(rows):
         if not isinstance(raw, dict):
             continue
         normalized.append({
+            "S_No": _get_first_value(raw, "S_No", "s_no", "Serial", "Index"),
             "Address": _get_first_value(raw, "Address", "address"),
             "Description": _get_first_value(raw, "Description", "description"),
-            "Tag": _get_first_value(raw, "Tag", "tag"),
             "Remarks": _get_first_value(raw, "Remarks", "remarks", "Notes")
         })
     return [row for row in normalized if any(value for value in row.values())]
@@ -122,10 +122,10 @@ def _normalize_modbus_analog_rows(rows):
         if not isinstance(raw, dict):
             continue
         normalized.append({
+            "S_No": _get_first_value(raw, "S_No", "s_no", "Serial", "Index"),
             "Address": _get_first_value(raw, "Address", "address"),
             "Description": _get_first_value(raw, "Description", "description"),
-            "Range": _get_first_value(raw, "Range", "range"),
-            "Tag": _get_first_value(raw, "Tag", "tag")
+            "Remarks": _get_first_value(raw, "Remarks", "remarks", "Notes")
         })
     return [row for row in normalized if any(value for value in row.values())]
 
@@ -989,9 +989,9 @@ def submit_fds():
         modbus_digital_rows = process_table_rows(
             request.form,
             {
+                "modbus_digital_s_no[]": "S_No",
                 "modbus_digital_address[]": "Address",
                 "modbus_digital_description[]": "Description",
-                "modbus_digital_tag[]": "Tag",
                 "modbus_digital_remarks[]": "Remarks"
             },
             add_placeholder=False
@@ -1000,10 +1000,10 @@ def submit_fds():
         modbus_analog_rows = process_table_rows(
             request.form,
             {
+                "modbus_analog_s_no[]": "S_No",
                 "modbus_analog_address[]": "Address",
                 "modbus_analog_description[]": "Description",
-                "modbus_analog_range[]": "Range",
-                "modbus_analog_tag[]": "Tag"
+                "modbus_analog_remarks[]": "Remarks"
             },
             add_placeholder=False
         )

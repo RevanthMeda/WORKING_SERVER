@@ -97,9 +97,9 @@
 
 <template id="tmpl-modbus-digital">
   <tr>
+    <td><input name="modbus_digital_s_no[]" placeholder="S.No"/></td>
     <td><input name="modbus_digital_address[]" placeholder="Address"/></td>
     <td><input name="modbus_digital_description[]" placeholder="Description"/></td>
-    <td><input name="modbus_digital_tag[]" placeholder="Tag"/></td>
     <td><input name="modbus_digital_remarks[]" placeholder="Remarks"/></td>
     <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
   </tr>
@@ -107,10 +107,10 @@
 
 <template id="tmpl-modbus-analog">
   <tr>
+    <td><input name="modbus_analog_s_no[]" placeholder="S.No"/></td>
     <td><input name="modbus_analog_address[]" placeholder="Address"/></td>
     <td><input name="modbus_analog_description[]" placeholder="Description"/></td>
-    <td><input name="modbus_analog_range[]" placeholder="Range"/></td>
-    <td><input name="modbus_analog_tag[]" placeholder="Tag"/></td>
+    <td><input name="modbus_analog_remarks[]" placeholder="Remarks"/></td>
     <td><button type="button" class="btn-remove" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>
   </tr>
 </template>
