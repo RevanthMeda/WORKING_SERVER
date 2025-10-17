@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
   const PLACEHOLDER_IMAGE = 'https://via.placeholder.com/320x200.png?text=Device';
   const DEFAULT_NODE_SIZE = { width: 240, height: 160 };
   const API_ROUTES = {
@@ -46,6 +46,20 @@
   ];
 
   const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+  const normaliseImageUrl = (value) => {
+    if (!value) {
+      return null;
+    }
+    if (/^(https?:)?\/\//i.test(value) || value.startsWith('data:')) {
+      return value;
+    }
+    let path = value.replace(/\\/g, '/').replace(/^\.\//, '');
+    if (!path.startsWith('/')) {
+      path = `/${path}`;
+    }
+    return path;
+  };
 
   class HistoryStack {
     constructor(limit = 40) {
@@ -207,6 +221,7 @@
       this.lastChecksum = null;
       this.draggedAsset = null;
       this.connectorDraft = null;
+      this.connectorState = null;
       this.isDraggingNodesAsGroup = false;
     }
 
@@ -335,6 +350,11 @@
       this.stage.on('click tap', (event) => this.handleStageClick(event));
       this.stage.on('dragmove', () => this.updateMinimap());
       this.stage.on('wheel', (event) => this.handleStageWheel(event));
+      this.stage.on('mouseup.connectorCancel touchend.connectorCancel', () => {
+        if (this.currentTool === 'connector' && (this.connectorDraft || this.connectorState)) {
+          this.cancelConnector();
+        }
+      });
 
       this.createMinimap();
       this.setZoom(1);
@@ -430,21 +450,49 @@
 
     beginConnectorMode() {
       this.connectorDraft = null;
+      this.connectorState = null;
+      if (this.stage?.container()) {
+        this.stage.container().style.cursor = 'crosshair';
+      }
       this.nodes.forEach((nodeEntry) => {
-        nodeEntry.portLayer?.opacity(1);
+        if (nodeEntry.portLayer) {
+          nodeEntry.portLayer.opacity(1);
+          nodeEntry.portLayer.listening(true);
+        }
       });
+      this.layers.nodes.batchDraw();
     }
 
     endConnectorMode() {
-      this.connectorDraft?.destroy();
-      this.connectorDraft = null;
+      this.cancelConnector(true);
+      if (this.stage?.container()) {
+        this.stage.container().style.cursor = 'default';
+      }
       this.nodes.forEach((nodeEntry) => {
-        nodeEntry.portLayer?.opacity(0);
+        if (nodeEntry.portLayer) {
+          nodeEntry.portLayer.opacity(0);
+          nodeEntry.portLayer.listening(false);
+        }
       });
+      this.layers.nodes.batchDraw();
     }
 
     cancelAnnotation() {
       // Placeholder for future inline annotation flow.
+    }
+
+    cancelConnector(silent = true) {
+      if (!this.connectorDraft && !this.connectorState) {
+        return;
+      }
+      this.stage?.off('mousemove.connector');
+      this.layers.overlay.destroyChildren();
+      this.layers.overlay.batchDraw();
+      this.connectorDraft = null;
+      this.connectorState = null;
+      if (!silent) {
+        this.showStatus('Connector cancelled');
+      }
     }
 
     handleStageClick(event) {
@@ -574,7 +622,13 @@
         ...layout.metadata,
         generated_at: layout.metadata?.generated_at || new Date().toISOString(),
       };
-      base.assetLibrary = Array.isArray(layout.assetLibrary) ? layout.assetLibrary : [];
+      base.assetLibrary = Array.isArray(layout.assetLibrary)
+        ? layout.assetLibrary.map((asset) => ({
+            ...asset,
+            image_url: normaliseImageUrl(asset.image_url) || asset.image_url,
+            thumbnail_url: normaliseImageUrl(asset.thumbnail_url) || asset.thumbnail_url,
+          }))
+        : [];
       return base;
     }
     normaliseNode(node, index) {
@@ -610,11 +664,11 @@
           shadowOpacity: node.style?.shadowOpacity ?? 0.6,
         },
         image: {
-          url: node.image?.url || node.image_url || PLACEHOLDER_IMAGE,
-          thumbnail: node.image?.thumbnail || node.thumbnail_url || null,
+          url: normaliseImageUrl(node.image?.url || node.image_url) || PLACEHOLDER_IMAGE,
+          thumbnail: normaliseImageUrl(node.image?.thumbnail || node.thumbnail_url),
           source: node.image?.source || node.assetSource || 'placeholder',
         },
-        ports: Array.isArray(node.ports) && node.ports.length ? node.ports : defaultPorts(size),
+        ports: Array.isArray(node.ports) && node.ports.length ? node.ports.map((port) => ({ ...port })) : defaultPorts(size),
         metadata: {
           ip_address: node.metadata?.ip_address || '',
           slot: node.metadata?.slot || '',
@@ -710,6 +764,11 @@
 
     createNode(nodeData) {
       const node = deepClone(nodeData);
+      if (!node.image) {
+        node.image = {};
+      }
+      node.image.url = normaliseImageUrl(node.image.url) || PLACEHOLDER_IMAGE;
+      node.image.thumbnail = normaliseImageUrl(node.image.thumbnail);
       const group = new Konva.Group({
         id: node.id,
         x: node.position.x,
@@ -784,11 +843,13 @@
 
       const portMap = new Map();
       node.ports.forEach((port) => {
+        const baseFill = 'rgba(45,128,255,0.15)';
+        const hoverFill = 'rgba(45,128,255,0.35)';
         const circle = new Konva.Circle({
           x: port.position.x,
           y: port.position.y,
           radius: 7,
-          fill: 'rgba(45,128,255,0.15)',
+          fill: baseFill,
           stroke: 'rgba(45,128,255,0.45)',
           strokeWidth: 1,
         });
@@ -796,12 +857,22 @@
         circle.on('mouseenter', () => {
           if (this.currentTool === 'connector') {
             circle.scale({ x: 1.2, y: 1.2 });
-            this.stage.container().style.cursor = 'crosshair';
+            circle.fill(hoverFill);
+            circle.stroke('rgba(45,128,255,0.9)');
+            this.layers.nodes.batchDraw();
+            if (this.stage?.container()) {
+              this.stage.container().style.cursor = 'crosshair';
+            }
           }
         });
         circle.on('mouseleave', () => {
           circle.scale({ x: 1, y: 1 });
-          this.stage.container().style.cursor = 'default';
+          circle.fill(baseFill);
+          circle.stroke('rgba(45,128,255,0.45)');
+          this.layers.nodes.batchDraw();
+          if (this.stage?.container()) {
+            this.stage.container().style.cursor = this.currentTool === 'connector' ? 'crosshair' : 'default';
+          }
         });
         circle.on('mousedown touchstart', (event) => {
           event.evt.preventDefault();
@@ -846,12 +917,20 @@
         imageNode,
       });
 
-      loadImage(node.image?.url || PLACEHOLDER_IMAGE)
+      const imageUrl = node.image?.url || PLACEHOLDER_IMAGE;
+      loadImage(imageUrl)
         .then((img) => {
           imageNode.image(img);
           imageNode.getLayer().batchDraw();
         })
-        .catch(() => {});
+        .catch(() =>
+          loadImage(PLACEHOLDER_IMAGE)
+            .then((img) => {
+              imageNode.image(img);
+              imageNode.getLayer().batchDraw();
+            })
+            .catch(() => {})
+        );
     }
     buildNodeMetaString(node) {
       const lines = [];
@@ -974,6 +1053,7 @@
       if (!startPoint) {
         return;
       }
+      this.stage.off('mousemove.connector');
       this.connectorDraft?.destroy();
       this.connectorDraft = new Konva.Line({
         points: [startPoint.x, startPoint.y, startPoint.x, startPoint.y],
@@ -989,7 +1069,7 @@
         fromNode: nodeId,
         fromPort: portId,
       };
-      this.stage.on('mousemove.connector', (event) => {
+      this.stage.on('mousemove.connector', () => {
         const position = this.stage.getPointerPosition();
         if (!position || !this.connectorDraft) {
           return;
@@ -1001,10 +1081,7 @@
 
     finishConnector(nodeId, portId) {
       if (!this.connectorState || (this.connectorState.fromNode === nodeId && this.connectorState.fromPort === portId)) {
-        this.endConnectorMode();
-        this.stage.off('mousemove.connector');
-        this.layers.overlay.destroyChildren();
-        this.layers.overlay.batchDraw();
+        this.cancelConnector();
         return;
       }
       const newConnection = this.normaliseConnection({
@@ -1016,11 +1093,8 @@
       this.createConnection(newConnection);
       this.layers.connections.batchDraw();
       this.recordHistory();
-      this.stage.off('mousemove.connector');
-      this.layers.overlay.destroyChildren();
-      this.layers.overlay.batchDraw();
-      this.connectorState = null;
-      this.connectorDraft = null;
+      this.showStatus('Connection created');
+      this.cancelConnector(true);
     }
 
     createConnection(connectionData) {
@@ -1567,7 +1641,9 @@
         tile.draggable = true;
         tile.dataset.asset = JSON.stringify(asset);
         const img = document.createElement('img');
-        img.src = asset.thumbnail_url || asset.image_url || PLACEHOLDER_IMAGE;
+        const assetThumb = normaliseImageUrl(asset.thumbnail_url);
+        const assetImage = normaliseImageUrl(asset.image_url);
+        img.src = assetThumb || assetImage || PLACEHOLDER_IMAGE;
         img.alt = asset.display_name || asset.model_key;
         const label = document.createElement('span');
         label.textContent = asset.display_name || asset.model_key;
@@ -1633,8 +1709,8 @@
         return;
       }
       entry.data.image = {
-        url: asset.image_url || (asset.local_path ? `/${asset.local_path}` : PLACEHOLDER_IMAGE),
-        thumbnail: asset.thumbnail_url || null,
+        url: normaliseImageUrl(asset.image_url || asset.local_path) || PLACEHOLDER_IMAGE,
+        thumbnail: normaliseImageUrl(asset.thumbnail_url),
         source: asset.asset_source || 'library',
       };
       entry.data.metadata = entry.data.metadata || {};
@@ -1644,7 +1720,14 @@
           entry.imageNode.image(img);
           entry.imageNode.getLayer().batchDraw();
         })
-        .catch(() => {});
+        .catch(() =>
+          loadImage(PLACEHOLDER_IMAGE)
+            .then((img) => {
+              entry.imageNode.image(img);
+              entry.imageNode.getLayer().batchDraw();
+            })
+            .catch(() => {})
+        );
       this.showStatus('Updated device image');
     }
 
@@ -1657,8 +1740,8 @@
           model: asset.display_name || '',
           position,
           image: {
-            url: asset.image_url || (asset.local_path ? `/${asset.local_path}` : PLACEHOLDER_IMAGE),
-            thumbnail: asset.thumbnail_url,
+            url: normaliseImageUrl(asset.image_url || asset.local_path) || PLACEHOLDER_IMAGE,
+            thumbnail: normaliseImageUrl(asset.thumbnail_url),
             source: asset.asset_source || 'library',
           },
           metadata: {
@@ -1833,7 +1916,7 @@
           data.versions.forEach((version) => {
             const option = document.createElement('option');
             option.value = version.id;
-            option.textContent = `${version.version_label || version.id} � ${new Date(
+            option.textContent = `${version.version_label || version.id} • ${new Date(
               version.created_at
             ).toLocaleString()}`;
             this.versionSelector.appendChild(option);
@@ -2062,3 +2145,4 @@
     designer.init();
   });
 })();
+

@@ -139,6 +139,13 @@ def _upgrade_legacy_node(raw: Dict, default_node: Optional[Dict] = None, fallbac
             if raw.get(key):
                 target_key = key.replace("Url", "_url").replace("url", "_url")
                 image[target_key] = raw[key]
+    if isinstance(image, dict):
+        primary_url = image.get("url") or image.get("image_url")
+        thumb_url = image.get("thumbnail") or image.get("thumbnail_url")
+        image["url"] = _normalise_image_url(primary_url) or primary_url
+        image["image_url"] = _normalise_image_url(image.get("image_url")) or image.get("image_url")
+        image["thumbnail"] = _normalise_image_url(thumb_url) or thumb_url
+        image["thumbnail_url"] = _normalise_image_url(image.get("thumbnail_url")) or image.get("thumbnail_url")
 
     label = raw.get("label") or base.get("label") or raw.get("model") or base.get("model")
 
@@ -283,6 +290,19 @@ def ensure_layout(
     base_layout["groups"] = layout.get("groups") or layout.get("clusters") or []
     if "metadata" in layout and isinstance(layout["metadata"], dict):
         base_layout["metadata"].update(layout["metadata"])
+
+    asset_library_payload = []
+    for asset in layout.get("assetLibrary") or []:
+        if not isinstance(asset, dict):
+            continue
+        normalised_asset = {**asset}
+        image_url = normalised_asset.get("image_url") or normalised_asset.get("url")
+        thumb_url = normalised_asset.get("thumbnail_url") or normalised_asset.get("thumbnail")
+        local_path = normalised_asset.get("local_path")
+        normalised_asset["image_url"] = _normalise_image_url(image_url) or image_url or _normalise_image_url(local_path)
+        normalised_asset["thumbnail_url"] = _normalise_image_url(thumb_url) or _normalise_image_url(image_url)
+        asset_library_payload.append(normalised_asset)
+    base_layout["assetLibrary"] = asset_library_payload
 
     if equipment_rows:
         base_layout["metadata"]["equipment_rows"] = equipment_rows
@@ -460,3 +480,15 @@ def record_version_snapshot(
 def compute_layout_checksum(layout: Dict) -> str:
     serialised = serialise_layout(layout)
     return hashlib.sha256(serialised.encode('utf-8')).hexdigest()
+def _normalise_image_url(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    if isinstance(url, str) and (url.startswith("http://") or url.startswith("https://") or url.startswith("data:")):
+        return url
+    if isinstance(url, str):
+        path = url.replace("\\", "/")
+        path = path.lstrip("./")
+        if not path.startswith("/"):
+            path = f"/{path}"
+        return path
+    return None

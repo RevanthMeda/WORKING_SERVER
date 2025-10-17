@@ -26,6 +26,17 @@ LOCAL_STORAGE_SUBDIR = "static/equipment_assets"
 USER_AGENT = "CullyFDSBot/1.0 (+https://cullyautomation.com)"
 
 
+def _normalise_asset_url(path: Optional[str]) -> Optional[str]:
+    if not path:
+        return None
+    if path.startswith("http://") or path.startswith("https://") or path.startswith("data:"):
+        return path
+    normalised = path.replace("\\", "/")
+    if not normalised.startswith("/"):
+        normalised = f"/{normalised}"
+    return normalised
+
+
 def _get_storage_root() -> str:
     root = current_app.config.get("EQUIPMENT_ASSET_STORAGE_ROOT", LOCAL_STORAGE_SUBDIR)
     if not os.path.isabs(root):
@@ -260,8 +271,8 @@ def prepare_layout_nodes(enriched_assets: List[Dict]) -> List[Dict]:
         )
 
         image_payload = {
-            "url": asset.get("local_path") or asset.get("image_url"),
-            "thumbnail": asset.get("thumbnail_url"),
+            "url": _normalise_asset_url(asset.get("local_path")) or _normalise_asset_url(asset.get("image_url")),
+            "thumbnail": _normalise_asset_url(asset.get("thumbnail_url")),
             "source": asset.get("asset_source"),
             "placeholder": (asset.get("asset_source") or "placeholder") == "placeholder",
         }
@@ -308,8 +319,8 @@ def build_architecture_payload(equipment_rows: List[Dict], existing_layout: Opti
             "model_key": model_key,
             "display_name": asset.get("display_name") or model_key,
             "manufacturer": asset.get("manufacturer"),
-            "image_url": asset.get("local_path") or asset.get("image_url"),
-            "thumbnail_url": asset.get("thumbnail_url"),
+            "image_url": _normalise_asset_url(asset.get("local_path")) or _normalise_asset_url(asset.get("image_url")),
+            "thumbnail_url": _normalise_asset_url(asset.get("thumbnail_url")),
             "source": asset.get("asset_source"),
             "confidence": asset.get("confidence"),
             "metadata": asset.get("metadata"),
