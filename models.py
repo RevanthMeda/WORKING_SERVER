@@ -220,11 +220,98 @@ class FDSReport(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     report_id = db.Column(db.String(36), db.ForeignKey('reports.id'), nullable=False, unique=True)
     data_json = db.Column(db.Text, nullable=False)
+    system_architecture_json = db.Column(db.Text, nullable=True)
     
     # FDS specific fields
     functional_requirements = db.Column(db.Text, nullable=True)
     process_description = db.Column(db.Text, nullable=True)
     control_philosophy = db.Column(db.Text, nullable=True)
+
+    def get_system_architecture(self):
+        """Return parsed architecture layout JSON."""
+        if not self.system_architecture_json:
+            return None
+        try:
+            return json.loads(self.system_architecture_json)
+        except Exception:
+            return None
+
+    def set_system_architecture(self, payload):
+        """Persist architecture layout JSON."""
+        if payload is None:
+            self.system_architecture_json = None
+            return
+        if isinstance(payload, (dict, list)):
+            self.system_architecture_json = json.dumps(payload)
+        else:
+            self.system_architecture_json = payload
+
+
+class EquipmentAsset(db.Model):
+    """Cached mapping between equipment models and representative imagery."""
+    __tablename__ = 'equipment_assets'
+
+    id = db.Column(db.Integer, primary_key=True)
+    model_key = db.Column(db.String(200), nullable=False, unique=True)
+    display_name = db.Column(db.String(200), nullable=True)
+    manufacturer = db.Column(db.String(120), nullable=True)
+    image_url = db.Column(db.String(500), nullable=True)
+    thumbnail_url = db.Column(db.String(500), nullable=True)
+    local_path = db.Column(db.String(500), nullable=True)
+    asset_source = db.Column(db.String(120), nullable=True)
+    confidence = db.Column(db.Float, nullable=True)
+    metadata_json = db.Column(db.Text, nullable=True)
+    fetched_at = db.Column(db.DateTime, nullable=True)
+    is_user_override = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.Index('idx_equipment_assets_model_key', 'model_key'),
+    )
+
+    def to_dict(self):
+        payload = {
+            "id": self.id,
+            "model_key": self.model_key,
+            "display_name": self.display_name,
+            "manufacturer": self.manufacturer,
+            "image_url": self.image_url,
+            "thumbnail_url": self.thumbnail_url,
+            "local_path": self.local_path,
+            "asset_source": self.asset_source,
+            "confidence": self.confidence,
+            "is_user_override": self.is_user_override,
+            "fetched_at": self.fetched_at.isoformat() if self.fetched_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+        if self.metadata_json:
+            try:
+                payload["metadata"] = json.loads(self.metadata_json)
+            except Exception:
+                payload["metadata_raw"] = self.metadata_json
+        return payload
+
+    @classmethod
+    def normalize_model_key(cls, raw_model: str) -> str:
+        if not raw_model:
+            return ''
+        normalized = re.sub(r'[^a-z0-9]+', '-', raw_model.strip().lower())
+        return normalized.strip('-')
+
+    @classmethod
+    def get_or_create(cls, model_key: str) -> "EquipmentAsset":
+        """Fetch cached asset for model key or create placeholder."""
+        if not model_key:
+            raise ValueError("model_key is required")
+        asset = cls.query.filter_by(model_key=model_key).first()
+        if asset:
+            return asset
+        asset = cls(model_key=model_key)
+        db.session.add(asset)
+        db.session.commit()
+        return asset
 
 class HDSReport(db.Model):
     __tablename__ = 'hds_reports'

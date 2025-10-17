@@ -431,6 +431,17 @@ The Reports dashboard shows all your reports with the following information:
 - **Shared templates**: Available to your team
 - **Organization templates**: Available to all users
 
+### System Architecture Designer
+
+The FDS workflow now includes an interactive system architecture designer on **Step 6**.
+
+- **Auto-generate**: Use the “Generate from Equipment List” button to pull images for each device and build an initial layout.
+- **Drag & drop**: Move equipment nodes to match the project topology; the canvas stores your adjustments automatically when you save the FDS.
+- **Swap imagery**: Click the camera icon on a node to paste an alternate image URL if the automatic match needs refinement.
+- **Reuse assets**: Once an equipment model has an image, future projects re-use the cached asset, speeding up diagram assembly.
+
+> Tip: Make sure your equipment list in Step 4 is complete before generating the diagram so every device appears in the canvas.
+
 ### Bulk Import/Export
 
 **Exporting Reports:**

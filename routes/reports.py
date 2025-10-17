@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, make_response
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, make_response, abort
 from functools import wraps
 from flask_login import login_required, current_user
 from models import db, Report, User, SATReport, FDSReport
@@ -6,6 +6,7 @@ from auth import login_required, role_required
 from utils import setup_approval_workflow_db, create_new_submission_notification, get_unread_count, process_table_rows
 from services.sat_tables import migrate_context_tables
 from services.fds_generator import generate_fds_from_sat
+from services.equipment_assets import build_architecture_payload
 import json
 import uuid
 from datetime import datetime
@@ -127,6 +128,14 @@ def _normalize_modbus_analog_rows(rows):
             "Tag": _get_first_value(raw, "Tag", "tag")
         })
     return [row for row in normalized if any(value for value in row.values())]
+
+
+def _assert_report_access(report: Optional[Report]):
+    """Ensure the current user can access the given report."""
+    if not report:
+        abort(404, description="Report not found.")
+    if current_user.role == 'Engineer' and report.user_email != current_user.email:
+        abort(403, description="You do not have permission to access this report.")
 
 
 def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
@@ -260,6 +269,13 @@ def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
     if analog_registers:
         submission["MODBUS_ANALOG_REGISTERS"] = analog_registers
 
+    architecture_layout = fds_payload.get("system_architecture")
+    if architecture_layout:
+        try:
+            submission["SYSTEM_ARCHITECTURE_LAYOUT"] = json.dumps(architecture_layout)
+        except (TypeError, ValueError):
+            current_app.logger.warning("Unable to serialise stored architecture layout for submission preload.")
+
     return submission
 
 
@@ -343,6 +359,7 @@ def _build_empty_fds_submission() -> dict:
         "FUNCTIONAL_REQUIREMENTS": "",
         "PROCESS_DESCRIPTION": "",
         "CONTROL_PHILOSOPHY": "",
+        "SYSTEM_ARCHITECTURE_LAYOUT": "",
         "EQUIPMENT_LIST": [],
         "COMMUNICATION_PROTOCOLS": [],
         "DETAILED_IO_LIST": [],
@@ -684,6 +701,14 @@ def fds_wizard():
         if not submission_data.get('USER_EMAIL'):
             submission_data['USER_EMAIL'] = report.user_email or ''
 
+        if fds_report:
+            layout_payload = fds_report.get_system_architecture()
+            if layout_payload:
+                try:
+                    submission_data['SYSTEM_ARCHITECTURE_LAYOUT'] = json.dumps(layout_payload)
+                except (TypeError, ValueError):
+                    current_app.logger.warning("Unable to serialize architecture layout for submission %s", submission_id)
+
         unread_count = get_unread_count()
 
         return render_template(
@@ -754,6 +779,83 @@ def generate_fds(sat_report_id):
         current_app.logger.error(f"Error generating FDS report: {e}", exc_info=True)
         flash('Failed to generate FDS report.', 'error')
         return redirect(url_for('dashboard.my_reports'))
+
+
+@reports_bp.route('/system-architecture/preview', methods=['POST'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def preview_system_architecture():
+    """Generate a provisional system architecture layout from an equipment list."""
+    payload = request.get_json(silent=True) or {}
+    equipment_rows = payload.get('equipment') or payload.get('equipment_list') or []
+
+    if not isinstance(equipment_rows, list) or not equipment_rows:
+        return jsonify({
+            "success": False,
+            "message": "Equipment list is required to generate the architecture."
+        }), 400
+
+    submission_id = (payload.get('submission_id') or '').strip()
+    existing_layout = payload.get('existing_layout') if isinstance(payload.get('existing_layout'), dict) else None
+
+    saved_layout = None
+    if submission_id:
+        report = Report.query.get(submission_id)
+        if report:
+            _assert_report_access(report)
+            if report.fds_report:
+                saved_layout = report.fds_report.get_system_architecture()
+
+    merged_layout = existing_layout or saved_layout
+    try:
+        architecture_payload = build_architecture_payload(equipment_rows, merged_layout)
+    except Exception as exc:
+        current_app.logger.error("Failed to build architecture preview: %s", exc, exc_info=True)
+        return jsonify({
+            "success": False,
+            "message": "Unable to generate architecture preview at this time."
+        }), 500
+
+    return jsonify({
+        "success": True,
+        "payload": architecture_payload
+    })
+
+
+@reports_bp.route('/system-architecture/<submission_id>', methods=['GET'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def fetch_system_architecture(submission_id):
+    """Return the saved architecture layout (and regenerate assets if necessary)."""
+    report = Report.query.get(submission_id)
+    _assert_report_access(report)
+
+    equipment_rows = []
+    saved_layout = None
+
+    fds_report = report.fds_report
+    if fds_report:
+        saved_layout = fds_report.get_system_architecture()
+        try:
+            data_json = json.loads(fds_report.data_json or '{}')
+            equipment_rows = data_json.get("equipment_and_hardware", {}).get("equipment_list", [])
+        except Exception:
+            current_app.logger.warning("Failed to parse FDS data_json for report %s", submission_id)
+
+    if equipment_rows:
+        try:
+            architecture_payload = build_architecture_payload(equipment_rows, saved_layout)
+        except Exception as exc:
+            current_app.logger.error("Failed to rebuild architecture for report %s: %s", submission_id, exc, exc_info=True)
+            architecture_payload = saved_layout or {"nodes": [], "connections": []}
+    else:
+        architecture_payload = saved_layout or {"nodes": [], "connections": []}
+
+    return jsonify({
+        "success": True,
+        "payload": architecture_payload,
+        "equipment": equipment_rows
+    })
 
 
 @reports_bp.route('/submit-fds', methods=['POST'])
@@ -998,6 +1100,14 @@ def submit_fds():
             add_placeholder=False
         )
 
+        layout_raw = (request.form.get('system_architecture_layout') or '').strip()
+        architecture_layout = None
+        if layout_raw:
+            try:
+                architecture_layout = json.loads(layout_raw)
+            except (TypeError, ValueError):
+                current_app.logger.warning("Received invalid architecture layout JSON for submission %s", submission_id)
+
         fds_data = {
             "document_header": document_header,
             "document_approvals": approvals,
@@ -1036,6 +1146,9 @@ def submit_fds():
             "modbus_analogue_signals": modbus_analogue_signal_rows
         }
 
+        if architecture_layout:
+            fds_data["system_architecture"] = architecture_layout
+
         fds_report = FDSReport.query.filter_by(report_id=submission_id).first()
         if not fds_report:
             fds_report = FDSReport(report_id=submission_id)
@@ -1045,6 +1158,7 @@ def submit_fds():
         fds_report.functional_requirements = fds_data["functional_requirements"]
         fds_report.process_description = fds_data["process_description"]
         fds_report.control_philosophy = fds_data["control_philosophy"]
+        fds_report.set_system_architecture(architecture_layout)
 
         report.fds_report = fds_report
 

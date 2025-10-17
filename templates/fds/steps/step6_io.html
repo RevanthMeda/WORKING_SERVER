@@ -6,6 +6,34 @@
     </h1>
   </div>
 
+  <div class="data-card" id="system-architecture-card">
+    <div class="card-header">
+      <span>System Architecture Designer</span>
+    </div>
+    <div class="card-body">
+      <p class="helper-text">
+        Generate a draft architecture from the Step 4 equipment list, then drag devices or swap images to finalise the network diagram.
+      </p>
+      <div class="architecture-actions">
+        <button type="button" class="btn btn-secondary" id="btn-generate-architecture">
+          <i class="fas fa-diagram-project"></i> Generate from Equipment List
+        </button>
+        <button type="button" class="btn btn-tertiary" id="btn-architecture-reset">
+          <i class="fas fa-undo-alt"></i> Reset Layout
+        </button>
+        <button type="button" class="btn btn-primary" id="btn-architecture-save">
+          <i class="fas fa-save"></i> Store Layout
+        </button>
+      </div>
+      <div id="architecture-workspace" class="architecture-workspace">
+        <div class="architecture-empty-state" id="architecture-empty-state">
+          <i class="fas fa-sitemap"></i>
+          <p>Use the controls above to populate the architecture canvas.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="data-card">
     <div class="card-header">
       <span>Document Version Control</span>
@@ -194,6 +222,10 @@
         placeholder="Document the control strategy, sequences and interlocks">{{ submission_data.CONTROL_PHILOSOPHY }}</textarea>
     </div>
   </div>
+  <input type="hidden"
+         name="system_architecture_layout"
+         id="system_architecture_layout"
+         value="{{ submission_data.SYSTEM_ARCHITECTURE_LAYOUT | default('') }}"/>
   <div class="btn-group">
     <button type="button" class="btn btn-secondary" onclick="goToStep(5)">
       <i class="fas fa-arrow-left"></i> Previous
