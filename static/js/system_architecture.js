@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
   const PLACEHOLDER_IMAGE = 'https://via.placeholder.com/320x200.png?text=Device';
   const DEFAULT_NODE_SIZE = { width: 240, height: 160 };
   const API_ROUTES = {
@@ -685,7 +685,7 @@
         },
         image: {
           url: this.normaliseImageUrl(node.image?.url || node.image_url) || PLACEHOLDER_IMAGE,
-          thumbnail: this.normaliseImageUrl(node.image?.thumbnail || node.thumbnail_url),
+          thumbnail: this.normaliseImageUrl(node.image?.thumbnail),
           source: node.image?.source || node.assetSource || 'placeholder',
         },
         ports: Array.isArray(node.ports) && node.ports.length ? node.ports.map((port) => ({ ...port })) : defaultPorts(size),
@@ -2179,9 +2179,13 @@
     }
   }
 
+  let isDesignerInitialized = false;
   document.addEventListener('step6-activated', () => {
+    if (isDesignerInitialized) {
+      return;
+    }
     const designer = new ArchitectureDesigner();
     designer.init();
+    isDesignerInitialized = true;
   });
 })();
-
