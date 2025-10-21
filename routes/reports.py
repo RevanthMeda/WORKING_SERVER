@@ -3,7 +3,13 @@ from functools import wraps
 from flask_login import login_required, current_user
 from models import db, Report, User, SATReport, FDSReport, SiteSurveyReport, SystemArchitectureVersion
 from auth import login_required, role_required
-from utils import setup_approval_workflow_db, create_new_submission_notification, get_unread_count, process_table_rows
+from utils import (
+    setup_approval_workflow_db,
+    create_new_submission_notification,
+    get_unread_count,
+    process_table_rows,
+    handle_image_removals,
+)
 from services.sat_tables import migrate_context_tables
 from services.fds_generator import generate_fds_from_sat
 from services.equipment_assets import (
@@ -21,10 +27,12 @@ from services.system_architecture import (
     record_version_snapshot,
     save_template,
 )
+import os
 import json
 import uuid
 from datetime import datetime
 from typing import Optional
+from werkzeug.utils import secure_filename
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -384,6 +392,49 @@ def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
             except (TypeError, ValueError):
                 current_app.logger.warning("Unable to serialise architecture layout from context for submission preload.")
 
+        def _normalise_file_list(value):
+            if isinstance(value, list):
+                return [str(item) for item in value]
+            if isinstance(value, str):
+                if not value.strip():
+                    return []
+                try:
+                    parsed = json.loads(value)
+                    if isinstance(parsed, list):
+                        return [str(item) for item in parsed]
+                except Exception:
+                    pass
+                return [value]
+            return []
+
+        submission["SYSTEM_ARCHITECTURE_FILES"] = _normalise_file_list(context_block.get("SYSTEM_ARCHITECTURE_FILES"))
+        submission["APPENDIX1_FILES"] = _normalise_file_list(context_block.get("APPENDIX1_FILES"))
+        submission["APPENDIX2_FILES"] = _normalise_file_list(context_block.get("APPENDIX2_FILES"))
+        submission["APPENDIX3_FILES"] = _normalise_file_list(context_block.get("APPENDIX3_FILES"))
+        submission["APPENDIX4_FILES"] = _normalise_file_list(context_block.get("APPENDIX4_FILES"))
+        submission["APPENDIX5_FILES"] = _normalise_file_list(context_block.get("APPENDIX5_FILES"))
+
+        attachments_section = fds_payload.get("attachments", {}) or {}
+        if attachments_section:
+            submission["SYSTEM_ARCHITECTURE_FILES"] = submission["SYSTEM_ARCHITECTURE_FILES"] or _normalise_file_list(
+                attachments_section.get("system_architecture_files")
+            )
+            submission["APPENDIX1_FILES"] = submission["APPENDIX1_FILES"] or _normalise_file_list(
+                attachments_section.get("appendix1_files")
+            )
+            submission["APPENDIX2_FILES"] = submission["APPENDIX2_FILES"] or _normalise_file_list(
+                attachments_section.get("appendix2_files")
+            )
+            submission["APPENDIX3_FILES"] = submission["APPENDIX3_FILES"] or _normalise_file_list(
+                attachments_section.get("appendix3_files")
+            )
+            submission["APPENDIX4_FILES"] = submission["APPENDIX4_FILES"] or _normalise_file_list(
+                attachments_section.get("appendix4_files")
+            )
+            submission["APPENDIX5_FILES"] = submission["APPENDIX5_FILES"] or _normalise_file_list(
+                attachments_section.get("appendix5_files")
+            )
+
     return submission
 
 
@@ -478,7 +529,13 @@ def _build_empty_fds_submission() -> dict:
         "ANALOGUE_OUTPUT_SIGNALS": [],
         "DIGITAL_OUTPUT_SIGNALS": [],
         "MODBUS_DIGITAL_SIGNALS": [],
-        "MODBUS_ANALOGUE_SIGNALS": []
+        "MODBUS_ANALOGUE_SIGNALS": [],
+        "SYSTEM_ARCHITECTURE_FILES": [],
+        "APPENDIX1_FILES": [],
+        "APPENDIX2_FILES": [],
+        "APPENDIX3_FILES": [],
+        "APPENDIX4_FILES": [],
+        "APPENDIX5_FILES": []
     }
 
 
@@ -1334,6 +1391,21 @@ def submit_fds():
             report.status = 'DRAFT'
             report.locked = False
 
+        fds_report = FDSReport.query.filter_by(report_id=submission_id).first()
+        existing_payload = {}
+        if fds_report and fds_report.data_json:
+            try:
+                existing_payload = json.loads(fds_report.data_json)
+            except json.JSONDecodeError:
+                current_app.logger.warning(
+                    "Unable to parse existing FDS JSON for submission %s; continuing with defaults",
+                    submission_id
+                )
+                existing_payload = {}
+        existing_context = {}
+        if isinstance(existing_payload, dict):
+            existing_context = existing_payload.get("context", {}) or {}
+
         report.document_title = request.form.get('document_title', '').strip() or 'Functional Design Specification'
         report.project_reference = request.form.get('project_reference', '').strip()
         report.document_reference = request.form.get('document_reference', '').strip()
@@ -1561,6 +1633,76 @@ def submit_fds():
             except Exception as exc:
                 current_app.logger.warning("Failed to normalise architecture layout for submission %s: %s", submission_id, exc, exc_info=True)
 
+        upload_root_cfg = current_app.config.get('UPLOAD_ROOT')
+        if not isinstance(upload_root_cfg, str) or not upload_root_cfg:
+            static_root = current_app.static_folder or os.path.join(current_app.root_path, 'static')
+            upload_root_cfg = os.path.join(static_root, 'uploads')
+        upload_dir = os.path.join(upload_root_cfg, submission_id)
+        os.makedirs(upload_dir, exist_ok=True)
+
+        def normalise_urls(value):
+            if isinstance(value, list):
+                return [str(item) for item in value]
+            if isinstance(value, str):
+                if not value.strip():
+                    return []
+                try:
+                    parsed = json.loads(value)
+                    if isinstance(parsed, list):
+                        return [str(item) for item in parsed]
+                except Exception:
+                    pass
+                return [value]
+            return []
+
+        architecture_files = normalise_urls(existing_context.get("SYSTEM_ARCHITECTURE_FILES"))
+        appendix1_files = normalise_urls(existing_context.get("APPENDIX1_FILES"))
+        appendix2_files = normalise_urls(existing_context.get("APPENDIX2_FILES"))
+        appendix3_files = normalise_urls(existing_context.get("APPENDIX3_FILES"))
+        appendix4_files = normalise_urls(existing_context.get("APPENDIX4_FILES"))
+        appendix5_files = normalise_urls(existing_context.get("APPENDIX5_FILES"))
+
+        def append_file(field_name, url_list, allow_docs=True):
+            for storage in request.files.getlist(field_name):
+                if not storage or not storage.filename:
+                    continue
+                try:
+                    filename = secure_filename(storage.filename)
+                    if not filename:
+                        continue
+                    lower_name = filename.lower()
+                    if not allow_docs and lower_name.endswith('.pdf'):
+                        continue
+                    unique_name = f"{uuid.uuid4().hex}_{filename}"
+                    file_path = os.path.join(upload_dir, unique_name)
+                    storage.save(file_path)
+                    rel_path = os.path.join("uploads", submission_id, unique_name).replace("\\", "/")
+                    url = url_for("static", filename=rel_path)
+                    if url not in url_list:
+                        url_list.append(url)
+                except Exception as exc:
+                    current_app.logger.error(
+                        "Failed to store attachment %s for submission %s: %s",
+                        storage.filename,
+                        submission_id,
+                        exc,
+                        exc_info=True
+                    )
+
+        handle_image_removals(request.form, "removed_architecture_files", architecture_files)
+        handle_image_removals(request.form, "removed_appendix1_files", appendix1_files)
+        handle_image_removals(request.form, "removed_appendix2_files", appendix2_files)
+        handle_image_removals(request.form, "removed_appendix3_files", appendix3_files)
+        handle_image_removals(request.form, "removed_appendix4_files", appendix4_files)
+        handle_image_removals(request.form, "removed_appendix5_files", appendix5_files)
+
+        append_file("architecture_files[]", architecture_files, allow_docs=False)
+        append_file("appendix1_files[]", appendix1_files, allow_docs=True)
+        append_file("appendix2_files[]", appendix2_files, allow_docs=True)
+        append_file("appendix3_files[]", appendix3_files, allow_docs=True)
+        append_file("appendix4_files[]", appendix4_files, allow_docs=True)
+        append_file("appendix5_files[]", appendix5_files, allow_docs=True)
+
         prepared_block = approvals[0] if len(approvals) > 0 else {}
         reviewer1_block = approvals[1] if len(approvals) > 1 else {}
         reviewer2_block = approvals[2] if len(approvals) > 2 else {}
@@ -1614,6 +1756,12 @@ def submit_fds():
 
         if architecture_layout:
             context["SYSTEM_ARCHITECTURE_LAYOUT"] = architecture_layout
+        context["SYSTEM_ARCHITECTURE_FILES"] = architecture_files
+        context["APPENDIX1_FILES"] = appendix1_files
+        context["APPENDIX2_FILES"] = appendix2_files
+        context["APPENDIX3_FILES"] = appendix3_files
+        context["APPENDIX4_FILES"] = appendix4_files
+        context["APPENDIX5_FILES"] = appendix5_files
 
         fds_data = {
             "context": context,
@@ -1656,8 +1804,15 @@ def submit_fds():
 
         if architecture_layout:
             fds_data["system_architecture"] = architecture_layout
+        fds_data["attachments"] = {
+            "system_architecture_files": architecture_files,
+            "appendix1_files": appendix1_files,
+            "appendix2_files": appendix2_files,
+            "appendix3_files": appendix3_files,
+            "appendix4_files": appendix4_files,
+            "appendix5_files": appendix5_files,
+        }
 
-        fds_report = FDSReport.query.filter_by(report_id=submission_id).first()
         if not fds_report:
             fds_report = FDSReport(report_id=submission_id)
             db.session.add(fds_report)

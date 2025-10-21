@@ -20,14 +20,24 @@
 
   const rebuildFileInput = (group) => {
     const transfer = new DataTransfer();
-    group.store.forEach(({ file }) => transfer.items.add(file));
+    group.files.forEach(({ file }) => transfer.items.add(file));
     group.input.files = transfer.files;
   };
 
-  const updateEmptyState = (group) => {
-    if (group.empty) {
-      group.empty.style.display = group.store.length ? 'none' : 'flex';
+  const countExistingPreviews = (group) => {
+    if (!group.existingContainer) {
+      return 0;
     }
+    return group.existingContainer.querySelectorAll('.image-preview, .pdf-preview').length;
+  };
+
+  const updateEmptyState = (group) => {
+    if (!group.empty) {
+      return;
+    }
+    const existingCount = countExistingPreviews(group);
+    const total = existingCount + group.files.length;
+    group.empty.style.display = total > 0 ? 'none' : 'flex';
   };
 
   const readPreview = (file) =>
@@ -45,75 +55,54 @@
   const uniqueKeyForFile = (groupId, file) =>
     `${groupId}-${file.name}-${file.size}-${file.lastModified}`;
 
-  const renderGroup = (group) => {
-    if (!group.list) {
+  const renderQueue = (group) => {
+    if (!group.queue) {
       return;
     }
+    group.queue.innerHTML = '';
 
-    group.list.innerHTML = '';
+    group.files.forEach((entry) => {
+      const wrapper = document.createElement('div');
+      const isImageEntry = Boolean(entry.previewUrl);
+      wrapper.className = isImageEntry ? 'image-preview' : 'pdf-preview';
 
-    group.store.forEach((entry) => {
-      const card = document.createElement('div');
-      card.className = 'architecture-upload-card';
-      card.dataset.fileKey = entry.key;
-
-      const preview = document.createElement('div');
-      preview.className = 'upload-preview';
-
-      if (entry.previewUrl) {
+      if (isImageEntry) {
         const img = document.createElement('img');
         img.src = entry.previewUrl;
         img.alt = entry.file.name;
-        preview.appendChild(img);
+        wrapper.appendChild(img);
       } else {
-        const icon = document.createElement('div');
-        icon.className = 'upload-preview-icon';
-        icon.innerHTML = isPdf(entry.file)
-          ? '<i class="fas fa-file-pdf"></i>'
-          : '<i class="fas fa-file"></i>';
-        preview.appendChild(icon);
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-file-pdf';
+        icon.setAttribute('aria-hidden', 'true');
+        wrapper.appendChild(icon);
+
+        const name = document.createElement('span');
+        name.textContent = entry.file.name;
+        wrapper.appendChild(name);
+
+        const meta = document.createElement('span');
+        meta.className = 'file-size';
+        meta.textContent = formatBytes(entry.file.size);
+        wrapper.appendChild(meta);
       }
-
-      const details = document.createElement('div');
-      details.className = 'upload-details';
-      details.innerHTML = `
-        <span class="file-name">${entry.file.name}</span>
-        <span class="file-size">${formatBytes(entry.file.size)}</span>
-      `;
-
-      const captionWrapper = document.createElement('label');
-      captionWrapper.className = 'upload-caption';
-      captionWrapper.innerHTML = `
-        <span>Caption (optional)</span>
-        <textarea name="${group.captionName}"
-                  rows="2"
-                  placeholder="Add a short description...">${entry.caption || ''}</textarea>
-      `;
-
-      const textarea = captionWrapper.querySelector('textarea');
-      textarea.addEventListener('input', (event) => {
-        entry.caption = event.target.value;
-      });
 
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
-      removeBtn.className = 'upload-remove';
-      removeBtn.innerHTML = '<i class="fas fa-trash"></i>';
-      removeBtn.title = 'Remove this file';
+      removeBtn.className = 'remove-image-btn';
+      removeBtn.title = 'Remove file';
+      removeBtn.innerHTML = '×';
       removeBtn.addEventListener('click', () => {
-        const index = group.store.findIndex((item) => item.key === entry.key);
+        const index = group.files.findIndex((item) => item.key === entry.key);
         if (index >= 0) {
-          group.store.splice(index, 1);
+          group.files.splice(index, 1);
           rebuildFileInput(group);
-          renderGroup(group);
+          renderQueue(group);
         }
       });
 
-      card.appendChild(preview);
-      card.appendChild(details);
-      card.appendChild(captionWrapper);
-      card.appendChild(removeBtn);
-      group.list.appendChild(card);
+      wrapper.appendChild(removeBtn);
+      group.queue.appendChild(wrapper);
     });
 
     updateEmptyState(group);
@@ -134,75 +123,149 @@
     return false;
   };
 
-  const handleSelection = async (group, event) => {
-    const input = event.target;
-    if (!input.files?.length) {
-      return;
-    }
-
-    const newFiles = Array.from(input.files);
-    const existingKeys = new Set(group.store.map((entry) => entry.key));
+  const addFilesToGroup = async (group, fileList) => {
     const additions = [];
+    const existingKeys = new Set(group.files.map((entry) => entry.key));
 
-    for (const file of newFiles) {
+    for (const file of fileList) {
       if (!validateFile(file, group)) {
         continue;
       }
+
       const key = uniqueKeyForFile(group.id, file);
       if (existingKeys.has(key)) {
         continue;
       }
+
       const previewUrl = group.allowImages ? await readPreview(file) : null;
-      additions.push({ key, file, caption: '', previewUrl });
+      additions.push({ key, file, previewUrl });
       existingKeys.add(key);
     }
 
     if (!additions.length) {
-      rebuildFileInput(group);
       return;
     }
 
-    group.store.push(...additions);
+    group.files.push(...additions);
     rebuildFileInput(group);
-    renderGroup(group);
+    renderQueue(group);
   };
 
-  document.addEventListener('DOMContentLoaded', () => {
-    const containers = document.querySelectorAll('[data-upload-group]');
-    if (!containers.length) {
+  const bindDropzone = (group) => {
+    if (!group.dropzone) {
       return;
     }
 
-    containers.forEach((container, index) => {
-      const inputId = container.dataset.inputId;
-      const listId = container.dataset.listId;
-      const emptyId = container.dataset.emptyId;
-      const captionName = container.dataset.captionName || '';
-      const allowImages = container.dataset.allowImages !== 'false';
-      const allowDocs = container.dataset.allowDocs === 'true';
+    const { dropzone, input } = group;
 
-      const input = document.getElementById(inputId);
-      const list = document.getElementById(listId);
-      const empty = document.getElementById(emptyId);
+    dropzone.addEventListener('click', () => input.click());
+    dropzone.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        input.click();
+      }
+    });
 
-      if (!input || !list || !empty) {
+    dropzone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'copy';
+      }
+      dropzone.classList.add('is-dragover');
+    });
+
+    ['dragleave', 'dragend'].forEach((evt) => {
+      dropzone.addEventListener(evt, () => dropzone.classList.remove('is-dragover'));
+    });
+
+    dropzone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      dropzone.classList.remove('is-dragover');
+      const { files } = event.dataTransfer || {};
+      if (files && files.length) {
+        addFilesToGroup(group, Array.from(files));
+      }
+    });
+  };
+
+  const markRemoval = (targetId, url) => {
+    const hidden = document.getElementById(targetId);
+    if (!hidden || !url) {
+      return;
+    }
+    const existing = hidden.value
+      ? hidden.value.split(',').map((value) => value.trim()).filter(Boolean)
+      : [];
+    if (!existing.includes(url)) {
+      existing.push(url);
+      hidden.value = existing.join(',');
+    }
+  };
+
+  const findGroupForElement = (element) =>
+    groups.find((group) => group.container === element);
+
+  const initializeGroups = () => {
+    document.querySelectorAll('.file-upload-group').forEach((groupEl, index) => {
+      const input = groupEl.querySelector('input[type="file"]');
+      const dropzone = groupEl.querySelector('.file-upload-dropzone');
+      const container = groupEl.querySelector('[data-upload-preview]');
+      const existingContainer = groupEl.querySelector('[data-existing-previews]');
+      const queue = groupEl.querySelector('[data-upload-queue]');
+      const empty = container?.querySelector('.empty-upload-state') || null;
+
+      if (!input || !container || !queue) {
         return;
       }
 
       const group = {
-        id: inputId || `upload-group-${index}`,
+        id: groupEl.dataset.uploadScope || `upload-group-${index}`,
+        container: groupEl,
         input,
-        list,
+        dropzone,
+        queue,
+        existingContainer,
         empty,
-        captionName,
-        allowImages,
-        allowDocs,
-        store: [],
+        allowImages: groupEl.dataset.allowImages !== 'false',
+        allowDocs: groupEl.dataset.allowDocs === 'true',
+        files: [],
       };
 
-      input.addEventListener('change', (event) => handleSelection(group, event));
-      groups.push(group);
+      input.addEventListener('change', (event) => {
+        const { files } = event.target;
+        if (files && files.length) {
+          addFilesToGroup(group, Array.from(files));
+          input.value = '';
+        }
+      });
+
+      bindDropzone(group);
       updateEmptyState(group);
+      groups.push(group);
+    });
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initializeGroups();
+
+    document.addEventListener('click', (event) => {
+      const existingBtn = event.target.closest('[data-existing-file]');
+      if (existingBtn) {
+        event.preventDefault();
+        const fileUrl = existingBtn.dataset.existingFile;
+        const targetId = existingBtn.dataset.removedTarget;
+        markRemoval(targetId, fileUrl);
+        const preview = existingBtn.closest('.image-preview, .pdf-preview');
+        if (preview) {
+          const groupElement = existingBtn.closest('.file-upload-group');
+          preview.remove();
+          const group = findGroupForElement(groupElement);
+          if (group) {
+            updateEmptyState(group);
+          }
+        }
+        return;
+      }
     });
   });
 })();

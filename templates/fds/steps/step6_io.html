@@ -51,60 +51,106 @@
     </div>
   </div>
 
-  {% set appendices = [
-    ('appendix1', 'Appendix – 1 (Wiring Diagram)'),
-    ('appendix2', 'Appendix – 2 (RAMS)'),
-    ('appendix3', 'Appendix – 3 (SAT)'),
-    ('appendix4', 'Appendix – 4 (Job Completion Reference)'),
-    ('appendix5', 'Appendix – 5 (Equipment Data Sheet)')
-  ] %}
-
-  {% for key, title in appendices %}
-  <div class="data-card simple-architecture-card"
-       data-upload-group
-       data-input-id="{{ key }}-file-input"
-       data-list-id="{{ key }}-upload-list"
-       data-empty-id="{{ key }}-empty-upload"
-       data-caption-name="{{ key }}_captions[]"
-       data-allow-images="true"
-       data-allow-docs="true">
+{% macro render_upload_card(key, title, description, field_name, existing_list, allow_docs=False) %}
+  {% set input_id = key ~ '-input' %}
+  {% set preview_id = key ~ '-preview' %}
+  {% set removed_field = 'removed_' ~ key ~ '_files' %}
+  {% set allow_docs_attr = 'true' if allow_docs else 'false' %}
+  <div class="data-card">
     <div class="card-header">
       <span>{{ title }}</span>
-      <p>Attach supporting PDFs or images. You can add multiple files for this appendix.</p>
+      {% if description %}
+      <p>{{ description }}</p>
+      {% endif %}
     </div>
-
-    <div class="card-body simple-architecture-body">
-      <div class="upload-instructions">
-        <ol>
-          <li>Select one or more files using <strong>Add Files</strong>.</li>
-          <li>Accepted formats: PDF, PNG, JPG, JPEG, WEBP (max 10 MB per file).</li>
-          <li>Optionally add a caption for context.</li>
-        </ol>
-      </div>
-
-      <div class="uploads-wrapper" id="{{ key }}-upload-list">
-        <div class="empty-upload-state" id="{{ key }}-empty-upload">
-          <i class="fas fa-file-upload"></i>
-          <p>No files added yet.</p>
-          <p class="hint">Use the button below to attach appendix files.</p>
+    <div class="card-body">
+      <div class="form-group file-upload-group"
+           data-upload-scope="{{ key }}"
+           data-allow-images="true"
+           data-allow-docs="{{ allow_docs_attr }}">
+        <label for="{{ input_id }}">{{ description or 'Attach files below.' }}</label>
+        <input type="file"
+               id="{{ input_id }}"
+               class="file-upload-input"
+               name="{{ field_name }}"
+               {% if allow_docs %}
+               accept="application/pdf,image/png,image/jpeg,image/jpg,image/webp"
+               {% else %}
+               accept="image/png,image/jpeg,image/jpg,image/webp"
+               {% endif %}
+               multiple>
+        <div class="file-upload-dropzone"
+             data-dropzone-for="{{ input_id }}"
+             tabindex="0"
+             role="button"
+             aria-label="Drop files here or press Enter to browse">
+          <i class="fas fa-cloud-arrow-up" aria-hidden="true"></i>
+          <span class="file-upload-dropzone-text">
+            <strong>Add files</strong>
+            <span>Drop files or click to browse</span>
+          </span>
         </div>
-      </div>
-
-      <div class="upload-actions">
-        <label class="btn btn-secondary">
-          <i class="fas fa-plus"></i> Add Files
-          <input type="file"
-                 id="{{ key }}-file-input"
-                 name="{{ key }}_files[]"
-                 accept="application/pdf,image/png,image/jpeg,image/jpg,image/webp"
-                 multiple
-                 hidden>
-        </label>
-        <small class="upload-note">Accepted formats: PDF, PNG, JPG, JPEG, WEBP. Maximum 10 MB per file.</small>
+        <div class="file-preview-container" id="{{ preview_id }}" data-upload-preview>
+          <div class="empty-upload-state">
+            <i class="fas fa-file-upload"></i>
+            <p>No files added yet.</p>
+            <p class="hint">Use the area above to upload files.</p>
+          </div>
+          <div class="file-preview-existing" data-existing-previews>
+            {% for file_url in existing_list or [] %}
+              {% set normalized = file_url | replace('\\', '/') %}
+              {% set lower = normalized.lower() %}
+              {% set filename = normalized.rsplit('/', 1)[-1] %}
+              {% if lower.endswith('.pdf') %}
+                <div class="pdf-preview">
+                  <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                  <span>{{ filename }}</span>
+                  <button type="button"
+                          class="remove-image-btn"
+                          data-existing-file="{{ file_url }}"
+                          data-removed-target="{{ removed_field }}"
+                          title="Remove file">×</button>
+                </div>
+              {% else %}
+                <div class="image-preview">
+                  <img src="{{ file_url }}" alt="{{ title }} attachment">
+                  <button type="button"
+                          class="remove-image-btn"
+                          data-existing-file="{{ file_url }}"
+                          data-removed-target="{{ removed_field }}"
+                          title="Remove image">×</button>
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          <div class="file-queue" data-upload-queue aria-live="polite"></div>
+        </div>
+        <input type="hidden" name="{{ removed_field }}" id="{{ removed_field }}" value="">
       </div>
     </div>
   </div>
-  {% endfor %}
+{% endmacro %}
+
+{{ render_upload_card(
+  'architecture',
+  'System Architecture Images',
+  'Upload screenshots, photos, or diagrams that describe the system architecture.',
+  'architecture_files[]',
+  submission_data.SYSTEM_ARCHITECTURE_FILES,
+  False
+) }}
+
+{% set appendices = [
+  ('appendix1', 'Appendix – 1 (Wiring Diagram)', 'Attach wiring diagrams in PDF or image format.', submission_data.APPENDIX1_FILES),
+  ('appendix2', 'Appendix – 2 (RAMS)', 'Attach RAMS documentation.', submission_data.APPENDIX2_FILES),
+  ('appendix3', 'Appendix – 3 (SAT)', 'Attach related SAT documents.', submission_data.APPENDIX3_FILES),
+  ('appendix4', 'Appendix – 4 (Job Completion Reference)', 'Attach job completion references or certificates.', submission_data.APPENDIX4_FILES),
+  ('appendix5', 'Appendix – 5 (Equipment Data Sheet)', 'Attach equipment data sheets or supporting documents.', submission_data.APPENDIX5_FILES)
+] %}
+
+{% for key, title, description, existing in appendices %}
+  {{ render_upload_card(key, title, description, key ~ '_files[]', existing, True) }}
+{% endfor %}
 
   <input type="hidden"
          name="system_architecture_layout"
