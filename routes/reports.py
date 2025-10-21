@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, make_response, abort
 from functools import wraps
 from flask_login import login_required, current_user
-from models import db, Report, User, SATReport, FDSReport, SystemArchitectureVersion
+from models import db, Report, User, SATReport, FDSReport, SiteSurveyReport, SystemArchitectureVersion
 from auth import login_required, role_required
 from utils import setup_approval_workflow_db, create_new_submission_notification, get_unread_count, process_table_rows
 from services.sat_tables import migrate_context_tables
@@ -1702,5 +1702,112 @@ def submit_fds():
         flash(message, 'error')
         return redirect(url_for('dashboard.engineer'))
 
+
+@reports_bp.route('/submit-site-survey', methods=['POST'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'Admin'])
+def submit_site_survey():
+    """Persist a Site Survey form submission."""
+    try:
+        submission_id = (request.form.get('submission_id') or '').strip() or str(uuid.uuid4())
+
+        report = Report.query.get(submission_id)
+        is_new_report = False
+
+        if not report:
+            is_new_report = True
+            report = Report(
+                id=submission_id,
+                type='SITE_SURVEY',
+                status='DRAFT',
+                user_email=current_user.email,
+                created_at=datetime.utcnow(),
+                approvals_json='[]'
+            )
+            db.session.add(report)
+        else:
+            report.type = 'SITE_SURVEY'
+            report.status = 'DRAFT'
+            report.locked = False
+
+        report.document_title = request.form.get('document_title', '').strip() or 'Site Survey Report'
+        report.project_reference = request.form.get('project_reference', '').strip()
+        report.document_reference = request.form.get('document_reference', '').strip()
+        report.client_name = request.form.get('prepared_for', '').strip()
+        report.revision = request.form.get('revision', '').strip() or report.revision or 'R0'
+        report.prepared_by = request.form.get('prepared_by_name', '').strip() or report.prepared_by
+        report.updated_at = datetime.utcnow()
+
+        if is_new_report and not report.version:
+            report.version = report.revision or 'R0'
+
+        submission_payload = {}
+        for key in request.form.keys():
+            if key == 'csrf_token':
+                continue
+            values = request.form.getlist(key)
+            cleaned = [value.strip() if isinstance(value, str) else value for value in values]
+            submission_payload[key] = cleaned[0] if len(cleaned) == 1 else [value for value in cleaned if value]
+
+        submission_payload['submission_id'] = submission_id
+        submission_payload['saved_at'] = datetime.utcnow().isoformat()
+        submission_payload['saved_by'] = current_user.email
+
+        def extract_value(field_name):
+            value = submission_payload.get(field_name)
+            if isinstance(value, list):
+                return ', '.join([item for item in value if item])
+            return value or ''
+
+        site_survey = SiteSurveyReport.query.filter_by(report_id=submission_id).first()
+        if not site_survey:
+            site_survey = SiteSurveyReport(report_id=submission_id)
+            db.session.add(site_survey)
+
+        site_survey.site_name = extract_value('site_name') or site_survey.site_name
+        site_survey.site_location = extract_value('location_address') or site_survey.site_location
+        site_survey.site_access_details = extract_value('site_access_details') or site_survey.site_access_details
+        site_survey.area_engineer = extract_value('area_engineer') or site_survey.area_engineer
+        site_survey.site_caretaker = extract_value('site_caretaker') or site_survey.site_caretaker
+        site_survey.survey_completed_by = extract_value('prepared_by_name') or site_survey.survey_completed_by
+        site_survey.network_configuration = extract_value('network_configuration') or site_survey.network_configuration
+        site_survey.mobile_signal_strength = extract_value('mobile_signal_strength') or site_survey.mobile_signal_strength
+        site_survey.local_scada_details = extract_value('local_scada_details') or site_survey.local_scada_details
+        site_survey.verification_checklist = extract_value('verification_checklist') or site_survey.verification_checklist
+        site_survey.data_json = json.dumps(submission_payload)
+
+        db.session.commit()
+
+        response_payload = {
+            "success": True,
+            "message": "Site survey draft saved successfully.",
+            "submission_id": submission_id,
+            "redirect_url": url_for('dashboard.my_reports')
+        }
+
+        wants_json = (
+            request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            or 'application/json' in request.headers.get('Accept', '')
+        )
+
+        if wants_json:
+            return jsonify(response_payload)
+
+        flash(response_payload["message"], "success")
+        return redirect(response_payload["redirect_url"])
+
+    except Exception as exc:
+        current_app.logger.error(f"Error saving site survey report: {exc}", exc_info=True)
+        db.session.rollback()
+        error_message = 'Failed to save Site Survey report.'
+        wants_json = (
+            request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            or 'application/json' in request.headers.get('Accept', '')
+        )
+        if wants_json:
+            return jsonify({"success": False, "message": error_message}), 500
+
+        flash(error_message, 'error')
+        return redirect(url_for('reports.new_site_survey'))
 
 

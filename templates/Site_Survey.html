@@ -618,7 +618,7 @@
         <!-- Watermark -->
         <img src="{{ url_for('static', filename='Cully_Watermark.jpg') }}" class="watermark" alt="Watermark" />
 
-        <form id="siteSurveyForm" method="POST" action="{{ url_for('main.generate_site_survey') }}" enctype="multipart/form-data" novalidate onsubmit="return handleFormSubmit(event)">
+        <form id="siteSurveyForm" method="POST" action="{{ url_for('reports.submit_site_survey') }}" enctype="multipart/form-data" novalidate onsubmit="return handleFormSubmit(event)">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
           <input type="hidden" name="submission_id" value="{{ submission_id }}"/>
 
