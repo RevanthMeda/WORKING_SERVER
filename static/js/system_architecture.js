@@ -2872,11 +2872,13 @@
   }
 
   function refreshLayoutFromServer() {
+    attemptedLayoutRestore = true;
     if (!submissionId) {
       schedulePersist();
-      return;
+      maybeInitializeStarter('no-submission');
+      return Promise.resolve();
     }
-    fetch(`/reports/system-architecture/${submissionId}`)
+    return fetch(`/reports/system-architecture/${submissionId}`)
       .then((response) => {
         if (!response.ok) {
           throw new Error('Failed to fetch layout');
@@ -2884,36 +2886,56 @@
         return response.json();
       })
       .then((data) => {
+        let hadLayout = false;
         if (data?.success && data.payload) {
           applyLayout(data.payload);
+          hadLayout = hasRestoredLayout;
         }
         if (data?.payload?.assetLibrary) {
           assetLibrary = data.payload.assetLibrary;
           renderAssetLibrary(assetLibrary);
         }
         toggleEmptyDiagramState();
+        if (!hadLayout) {
+          maybeInitializeStarter('server-empty');
+        }
       })
       .catch((error) => {
         console.warn('Unable to fetch stored layout', error);
         toggleEmptyDiagramState();
         schedulePersist();
+        maybeInitializeStarter('server-error');
       });
   }
 
   function restoreInitialLayout() {
     if (!hiddenInput) {
+      maybeInitializeStarter('no-hidden-input');
       return;
     }
     if (hiddenInput.value) {
       try {
         const layout = JSON.parse(hiddenInput.value);
         applyLayout(layout || {});
+        attemptedLayoutRestore = true;
+        if (!hasRestoredLayout) {
+          maybeInitializeStarter('hidden-empty');
+        }
         return;
       } catch (error) {
         console.warn('Stored layout is invalid JSON. Falling back to server copy.', error);
       }
     }
-    refreshLayoutFromServer();
+    const refreshPromise = refreshLayoutFromServer();
+    if (refreshPromise?.finally) {
+      refreshPromise.finally(() => {
+        if (!starterInitialised && !hasRestoredLayout) {
+          maybeInitializeStarter('after-server-final');
+        }
+      });
+    } else if (!starterInitialised && !hasRestoredLayout) {
+      maybeInitializeStarter('no-server-promise');
+    }
   }
 
   function initCollaboration() {
@@ -3047,7 +3069,14 @@
     }
 
     diagram.startTransaction('add layer');
-    diagram.addLayer(layerName);
+    const existing = diagram.findLayer(layerName);
+    if (!existing) {
+      if (window.go && window.go.Layer) {
+        diagram.addLayer(new window.go.Layer(layerName));
+      } else {
+        diagram.addLayer(layerName);
+      }
+    }
     diagram.commitTransaction('add layer');
 
     layers.push({ name: layerName, isVisible, isLocked });
@@ -3235,7 +3264,14 @@
     }
   }
 
-  function initializeStarterExperience() {
+  function maybeInitializeStarter(reason = 'auto') {
+    if (starterInitialised || hasRestoredLayout) {
+      return;
+    }
+    initializeStarterExperience(reason);
+  }
+
+  function initializeStarterExperience(reason = 'auto') {
     if (starterInitialised) {
       return;
     }
@@ -3262,6 +3298,11 @@
     renderChatMessages();
     runValidation({ silent: true, origin: 'starter' });
     starterInitialised = true;
+    try {
+      console.info('Starter layout initialised', { reason });
+    } catch (err) {
+      /* ignore logging issues */
+    }
     showStatus('Starter layout loaded', 'synced');
   }
 
@@ -3346,8 +3387,8 @@
     togglePorts(false);
     toggleEmptyDiagramState();
     window.setTimeout(() => {
-      initializeStarterExperience();
-    }, 200);
+      maybeInitializeStarter('post-timeout');
+    }, 500);
   }
 
   document.addEventListener('DOMContentLoaded', init);
