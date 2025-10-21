@@ -6,7 +6,14 @@
     </h1>
   </div>
 
-  <div class="data-card simple-architecture-card">
+  <div class="data-card simple-architecture-card"
+       data-upload-group
+       data-input-id="architecture-image-input"
+       data-list-id="architecture-upload-list"
+       data-empty-id="architecture-empty-upload"
+       data-caption-name="architecture_image_captions[]"
+       data-allow-images="true"
+       data-allow-docs="false">
     <div class="card-header">
       <span>Upload Architecture Images</span>
       <p>Attach one or more screenshots, photos, or drawings that describe the system architecture.</p>
@@ -43,6 +50,61 @@
       </div>
     </div>
   </div>
+
+  {% set appendices = [
+    ('appendix1', 'Appendix – 1 (Wiring Diagram)'),
+    ('appendix2', 'Appendix – 2 (RAMS)'),
+    ('appendix3', 'Appendix – 3 (SAT)'),
+    ('appendix4', 'Appendix – 4 (Job Completion Reference)'),
+    ('appendix5', 'Appendix – 5 (Equipment Data Sheet)')
+  ] %}
+
+  {% for key, title in appendices %}
+  <div class="data-card simple-architecture-card"
+       data-upload-group
+       data-input-id="{{ key }}-file-input"
+       data-list-id="{{ key }}-upload-list"
+       data-empty-id="{{ key }}-empty-upload"
+       data-caption-name="{{ key }}_captions[]"
+       data-allow-images="true"
+       data-allow-docs="true">
+    <div class="card-header">
+      <span>{{ title }}</span>
+      <p>Attach supporting PDFs or images. You can add multiple files for this appendix.</p>
+    </div>
+
+    <div class="card-body simple-architecture-body">
+      <div class="upload-instructions">
+        <ol>
+          <li>Select one or more files using <strong>Add Files</strong>.</li>
+          <li>Accepted formats: PDF, PNG, JPG, JPEG, WEBP (max 10 MB per file).</li>
+          <li>Optionally add a caption for context.</li>
+        </ol>
+      </div>
+
+      <div class="uploads-wrapper" id="{{ key }}-upload-list">
+        <div class="empty-upload-state" id="{{ key }}-empty-upload">
+          <i class="fas fa-file-upload"></i>
+          <p>No files added yet.</p>
+          <p class="hint">Use the button below to attach appendix files.</p>
+        </div>
+      </div>
+
+      <div class="upload-actions">
+        <label class="btn btn-secondary">
+          <i class="fas fa-plus"></i> Add Files
+          <input type="file"
+                 id="{{ key }}-file-input"
+                 name="{{ key }}_files[]"
+                 accept="application/pdf,image/png,image/jpeg,image/jpg,image/webp"
+                 multiple
+                 hidden>
+        </label>
+        <small class="upload-note">Accepted formats: PDF, PNG, JPG, JPEG, WEBP. Maximum 10 MB per file.</small>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
 
   <input type="hidden"
          name="system_architecture_layout"
