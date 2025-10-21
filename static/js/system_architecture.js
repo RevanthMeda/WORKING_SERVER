@@ -1,5 +1,5 @@
 (() => {
-  const PLACEHOLDER_IMAGE = 'https://via.placeholder.com/320x200.png?text=Device';
+  const PLACEHOLDER_IMAGE = '/static/img/architecture-placeholder.svg';
   const DEFAULT_NODE_SIZE = { width: 240, height: 160 };
   const DEFAULT_NODE_STYLE = {
     fill: '#ffffff',

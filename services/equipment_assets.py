@@ -5,7 +5,6 @@ import math
 import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
-from urllib.parse import quote_plus
 
 import requests
 from flask import current_app
@@ -24,6 +23,7 @@ from services.system_architecture import (
 
 DEFAULT_CACHE_TTL_DAYS = 45
 LOCAL_STORAGE_SUBDIR = "static/equipment_assets"
+LOCAL_PLACEHOLDER_ASSET = "/static/img/architecture-placeholder.svg"
 USER_AGENT = "CullyFDSBot/1.0 (+https://cullyautomation.com)"
 
 
@@ -89,10 +89,9 @@ def _download_asset(model_key: str, url: str) -> Optional[str]:
 
 
 def _build_placeholder_result(query: str) -> Dict:
-    safe_query = quote_plus(query or "Device")
     return {
-        "image_url": f"https://via.placeholder.com/320x200.png?text={safe_query}",
-        "thumbnail_url": None,
+        "image_url": LOCAL_PLACEHOLDER_ASSET,
+        "thumbnail_url": LOCAL_PLACEHOLDER_ASSET,
         "source": "placeholder",
         "confidence": 0.0,
         "metadata": {"provider": "placeholder"}

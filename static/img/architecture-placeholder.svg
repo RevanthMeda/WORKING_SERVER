@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200" role="img" aria-labelledby="title desc">
+  <title id="title">Generic Equipment Placeholder</title>
+  <desc id="desc">A simplified cabinet outline used when an equipment image is unavailable.</desc>
+  <defs>
+    <linearGradient id="panelGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f5f7ff"/>
+      <stop offset="100%" stop-color="#d9e1ff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="320" height="200" fill="#e9ecf8"/>
+  <rect x="36" y="24" width="248" height="152" rx="18" fill="url(#panelGradient)" stroke="#2d4c8c" stroke-width="3" stroke-linejoin="round"/>
+  <rect x="56" y="48" width="80" height="80" rx="12" fill="none" stroke="#4c6fbf" stroke-width="4" stroke-dasharray="12 10"/>
+  <rect x="184" y="48" width="80" height="80" rx="12" fill="#4c6fbf" opacity="0.08"/>
+  <rect x="196" y="60" width="56" height="56" rx="10" fill="none" stroke="#4c6fbf" stroke-width="3"/>
+  <circle cx="224" cy="88" r="12" fill="#4c6fbf" opacity="0.2"/>
+  <rect x="84" y="136" width="40" height="12" rx="6" fill="#4c6fbf" opacity="0.35"/>
+  <rect x="196" y="136" width="40" height="12" rx="6" fill="#4c6fbf" opacity="0.35"/>
+  <text x="160" y="168" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="600" fill="#2d4c8c" letter-spacing="1">DEVICE</text>
+</svg>
