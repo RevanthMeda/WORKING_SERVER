@@ -26,7 +26,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-reports_bp = Blueprint('reports', __name__, url_prefix='/reports')
+reports_bp = Blueprint('reports', __name__)
 
 
 
