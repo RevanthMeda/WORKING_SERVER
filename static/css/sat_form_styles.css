@@ -1449,6 +1449,16 @@
       box-shadow: 0 0 0 2px rgba(47, 74, 132, 0.15);
     }
 
+    .template-item.is-starter {
+      border-style: dashed;
+      border-color: rgba(47, 74, 132, 0.25);
+      background: rgba(240, 248, 255, 0.55);
+    }
+
+    .template-item.is-starter:hover {
+      box-shadow: 0 10px 20px rgba(59, 130, 246, 0.2);
+    }
+
     .template-item strong {
       display: block;
       font-size: 0.92rem;

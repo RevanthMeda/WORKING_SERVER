@@ -104,6 +104,8 @@
   let annotationLayer;
   let measureOverlay;
   let toolButtons = [];
+  let attemptedLayoutRestore = false;
+  let hasRestoredLayout = false;
 
   const inspectorFields = {
     label: $('inspector-node-label'),
@@ -200,6 +202,238 @@
     { id: 'port-bottom', side: 'Bottom', spot: 'Bottom' },
     { id: 'port-left', side: 'Left', spot: 'Left' },
   ];
+  const STARTER_LAYERS = [
+    { name: 'Control', isVisible: true, isLocked: false },
+    { name: 'Network', isVisible: true, isLocked: false },
+    { name: 'Field', isVisible: true, isLocked: false },
+  ];
+  const STARTER_ASSETS = [
+    {
+      id: 'starter-plc',
+      display_name: 'PLC Controller',
+      model_key: 'PLC-CPU',
+      manufacturer: 'Generic',
+      image_url: PLACEHOLDER_IMAGE,
+      thumbnail_url: PLACEHOLDER_IMAGE,
+      source: 'starter',
+    },
+    {
+      id: 'starter-remote-io',
+      display_name: 'Remote I/O Rack',
+      model_key: 'RIO-32',
+      manufacturer: 'Generic',
+      image_url: PLACEHOLDER_IMAGE,
+      thumbnail_url: PLACEHOLDER_IMAGE,
+      source: 'starter',
+    },
+    {
+      id: 'starter-switch',
+      display_name: 'Industrial Switch',
+      model_key: 'SW-IND',
+      manufacturer: 'Generic',
+      image_url: PLACEHOLDER_IMAGE,
+      thumbnail_url: PLACEHOLDER_IMAGE,
+      source: 'starter',
+    },
+    {
+      id: 'starter-hmi',
+      display_name: 'HMI Panel',
+      model_key: 'HMI-15',
+      manufacturer: 'Generic',
+      image_url: PLACEHOLDER_IMAGE,
+      thumbnail_url: PLACEHOLDER_IMAGE,
+      source: 'starter',
+    },
+  ];
+  const STARTER_LAYOUT = {
+    canvas: {
+      zoom: 1,
+      pan: { x: 0, y: 0 },
+      grid: { enabled: true, size: 32, snap: true },
+      background: '#f5f7fb',
+    },
+    nodes: [
+      {
+        id: 'node-1',
+        label: 'PLC Controller',
+        model: 'Control CPU',
+        position: { x: 120, y: 140 },
+        size: { width: 240, height: 160 },
+        metadata: {
+          protocol: 'EtherNet/IP',
+          signal_type: 'control',
+          status: 'operational',
+          notes: 'Primary PLC handling process logic.',
+        },
+        layer: 'Control',
+      },
+      {
+        id: 'node-2',
+        label: 'Remote I/O Rack',
+        model: 'I/O Expansion',
+        position: { x: 440, y: 140 },
+        size: { width: 240, height: 160 },
+        metadata: {
+          protocol: 'Remote IO Bus',
+          signal_type: 'field',
+          status: 'operational',
+          notes: '32-channel DI/DO remote rack.',
+        },
+        layer: 'Field',
+      },
+      {
+        id: 'node-3',
+        label: 'Industrial Switch',
+        model: 'Managed Switch',
+        position: { x: 280, y: 340 },
+        size: { width: 240, height: 160 },
+        metadata: {
+          protocol: 'Gigabit Ethernet',
+          signal_type: 'network',
+          status: 'operational',
+          notes: 'Aggregates PLC, I/O Rack, and HMI connections.',
+        },
+        layer: 'Network',
+      },
+      {
+        id: 'node-4',
+        label: 'HMI Panel',
+        model: 'Operator Station',
+        position: { x: 580, y: 320 },
+        size: { width: 240, height: 160 },
+        metadata: {
+          protocol: 'EtherNet/IP',
+          signal_type: 'control',
+          status: 'operational',
+          notes: '15" panel for operations and monitoring.',
+        },
+        layer: 'Control',
+      },
+    ],
+    connections: [
+      {
+        id: 'conn-1',
+        from: { nodeId: 'node-1', portId: 'port-right' },
+        to: { nodeId: 'node-2', portId: 'port-left' },
+        label: 'Remote IO Bus',
+        type: 'control',
+        metadata: { badges: ['Primary', 'Shielded'] },
+        style: {
+          color: '#2563eb',
+          width: 2,
+          layout: 'orthogonal',
+          arrowheads: { start: 'none', end: 'triangle' },
+        },
+      },
+      {
+        id: 'conn-2',
+        from: { nodeId: 'node-1', portId: 'port-bottom' },
+        to: { nodeId: 'node-3', portId: 'port-top' },
+        label: 'PLC Backbone',
+        type: 'network',
+        metadata: { badges: ['Redundant'] },
+        style: {
+          color: '#059669',
+          width: 2,
+          layout: 'curved',
+          arrowheads: { start: 'none', end: 'triangle' },
+        },
+      },
+      {
+        id: 'conn-3',
+        from: { nodeId: 'node-3', portId: 'port-right' },
+        to: { nodeId: 'node-4', portId: 'port-left' },
+        label: 'HMI Connection',
+        type: 'network',
+        metadata: { badges: ['VPN'] },
+        style: {
+          color: '#9333ea',
+          width: 2,
+          layout: 'curved',
+          arrowheads: { start: 'none', end: 'triangle' },
+        },
+      },
+    ],
+    assetLibrary: STARTER_ASSETS,
+    metadata: {
+      generated_at: new Date().toISOString(),
+      source: 'starter-layout',
+    },
+  };
+  const STARTER_MODULES = [
+    {
+      id: 'starter-module-plc-cell',
+      name: 'PLC Cell',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      snapshot: {
+        nodes: STARTER_LAYOUT.nodes,
+        connections: STARTER_LAYOUT.connections,
+      },
+    },
+  ];
+  const STARTER_TEMPLATES = [
+    {
+      id: 'starter-template-default',
+      name: 'Starter Automation Cell',
+      description: 'PLC, Remote IO, HMI, and Network backbone',
+      layout: STARTER_LAYOUT,
+      isStarter: true,
+    },
+  ];
+  const STARTER_ANNOTATIONS = [
+    {
+      id: 'starter-note-1',
+      type: 'sticky',
+      text: 'Starter note: confirm PLC program upload before commissioning.',
+      targetType: 'device',
+      targetId: 'node-1',
+      createdAt: '',
+    },
+  ];
+  const STARTER_CHAT_MESSAGES = [
+    {
+      id: 'starter-chat-1',
+      author: 'System Assistant',
+      content: 'Starter layout created. Update the devices and sync once ready.',
+      timestamp: Date.now(),
+      isSelf: false,
+    },
+  ];
+
+  const cloneDeep = (value) => JSON.parse(JSON.stringify(value));
+  const getStarterAssets = () => cloneDeep(STARTER_ASSETS);
+  const getStarterLayout = () => {
+    const layout = cloneDeep(STARTER_LAYOUT);
+    layout.metadata = { ...(layout.metadata || {}), generated_at: new Date().toISOString() };
+    return layout;
+  };
+  const getStarterModules = () =>
+    STARTER_MODULES.map((module) => ({
+      ...module,
+      snapshot: cloneDeep(module.snapshot),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }));
+  const getStarterTemplates = () =>
+    STARTER_TEMPLATES.map((template) => ({
+      ...template,
+      layout: getStarterLayout(),
+    }));
+  const getStarterAnnotations = () =>
+    STARTER_ANNOTATIONS.map((note, index) => ({
+      ...note,
+      id: `${note.id || 'starter-note'}-${Date.now()}-${index}`,
+      createdAt: new Date().toISOString(),
+    }));
+  const getStarterChatMessages = () =>
+    STARTER_CHAT_MESSAGES.map((message, index) => ({
+      ...message,
+      id: `${message.id || 'starter-chat'}-${Date.now()}-${index}`,
+      timestamp: Date.now(),
+    }));
+
+  let starterInitialised = false;
   const MODULE_STORAGE_KEY = 'fds:modules:v1';
   const LINK_STYLE_DEFAULT = 'curved';
 
@@ -813,6 +1047,9 @@
 
   function loadModulesFromStorage() {
     if (!window.localStorage) {
+      if (!customModules.length) {
+        customModules = getStarterModules();
+      }
       renderModuleList();
       return;
     }
@@ -825,6 +1062,9 @@
     } catch (error) {
       console.warn('Unable to load modules', error);
     }
+    if (!customModules.length) {
+      customModules = getStarterModules();
+    }
     renderModuleList();
   }
 
@@ -834,12 +1074,7 @@
     }
     moduleList.innerHTML = '';
     if (!customModules.length) {
-      const empty = document.createElement('p');
-      empty.className = 'panel-empty';
-      empty.textContent = 'Select equipment and save it here for reuse.';
-      moduleList.appendChild(empty);
-      selectedModuleId = '';
-      return;
+      customModules = getStarterModules();
     }
     if (!selectedModuleId || !customModules.some((module) => module.id === selectedModuleId)) {
       selectedModuleId = customModules[0].id;
@@ -851,6 +1086,9 @@
       button.dataset.moduleId = module.id;
       if (module.id === selectedModuleId) {
         button.classList.add('is-active');
+      }
+      if (String(module.id || '').startsWith('starter-')) {
+        button.classList.add('is-starter');
       }
       const nodeCount = module.snapshot?.nodes?.length || 0;
       const connectionCount = module.snapshot?.connections?.length || 0;
@@ -1234,6 +1472,7 @@
       return;
     }
     const modelData = convertLayoutToModel(layout);
+    const hasNodes = Array.isArray(modelData.nodeDataArray) && modelData.nodeDataArray.length > 0;
     diagram.model = go.GraphObject.make(go.GraphLinksModel, {
       linkKeyProperty: 'id',
       nodeKeyProperty: 'key',
@@ -1250,10 +1489,16 @@
       linkKeySeed += 1;
       return data.id || `conn-${linkKeySeed}`;
     };
+    if (hasNodes) {
+      hasRestoredLayout = true;
+      synchroniseLayersFromNodes(modelData.nodeDataArray);
+    }
     renderAssetLibrary(assetLibrary);
     populateCanvasInspector();
     toggleEmptyDiagramState();
     schedulePersist();
+    updateMeasurementOverlay();
+    maybeAutoValidate('apply-layout');
   }
 
   function renderAssetLibrary(items) {
@@ -1261,14 +1506,11 @@
       return;
     }
     assetList.innerHTML = '';
+    const libraryItems = (items && items.length) ? items : getStarterAssets();
     if (!items || !items.length) {
-      const empty = document.createElement('p');
-      empty.className = 'panel-empty';
-      empty.textContent = 'Drag assets into the canvas or use templates.';
-      assetList.appendChild(empty);
-      return;
+      assetLibrary = libraryItems;
     }
-    items.forEach((asset) => {
+    libraryItems.forEach((asset) => {
       const tile = document.createElement('button');
       tile.type = 'button';
       tile.className = 'asset-tile';
@@ -1720,6 +1962,7 @@
       })
       .catch((error) => {
         console.warn('Unable to load templates', error);
+        renderTemplateList([]);
       });
   }
 
@@ -1727,25 +1970,57 @@
     if (!templateList) {
       return;
     }
+    const hasRealTemplates = Array.isArray(templates) && templates.length > 0;
+    const starterTemplates = getStarterTemplates();
     templateList.innerHTML = '';
-    if (!templates.length) {
-      const empty = document.createElement('p');
-      empty.className = 'panel-empty';
-      empty.textContent = 'No templates yet. Save one from the current layout.';
-      templateList.appendChild(empty);
-      return;
+
+    if (hasRealTemplates) {
+      const header = document.createElement('div');
+      header.className = 'panel-empty';
+      header.textContent = 'Saved templates';
+      header.style.textAlign = 'left';
+      header.style.fontWeight = '600';
+      templateList.appendChild(header);
+
+      templates.forEach((template) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'template-item';
+        button.innerHTML = `<strong>${template.name}</strong><span>${template.description || 'Shared template'}</span>`;
+        button.addEventListener('click', () => loadTemplate(template.id));
+        templateList.appendChild(button);
+      });
     }
-    templates.forEach((template) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'template-item';
-      button.innerHTML = `<strong>${template.name}</strong><span>${template.description || 'Shared template'}</span>`;
-      button.addEventListener('click', () => loadTemplate(template.id));
-      templateList.appendChild(button);
-    });
+
+    if (starterTemplates.length) {
+      const starterHeader = document.createElement('div');
+      starterHeader.className = 'panel-empty';
+      starterHeader.textContent = hasRealTemplates ? 'Starter templates' : 'Starter templates (click to load)';
+      starterHeader.style.textAlign = 'left';
+      starterHeader.style.fontWeight = '600';
+      starterHeader.style.marginTop = hasRealTemplates ? '12px' : '0';
+      templateList.appendChild(starterHeader);
+
+      starterTemplates.forEach((template) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'template-item';
+        button.classList.add('is-starter');
+        button.innerHTML = `<strong>${template.name}</strong><span>${template.description || 'Starter template'}</span>`;
+        button.addEventListener('click', () => loadTemplate(template));
+        templateList.appendChild(button);
+      });
+    }
   }
 
-  function loadTemplate(templateId) {
+  function loadTemplate(templateOrId) {
+    if (templateOrId && typeof templateOrId === 'object') {
+      const layout = templateOrId.layout ? cloneDeep(templateOrId.layout) : getStarterLayout();
+      applyLayout(layout || {});
+      showStatus(`Template "${templateOrId.name}" applied`, 'synced');
+      return;
+    }
+    const templateId = templateOrId;
     fetch(`/reports/system-architecture/templates/${templateId}`)
       .then((response) => {
         if (!response.ok) {
@@ -1778,11 +2053,13 @@
         if (!data?.success) {
           throw new Error('Failed to load assets');
         }
-        assetLibrary = data.assets || [];
+        assetLibrary = (data.assets && data.assets.length) ? data.assets : getStarterAssets();
         renderAssetLibrary(assetLibrary);
       })
       .catch((error) => {
         console.warn('Asset library unavailable', error);
+        assetLibrary = getStarterAssets();
+        renderAssetLibrary(assetLibrary);
       });
   }
 
@@ -2920,6 +3197,74 @@
     schedulePersist();
   }
 
+  function ensureStarterLayers() {
+    if (!diagram) {
+      return;
+    }
+    const previousActive = activeLayer;
+    STARTER_LAYERS.forEach((layerConfig) => {
+      if (!layers.some((layer) => layer.name === layerConfig.name)) {
+        addLayer(layerConfig.name, layerConfig.isVisible, layerConfig.isLocked);
+      }
+    });
+    if (previousActive && layers.some((layer) => layer.name === previousActive)) {
+      setActiveLayer(previousActive);
+    }
+  }
+
+  function synchroniseLayersFromNodes(nodeDataArray) {
+    if (!Array.isArray(nodeDataArray) || !nodeDataArray.length) {
+      return;
+    }
+    const required = new Set(
+      nodeDataArray
+        .map((node) => node.layer)
+        .filter((name) => typeof name === 'string' && name.trim().length)
+    );
+    if (!required.size) {
+      return;
+    }
+    const previousActive = activeLayer;
+    required.forEach((layerName) => {
+      if (!layers.some((layer) => layer.name === layerName)) {
+        addLayer(layerName, true, false);
+      }
+    });
+    if (previousActive && layers.some((layer) => layer.name === previousActive)) {
+      setActiveLayer(previousActive);
+    }
+  }
+
+  function initializeStarterExperience() {
+    if (starterInitialised) {
+      return;
+    }
+    if (hiddenInput?.value || hasRestoredLayout) {
+      starterInitialised = true;
+      return;
+    }
+    if (!diagram || (diagram.model?.nodeDataArray?.length || 0) > 0) {
+      starterInitialised = true;
+      return;
+    }
+    ensureStarterLayers();
+    const starterLayout = getStarterLayout();
+    applyLayout(starterLayout);
+    assetLibrary = getStarterAssets();
+    renderAssetLibrary(assetLibrary);
+    customModules = getStarterModules();
+    saveModulesToStorage();
+    renderModuleList();
+    renderTemplateList([]);
+    annotationNotes = getStarterAnnotations();
+    renderAnnotations();
+    chatMessages = getStarterChatMessages();
+    renderChatMessages();
+    runValidation({ silent: true, origin: 'starter' });
+    starterInitialised = true;
+    showStatus('Starter layout loaded', 'synced');
+  }
+
   function init() {
     hiddenInput = $('system_architecture_layout');
     statusIndicator = $('architecture-status-indicator');
@@ -3000,6 +3345,9 @@
     maybeAutoValidate('init');
     togglePorts(false);
     toggleEmptyDiagramState();
+    window.setTimeout(() => {
+      initializeStarterExperience();
+    }, 200);
   }
 
   document.addEventListener('DOMContentLoaded', init);
