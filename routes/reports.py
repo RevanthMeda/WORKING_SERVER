@@ -153,6 +153,64 @@ def _normalize_modbus_analog_rows(rows):
     return [row for row in normalized if any(value for value in row.values())]
 
 
+def _canonical_static_url(value) -> str:
+    """Return a canonical path for static upload URLs so we can deduplicate entries."""
+    if value in (None, ''):
+        return ''
+
+    candidate = str(value).strip()
+    if not candidate:
+        return ''
+
+    candidate = candidate.replace('\\', '/')
+
+    try:
+        static_url_path = (current_app.static_url_path or '/static').rstrip('/')
+    except RuntimeError:
+        static_url_path = '/static'
+    uploads_prefix = f"{static_url_path}/uploads/"
+
+    parsed = urlparse(candidate)
+
+    if parsed.scheme and parsed.netloc:
+        path = (parsed.path or '').replace('\\', '/')
+        if not path:
+            return parsed.geturl()
+        base_path = path if path.startswith('/') else f'/{path}'
+        if base_path.startswith(uploads_prefix):
+            canonical = base_path
+        elif base_path.startswith('/uploads/'):
+            canonical = f"{uploads_prefix}{base_path[len('/uploads/'):]}"
+        elif base_path.startswith('/static/'):
+            canonical = base_path
+        else:
+            return parsed.geturl()
+        return canonical
+
+    if candidate.startswith('//'):
+        return candidate
+
+    base, _, _ = candidate.partition('?')
+    base = base.replace('\\', '/')
+
+    if base.startswith(uploads_prefix):
+        canonical = base
+    elif base.startswith(static_url_path):
+        canonical = base if base.startswith('/') else f"/{base.lstrip('/')}"
+    elif base.startswith('/static/'):
+        canonical = '/' + base.lstrip('/')
+    elif base.startswith('static/'):
+        canonical = '/' + base.lstrip('/')
+    elif base.startswith('/uploads/'):
+        canonical = f"{uploads_prefix}{base[len('/uploads/'):]}"
+    elif base.startswith('uploads/'):
+        canonical = f"{uploads_prefix}{base[len('uploads/'):]}"
+    else:
+        canonical = base if base.startswith('/') or base.startswith('//') else base
+
+    return canonical.strip()
+
+
 def _assert_report_access(report: Optional[Report]):
     """Ensure the current user can access the given report."""
     if not report:
@@ -394,19 +452,31 @@ def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
                 current_app.logger.warning("Unable to serialise architecture layout from context for submission preload.")
 
         def _normalise_file_list(value):
+            raw_items = []
             if isinstance(value, list):
-                return [str(item) for item in value if str(item).strip()]
-            if isinstance(value, str):
-                if not value.strip():
-                    return []
-                try:
-                    parsed = json.loads(value)
-                    if isinstance(parsed, list):
-                        return [str(item) for item in parsed if str(item).strip()]
-                except Exception:
-                    pass
-                return [value] if value.strip() else []
-            return []
+                raw_items = value
+            elif isinstance(value, str):
+                candidate = value.strip()
+                if candidate:
+                    try:
+                        parsed = json.loads(candidate)
+                        if isinstance(parsed, list):
+                            raw_items = parsed
+                        else:
+                            raw_items = [candidate]
+                    except Exception:
+                        raw_items = [candidate]
+
+            deduped = []
+            seen = set()
+            for item in raw_items:
+                canonical = _canonical_static_url(item)
+                if not canonical:
+                    continue
+                if canonical not in seen:
+                    seen.add(canonical)
+                    deduped.append(canonical)
+            return deduped
 
         submission["SYSTEM_ARCHITECTURE_FILES"] = _normalise_file_list(context_block.get("SYSTEM_ARCHITECTURE_FILES"))
         submission["APPENDIX1_FILES"] = _normalise_file_list(context_block.get("APPENDIX1_FILES"))
@@ -1641,62 +1711,6 @@ def submit_fds():
         upload_dir = os.path.join(upload_root_cfg, submission_id)
         os.makedirs(upload_dir, exist_ok=True)
 
-        static_url_path = (current_app.static_url_path or '/static').rstrip('/')
-        uploads_prefix = f"{static_url_path}/uploads/"
-
-        def _normalise_url_value(value):
-            """Return a canonical string representation for stored attachment URLs."""
-            if value in (None, ''):
-                return ''
-
-            candidate = str(value).strip()
-            if not candidate:
-                return ''
-
-            candidate = candidate.replace('\\', '/')
-            parsed = urlparse(candidate)
-
-            if parsed.scheme and parsed.netloc:
-                path = (parsed.path or '').replace('\\', '/')
-                if not path:
-                    return parsed.geturl()
-                base_path = path if path.startswith('/') else f'/{path}'
-                if base_path.startswith(uploads_prefix):
-                    canonical = base_path
-                elif base_path.startswith('/uploads/'):
-                    canonical = f"{uploads_prefix}{base_path[len('/uploads/'):]}"
-                else:
-                    return parsed.geturl()
-                if parsed.query:
-                    canonical = f"{canonical}?{parsed.query}"
-                return canonical
-
-            if candidate.startswith('//'):
-                return candidate
-
-            base, _, query = candidate.partition('?')
-            base = base.replace('\\', '/')
-
-            if base.startswith(uploads_prefix):
-                canonical = base
-            elif base.startswith(static_url_path):
-                canonical = base if base.startswith('/') else f"/{base.lstrip('/')}"
-            elif base.startswith('/static/'):
-                canonical = '/' + base.lstrip('/')
-            elif base.startswith('static/'):
-                canonical = '/' + base.lstrip('/')
-            elif base.startswith('/uploads/'):
-                canonical = f"{uploads_prefix}{base[len('/uploads/'):]}"
-            elif base.startswith('uploads/'):
-                canonical = f"{uploads_prefix}{base[len('uploads/'):]}"
-            else:
-                canonical = base if base.startswith('/') or base.startswith('//') else base
-
-            canonical = canonical.strip()
-            if query and canonical:
-                canonical = f"{canonical}?{query}"
-            return canonical
-
         def normalise_urls(value):
             """Normalise and return a list of attachment URLs."""
             raw_items = []
@@ -1715,7 +1729,7 @@ def submit_fds():
 
             normalised = []
             for item in raw_items:
-                normalised_value = _normalise_url_value(item)
+                normalised_value = _canonical_static_url(item)
                 if normalised_value:
                     normalised.append(normalised_value)
             return normalised
@@ -1724,7 +1738,7 @@ def submit_fds():
             seen = set()
             ordered = []
             for item in items:
-                normalised_value = _normalise_url_value(item)
+                normalised_value = _canonical_static_url(item)
                 if normalised_value and normalised_value not in seen:
                     seen.add(normalised_value)
                     ordered.append(normalised_value)
@@ -1753,7 +1767,7 @@ def submit_fds():
                     storage.save(file_path)
                     rel_path = os.path.join("uploads", submission_id, unique_name).replace("\\", "/")
                     url = url_for("static", filename=rel_path)
-                    normalised_url = _normalise_url_value(url)
+                    normalised_url = _canonical_static_url(url)
                     if normalised_url and normalised_url not in url_list:
                         url_list.append(normalised_url)
                 except Exception as exc:
