@@ -219,9 +219,15 @@
                                                     <i class="fas fa-edit"></i> Edit
                                                 </a>
                                             {% endif %}
+                                            {% if report.report_type == 'FDS' %}
+                                            <a href="{{ url_for('reports.download_fds_submission', submission_id=report.id) }}" class="btn-inline">
+                                                <i class="fas fa-download"></i> Download
+                                            </a>
+                                            {% else %}
                                             <a href="{{ url_for('status.download_report', submission_id=report.id) }}" class="btn-inline">
                                                 <i class="fas fa-download"></i> Download
                                             </a>
+                                            {% endif %}
                                             {% if report.can_delete %}
                                                 <button type="button"
                                                         class="btn-inline btn-inline--danger"
