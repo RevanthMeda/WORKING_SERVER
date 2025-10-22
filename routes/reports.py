@@ -21,6 +21,7 @@ from utils import (
     get_unread_count,
     process_table_rows,
     handle_image_removals,
+    convert_to_pdf,
 )
 from services.sat_tables import migrate_context_tables
 from services.fds_generator import generate_fds_from_sat
@@ -42,12 +43,16 @@ from services.system_architecture import (
 import io
 import os
 import json
+import re
+import shutil
+import tempfile
 import uuid
-import zipfile
 from datetime import datetime
 from typing import Optional
 from urllib.parse import urlparse
 from werkzeug.utils import secure_filename
+from docx import Document
+from docx.shared import Inches
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -1966,7 +1971,8 @@ def submit_fds():
 @login_required
 @role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
 def download_fds_submission(submission_id: str):
-    """Bundle an FDS draft together with its attachments for download."""
+    """Generate a Word (or PDF) export of an FDS draft with uploaded content."""
+    temp_dir = None
     try:
         if not submission_id:
             abort(404, description="Submission ID is required.")
@@ -1983,7 +1989,7 @@ def download_fds_submission(submission_id: str):
                 stored_payload = json.loads(fds_report.data_json)
             except json.JSONDecodeError:
                 current_app.logger.warning(
-                    "Unable to parse stored FDS payload for %s; continuing with partial data",
+                    "Unable to parse stored FDS payload for %s; continuing with partially populated export",
                     submission_id,
                 )
 
@@ -2021,7 +2027,7 @@ def download_fds_submission(submission_id: str):
 
         attachments_export: dict[str, list[str]] = {}
         for section, sources in attachment_sources.items():
-            merged = []
+            merged: list[str] = []
             for source in sources:
                 merged.extend(_normalise_attachment_list(source))
             deduped = []
@@ -2032,82 +2038,248 @@ def download_fds_submission(submission_id: str):
                     deduped.append(url)
             attachments_export[section] = deduped
 
-        export_payload = {
-            "submission_id": submission_id,
-            "generated_at": datetime.utcnow().isoformat(),
-            "report_metadata": {
-                "title": report.document_title,
-                "project_reference": report.project_reference,
-                "document_reference": report.document_reference,
-                "client_name": report.client_name,
-                "revision": report.revision,
-                "prepared_by": report.prepared_by,
-                "updated_at": report.updated_at.isoformat() if report.updated_at else None,
-            },
-            "flat_submission": hydrated_submission,
-            "context": context_block,
-            "attachments": attachments_export,
-            "system_architecture_layout": architecture_layout,
+        requested_format = (request.args.get('format') or 'docx').lower()
+        if requested_format not in {'docx', 'pdf'}:
+            requested_format = 'docx'
+
+        doc = Document()
+        try:
+            code_style = doc.styles['Code']
+        except Exception:
+            code_style = None
+
+        def friendly_label(key: str) -> str:
+            return key.replace('_', ' ').replace('-', ' ').title()
+
+        def to_plain_text(value) -> str:
+            if value in (None, '', []):
+                return ''
+            if isinstance(value, (list, tuple)):
+                return ', '.join(filter(None, (to_plain_text(item) for item in value)))
+            cleaned = str(value).strip()
+            if not cleaned:
+                return ''
+            return re.sub(r'<[^>]+>', '', cleaned).replace('&nbsp;', ' ').strip()
+
+        def add_heading(text: str, level: int = 2) -> None:
+            if text:
+                doc.add_heading(text, level=level)
+
+        def add_key_value_table(title: str, pairs: list[tuple[str, str]]) -> None:
+            pairs = [(k, v) for k, v in pairs if v not in (None, '')]
+            if not pairs:
+                return
+            add_heading(title, level=2)
+            table = doc.add_table(rows=1, cols=2)
+            hdr_cells = table.rows[0].cells
+            hdr_cells[0].text = "Field"
+            hdr_cells[1].text = "Value"
+            for key, value in pairs:
+                row_cells = table.add_row().cells
+                row_cells[0].text = key
+                row_cells[1].text = to_plain_text(value)
+
+        def add_text_block(title: str, value: str) -> None:
+            if value in (None, ''):
+                return
+            add_heading(title, level=2)
+            for line in to_plain_text(value).splitlines() or ['']:
+                doc.add_paragraph(line or '')
+
+        def add_table_section(title: str, rows) -> None:
+            if not rows:
+                return
+            add_heading(title, level=2)
+            if not isinstance(rows, list):
+                doc.add_paragraph(to_plain_text(rows))
+                return
+            column_order: list[str] = []
+            for row in rows:
+                if isinstance(row, dict):
+                    for key in row:
+                        if key not in column_order:
+                            column_order.append(key)
+            if not column_order:
+                for entry in rows:
+                    doc.add_paragraph(to_plain_text(entry))
+                return
+            table = doc.add_table(rows=1, cols=len(column_order))
+            hdr_cells = table.rows[0].cells
+            for idx, key in enumerate(column_order):
+                hdr_cells[idx].text = friendly_label(key)
+            for row in rows:
+                table_row = table.add_row().cells
+                for idx, key in enumerate(column_order):
+                    value = ""
+                    if isinstance(row, dict):
+                        raw_value = row.get(key, "")
+                        if isinstance(raw_value, (dict, list)):
+                            value = json.dumps(raw_value, ensure_ascii=False)
+                        else:
+                            value = to_plain_text(raw_value)
+                    else:
+                        value = to_plain_text(row)
+                    table_row[idx].text = value
+
+        def add_attachment_section(title: str, urls: list[str]) -> None:
+            add_heading(title, level=2)
+            if not urls:
+                doc.add_paragraph("No files uploaded.")
+                return
+            for url in urls:
+                absolute_path, relative_url = _resolve_static_file(url)
+                display_name = os.path.basename(relative_url or url)
+                paragraph = doc.add_paragraph(display_name or url)
+                if absolute_path and os.path.isfile(absolute_path):
+                    ext = os.path.splitext(absolute_path)[1].lower()
+                    if ext in {'.png', '.jpg', '.jpeg', '.webp', '.gif'}:
+                        try:
+                            doc.add_picture(absolute_path, width=Inches(5.5))
+                        except Exception as exc:
+                            current_app.logger.warning(
+                                "Unable to embed image %s: %s", absolute_path, exc, exc_info=True
+                            )
+                            paragraph.add_run(" (unable to embed image)")
+                    else:
+                        paragraph.add_run(f" — stored at {url}")
+                else:
+                    paragraph.add_run(" (file missing)")
+
+        doc.add_heading(
+            hydrated_submission.get("DOCUMENT_TITLE") or report.document_title or "FDS Draft",
+            level=1,
+        )
+        doc.add_paragraph(f"Generated on {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+
+        header_pairs = [
+            ("Project Reference", hydrated_submission.get("PROJECT_REFERENCE") or report.project_reference or ""),
+            ("Document Reference", hydrated_submission.get("DOCUMENT_REFERENCE") or report.document_reference or ""),
+            ("Client Name", hydrated_submission.get("PREPARED_FOR") or report.client_name or ""),
+            ("Revision", hydrated_submission.get("REVISION") or report.revision or ""),
+            ("Prepared By", hydrated_submission.get("PREPARED_BY_NAME") or report.prepared_by or ""),
+            ("Prepared By Email", hydrated_submission.get("PREPARED_BY_EMAIL") or report.user_email or ""),
+            ("Prepared By Date", hydrated_submission.get("PREPARED_BY_DATE") or ""),
+            ("Reviewer 1", hydrated_submission.get("REVIEWER1_NAME") or ""),
+            ("Reviewer 2", hydrated_submission.get("REVIEWER2_NAME") or ""),
+            ("Client Approval", hydrated_submission.get("CLIENT_APPROVAL_NAME") or ""),
+            ("Saved By", report.user_email or ""),
+            ("Last Updated", report.updated_at.strftime('%Y-%m-%d %H:%M') if report.updated_at else ""),
+        ]
+        add_key_value_table("Document Header", header_pairs)
+
+        approvals = stored_payload.get("document_approvals") or []
+        if approvals:
+            add_heading("Approval Routing", level=2)
+            approval_keys = []
+            for approval in approvals:
+                for key in approval:
+                    if key not in approval_keys:
+                        approval_keys.append(key)
+            table = doc.add_table(rows=1, cols=len(approval_keys))
+            for idx, key in enumerate(approval_keys):
+                table.rows[0].cells[idx].text = friendly_label(key)
+            for approval in approvals:
+                row = table.add_row().cells
+                for idx, key in enumerate(approval_keys):
+                    value = approval.get(key, "")
+                    row[idx].text = to_plain_text(value)
+
+        text_sections = [
+            ("System Overview", hydrated_submission.get("SYSTEM_OVERVIEW") or context_block.get("SYSTEM_OVERVIEW")),
+            ("Purpose", hydrated_submission.get("SYSTEM_PURPOSE") or context_block.get("SYSTEM_PURPOSE")),
+            ("Scope Of Work", hydrated_submission.get("SCOPE_OF_WORK") or context_block.get("SCOPE_OF_WORK")),
+            ("Functional Requirements", hydrated_submission.get("FUNCTIONAL_REQUIREMENTS") or context_block.get("FUNCTIONAL_REQUIREMENTS")),
+            ("Process Description", hydrated_submission.get("PROCESS_DESCRIPTION") or context_block.get("PROCESS_DESCRIPTION")),
+            ("Control Philosophy", hydrated_submission.get("CONTROL_PHILOSOPHY") or context_block.get("CONTROL_PHILOSOPHY")),
+            ("Confidentiality Notice", hydrated_submission.get("CONFIDENTIALITY_NOTICE") or context_block.get("CONFIDENTIALITY_NOTICE")),
+        ]
+        for title, value in text_sections:
+            add_text_block(title, value)
+
+        attachment_labels = {
+            "system_architecture": "System Architecture Attachments",
+            "appendix1": "Appendix – 1 (Wiring Diagram)",
+            "appendix2": "Appendix – 2 (RAMS)",
+            "appendix3": "Appendix – 3 (SAT)",
+            "appendix4": "Appendix – 4 (Job Completion Reference)",
+            "appendix5": "Appendix – 5 (Equipment Data Sheet)",
         }
 
-        buffer = io.BytesIO()
+        skip_list_keys = {
+            "SYSTEM_ARCHITECTURE_FILES",
+            "APPENDIX1_FILES",
+            "APPENDIX2_FILES",
+            "APPENDIX3_FILES",
+            "APPENDIX4_FILES",
+            "APPENDIX5_FILES",
+        }
+
+        for key, value in context_block.items():
+            if key in skip_list_keys:
+                continue
+            if isinstance(value, list):
+                add_table_section(friendly_label(key), value)
+
+        for section, files in attachments_export.items():
+            add_attachment_section(attachment_labels.get(section, friendly_label(section)), files)
+
+        if architecture_layout:
+            add_heading("System Architecture Layout (JSON Snapshot)", level=2)
+            layout_text = json.dumps(architecture_layout, indent=2)
+            for line in layout_text.splitlines():
+                if code_style:
+                    paragraph = doc.add_paragraph(style=code_style)
+                    paragraph.add_run(line)
+                else:
+                    doc.add_paragraph(line)
+
+        temp_dir = tempfile.mkdtemp(prefix="fds_export_")
         timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-        archive_name = f"FDS_{submission_id}_{timestamp}.zip"
+        project_ref = hydrated_submission.get("PROJECT_REFERENCE") or report.project_reference or submission_id[:8]
+        safe_proj_ref = "".join(c if c.isalnum() or c in ['_', '-'] else "_" for c in project_ref)
+        base_name = f"FDS_{safe_proj_ref}_{timestamp}"
+        docx_path = os.path.join(temp_dir, f"{base_name}.docx")
+        doc.save(docx_path)
 
-        with zipfile.ZipFile(buffer, mode='w', compression=zipfile.ZIP_DEFLATED) as archive:
-            archive.writestr(
-                "submission.json",
-                json.dumps(export_payload, indent=2, default=str),
-            )
+        file_bytes = None
+        download_name = f"{base_name}.docx"
+        mimetype = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
-            if architecture_layout:
-                archive.writestr(
-                    "system_architecture_layout.json",
-                    json.dumps(architecture_layout, indent=2),
+        if requested_format == 'pdf':
+            pdf_path = convert_to_pdf(docx_path)
+            if pdf_path and os.path.exists(pdf_path):
+                with open(pdf_path, 'rb') as pdf_file:
+                    file_bytes = pdf_file.read()
+                download_name = f"{base_name}.pdf"
+                mimetype = "application/pdf"
+            else:
+                current_app.logger.warning(
+                    "PDF conversion unavailable for submission %s; returning DOCX instead",
+                    submission_id,
                 )
 
-            readme_lines = [
-                "FDS Draft Export",
-                f"Submission ID: {submission_id}",
-                f"Generated: {datetime.utcnow().isoformat()} UTC",
-                "",
-                "Contents:",
-                "- submission.json: all captured form inputs in JSON format.",
-                "- system_architecture_layout.json: saved architecture layout (when available).",
-                "- attachments/: uploaded files grouped by section.",
-                "",
-                "To view the submission data, open submission.json with any JSON viewer.",
-            ]
-            archive.writestr("README.txt", "\n".join(readme_lines))
+        if file_bytes is None:
+            with open(docx_path, 'rb') as docx_file:
+                file_bytes = docx_file.read()
 
-            for section, urls in attachments_export.items():
-                for url in urls:
-                    absolute_path, relative_url = _resolve_static_file(url)
-                    if not absolute_path or not os.path.isfile(absolute_path):
-                        current_app.logger.debug(
-                            "Skipping missing attachment %s for section %s (submission %s)",
-                            url,
-                            section,
-                            submission_id,
-                        )
-                        continue
-                    arcname = os.path.join("attachments", section, relative_url).replace("\\", "/")
-                    archive.write(absolute_path, arcname=arcname)
-
+        buffer = io.BytesIO(file_bytes)
         buffer.seek(0)
         return send_file(
             buffer,
-            mimetype="application/zip",
+            mimetype=mimetype,
             as_attachment=True,
-            download_name=archive_name,
+            download_name=download_name,
         )
 
     except PermissionError:
         abort(403, description="You do not have permission to download this report.")
     except Exception as exc:
-        current_app.logger.error("Failed to prepare FDS download for %s: %s", submission_id, exc, exc_info=True)
+        current_app.logger.error("Failed to prepare FDS export for %s: %s", submission_id, exc, exc_info=True)
         flash('Unable to download the FDS draft at this time.', 'error')
         return redirect(url_for('reports.fds_wizard', submission_id=submission_id, edit_mode='true'))
+    finally:
+        if temp_dir and os.path.isdir(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 @reports_bp.route('/submit-site-survey', methods=['POST'])
