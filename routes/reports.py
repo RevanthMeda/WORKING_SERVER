@@ -32,6 +32,7 @@ import json
 import uuid
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 from werkzeug.utils import secure_filename
 
 reports_bp = Blueprint('reports', __name__)
@@ -1640,28 +1641,93 @@ def submit_fds():
         upload_dir = os.path.join(upload_root_cfg, submission_id)
         os.makedirs(upload_dir, exist_ok=True)
 
+        static_url_path = (current_app.static_url_path or '/static').rstrip('/')
+        uploads_prefix = f"{static_url_path}/uploads/"
+
+        def _normalise_url_value(value):
+            """Return a canonical string representation for stored attachment URLs."""
+            if value in (None, ''):
+                return ''
+
+            candidate = str(value).strip()
+            if not candidate:
+                return ''
+
+            candidate = candidate.replace('\\', '/')
+            parsed = urlparse(candidate)
+
+            if parsed.scheme and parsed.netloc:
+                path = (parsed.path or '').replace('\\', '/')
+                if not path:
+                    return parsed.geturl()
+                base_path = path if path.startswith('/') else f'/{path}'
+                if base_path.startswith(uploads_prefix):
+                    canonical = base_path
+                elif base_path.startswith('/uploads/'):
+                    canonical = f"{uploads_prefix}{base_path[len('/uploads/'):]}"
+                else:
+                    return parsed.geturl()
+                if parsed.query:
+                    canonical = f"{canonical}?{parsed.query}"
+                return canonical
+
+            if candidate.startswith('//'):
+                return candidate
+
+            base, _, query = candidate.partition('?')
+            base = base.replace('\\', '/')
+
+            if base.startswith(uploads_prefix):
+                canonical = base
+            elif base.startswith(static_url_path):
+                canonical = base if base.startswith('/') else f"/{base.lstrip('/')}"
+            elif base.startswith('/static/'):
+                canonical = '/' + base.lstrip('/')
+            elif base.startswith('static/'):
+                canonical = '/' + base.lstrip('/')
+            elif base.startswith('/uploads/'):
+                canonical = f"{uploads_prefix}{base[len('/uploads/'):]}"
+            elif base.startswith('uploads/'):
+                canonical = f"{uploads_prefix}{base[len('uploads/'):]}"
+            else:
+                canonical = base if base.startswith('/') or base.startswith('//') else base
+
+            canonical = canonical.strip()
+            if query and canonical:
+                canonical = f"{canonical}?{query}"
+            return canonical
+
         def normalise_urls(value):
+            """Normalise and return a list of attachment URLs."""
+            raw_items = []
             if isinstance(value, list):
-                return [str(item) for item in value]
-            if isinstance(value, str):
-                if not value.strip():
-                    return []
-                try:
-                    parsed = json.loads(value)
-                    if isinstance(parsed, list):
-                        return [str(item) for item in parsed]
-                except Exception:
-                    pass
-                return [value]
-            return []
+                raw_items = value
+            elif isinstance(value, str):
+                if value.strip():
+                    try:
+                        parsed = json.loads(value)
+                        if isinstance(parsed, list):
+                            raw_items = parsed
+                        else:
+                            raw_items = [value]
+                    except Exception:
+                        raw_items = [value]
+
+            normalised = []
+            for item in raw_items:
+                normalised_value = _normalise_url_value(item)
+                if normalised_value:
+                    normalised.append(normalised_value)
+            return normalised
 
         def dedupe(items):
             seen = set()
             ordered = []
             for item in items:
-                if item and item not in seen:
-                    seen.add(item)
-                    ordered.append(item)
+                normalised_value = _normalise_url_value(item)
+                if normalised_value and normalised_value not in seen:
+                    seen.add(normalised_value)
+                    ordered.append(normalised_value)
             return ordered
 
         architecture_files = dedupe(normalise_urls(existing_context.get("SYSTEM_ARCHITECTURE_FILES")))
@@ -1687,8 +1753,9 @@ def submit_fds():
                     storage.save(file_path)
                     rel_path = os.path.join("uploads", submission_id, unique_name).replace("\\", "/")
                     url = url_for("static", filename=rel_path)
-                    if url not in url_list:
-                        url_list.append(url)
+                    normalised_url = _normalise_url_value(url)
+                    if normalised_url and normalised_url not in url_list:
+                        url_list.append(normalised_url)
                 except Exception as exc:
                     current_app.logger.error(
                         "Failed to store attachment %s for submission %s: %s",
