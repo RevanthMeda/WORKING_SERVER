@@ -6,51 +6,6 @@
     </h1>
   </div>
 
-  <div class="data-card simple-architecture-card"
-       data-upload-group
-       data-input-id="architecture-image-input"
-       data-list-id="architecture-upload-list"
-       data-empty-id="architecture-empty-upload"
-       data-caption-name="architecture_image_captions[]"
-       data-allow-images="true"
-       data-allow-docs="false">
-    <div class="card-header">
-      <span>Upload Architecture Images</span>
-      <p>Attach one or more screenshots, photos, or drawings that describe the system architecture.</p>
-    </div>
-
-    <div class="card-body simple-architecture-body">
-      <div class="upload-instructions">
-        <ol>
-          <li>Click <strong>Add Images</strong> to choose PNG/JPG files from your device.</li>
-          <li>Optional: add a short caption for each image so reviewers understand the context.</li>
-          <li>Use the trash icon to remove an image before submitting.</li>
-        </ol>
-      </div>
-
-      <div class="uploads-wrapper" id="architecture-upload-list">
-        <div class="empty-upload-state" id="architecture-empty-upload">
-          <i class="fas fa-image"></i>
-          <p>No files added yet.</p>
-          <p class="hint">Use the button below to attach your architecture images.</p>
-        </div>
-      </div>
-
-      <div class="upload-actions">
-        <label class="btn btn-primary">
-          <i class="fas fa-plus"></i> Add Images
-          <input type="file"
-                 id="architecture-image-input"
-                 name="architecture_images[]"
-                 accept="image/png,image/jpeg,image/jpg,image/webp"
-                 multiple
-                 hidden>
-        </label>
-        <small class="upload-note">Maximum size per file: 10 MB. Accepted formats: PNG, JPG, JPEG, WEBP.</small>
-      </div>
-    </div>
-  </div>
-
 {% macro render_upload_card(key, title, description, field_name, existing_list, allow_docs=False) %}
   {% set input_id = key ~ '-input' %}
   {% set preview_id = key ~ '-preview' %}

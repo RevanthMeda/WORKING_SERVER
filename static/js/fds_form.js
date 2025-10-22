@@ -275,6 +275,17 @@
     return false;
   }
 
+  function downloadFdsDraft() {
+    const submissionId = getSubmissionId();
+    if (!submissionId) {
+      showAlert('Please save your draft before downloading.', 'error');
+      return;
+    }
+
+    const downloadUrl = `/reports/fds/download/${encodeURIComponent(submissionId)}`;
+    window.open(downloadUrl, '_blank', 'noopener');
+  }
+
   function wireProgressSteps() {
     document.querySelectorAll('.progress-step').forEach((indicator) => {
       indicator.addEventListener('click', () => {
@@ -632,5 +643,6 @@
   window.addRow = addRow;
   window.removeRow = removeRow;
   window.handleFormSubmit = handleFormSubmit;
+  window.downloadFdsDraft = downloadFdsDraft;
   window.saveProgress = () => saveProgress(true);
 })();

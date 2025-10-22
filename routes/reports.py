@@ -1,4 +1,16 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, make_response, abort
+from flask import (
+    Blueprint,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    jsonify,
+    current_app,
+    make_response,
+    abort,
+    send_file,
+)
 from functools import wraps
 from flask_login import login_required, current_user
 from models import db, Report, User, SATReport, FDSReport, SiteSurveyReport, SystemArchitectureVersion
@@ -27,9 +39,11 @@ from services.system_architecture import (
     record_version_snapshot,
     save_template,
 )
+import io
 import os
 import json
 import uuid
+import zipfile
 from datetime import datetime
 from typing import Optional
 from urllib.parse import urlparse
@@ -209,6 +223,56 @@ def _canonical_static_url(value) -> str:
         canonical = base if base.startswith('/') or base.startswith('//') else base
 
     return canonical.strip()
+
+
+def _normalise_attachment_list(value) -> list[str]:
+    """Normalise attachment inputs into canonical static URLs."""
+    raw_items = []
+    if isinstance(value, list):
+        raw_items = value
+    elif isinstance(value, str):
+        candidate = value.strip()
+        if candidate:
+            try:
+                parsed = json.loads(candidate)
+                if isinstance(parsed, list):
+                    raw_items = parsed
+                else:
+                    raw_items = [candidate]
+            except Exception:
+                raw_items = [candidate]
+
+    deduped = []
+    seen = set()
+    for item in raw_items:
+        canonical = _canonical_static_url(item)
+        if canonical and canonical not in seen:
+            seen.add(canonical)
+            deduped.append(canonical)
+    return deduped
+
+
+def _resolve_static_file(canonical_url: str) -> tuple[str, str] | tuple[None, None]:
+    """Return absolute and relative static paths for a canonical static URL."""
+    if not canonical_url:
+        return None, None
+
+    try:
+        static_url_path = (current_app.static_url_path or '/static').rstrip('/')
+        static_root = current_app.static_folder or os.path.join(current_app.root_path, 'static')
+    except RuntimeError:
+        static_url_path = '/static'
+        static_root = os.path.join(os.getcwd(), 'static')
+
+    if not canonical_url.startswith(static_url_path):
+        return None, None
+
+    relative_url = canonical_url[len(static_url_path):].lstrip('/')
+    if not relative_url:
+        return None, None
+
+    absolute_path = os.path.join(static_root, relative_url.replace('/', os.sep))
+    return absolute_path, relative_url
 
 
 def _assert_report_access(report: Optional[Report]):
@@ -452,31 +516,7 @@ def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
                 current_app.logger.warning("Unable to serialise architecture layout from context for submission preload.")
 
         def _normalise_file_list(value):
-            raw_items = []
-            if isinstance(value, list):
-                raw_items = value
-            elif isinstance(value, str):
-                candidate = value.strip()
-                if candidate:
-                    try:
-                        parsed = json.loads(candidate)
-                        if isinstance(parsed, list):
-                            raw_items = parsed
-                        else:
-                            raw_items = [candidate]
-                    except Exception:
-                        raw_items = [candidate]
-
-            deduped = []
-            seen = set()
-            for item in raw_items:
-                canonical = _canonical_static_url(item)
-                if not canonical:
-                    continue
-                if canonical not in seen:
-                    seen.add(canonical)
-                    deduped.append(canonical)
-            return deduped
+            return _normalise_attachment_list(value)
 
         submission["SYSTEM_ARCHITECTURE_FILES"] = _normalise_file_list(context_block.get("SYSTEM_ARCHITECTURE_FILES"))
         submission["APPENDIX1_FILES"] = _normalise_file_list(context_block.get("APPENDIX1_FILES"))
@@ -1713,36 +1753,10 @@ def submit_fds():
 
         def normalise_urls(value):
             """Normalise and return a list of attachment URLs."""
-            raw_items = []
-            if isinstance(value, list):
-                raw_items = value
-            elif isinstance(value, str):
-                if value.strip():
-                    try:
-                        parsed = json.loads(value)
-                        if isinstance(parsed, list):
-                            raw_items = parsed
-                        else:
-                            raw_items = [value]
-                    except Exception:
-                        raw_items = [value]
-
-            normalised = []
-            for item in raw_items:
-                normalised_value = _canonical_static_url(item)
-                if normalised_value:
-                    normalised.append(normalised_value)
-            return normalised
+            return _normalise_attachment_list(value)
 
         def dedupe(items):
-            seen = set()
-            ordered = []
-            for item in items:
-                normalised_value = _canonical_static_url(item)
-                if normalised_value and normalised_value not in seen:
-                    seen.add(normalised_value)
-                    ordered.append(normalised_value)
-            return ordered
+            return _normalise_attachment_list(items)
 
         architecture_files = dedupe(normalise_urls(existing_context.get("SYSTEM_ARCHITECTURE_FILES")))
         appendix1_files = dedupe(normalise_urls(existing_context.get("APPENDIX1_FILES")))
@@ -1946,6 +1960,154 @@ def submit_fds():
             return jsonify({"success": False, "message": message}), 500
         flash(message, 'error')
         return redirect(url_for('dashboard.engineer'))
+
+
+@reports_bp.route('/fds/download/<submission_id>', methods=['GET'])
+@login_required
+@role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
+def download_fds_submission(submission_id: str):
+    """Bundle an FDS draft together with its attachments for download."""
+    try:
+        if not submission_id:
+            abort(404, description="Submission ID is required.")
+
+        report = Report.query.get(submission_id)
+        _assert_report_access(report)
+        if not report or report.type != 'FDS':
+            abort(404, description="FDS report not found.")
+
+        fds_report = FDSReport.query.filter_by(report_id=submission_id).first()
+        stored_payload = {}
+        if fds_report and fds_report.data_json:
+            try:
+                stored_payload = json.loads(fds_report.data_json)
+            except json.JSONDecodeError:
+                current_app.logger.warning(
+                    "Unable to parse stored FDS payload for %s; continuing with partial data",
+                    submission_id,
+                )
+
+        hydrated_submission = _hydrate_fds_submission(stored_payload)
+        context_block = stored_payload.get("context", {}) or {}
+        attachments_block = stored_payload.get("attachments", {}) or {}
+        architecture_layout = stored_payload.get("system_architecture") or {}
+
+        attachment_sources = {
+            "system_architecture": [
+                context_block.get("SYSTEM_ARCHITECTURE_FILES"),
+                attachments_block.get("system_architecture_files"),
+            ],
+            "appendix1": [
+                context_block.get("APPENDIX1_FILES"),
+                attachments_block.get("appendix1_files"),
+            ],
+            "appendix2": [
+                context_block.get("APPENDIX2_FILES"),
+                attachments_block.get("appendix2_files"),
+            ],
+            "appendix3": [
+                context_block.get("APPENDIX3_FILES"),
+                attachments_block.get("appendix3_files"),
+            ],
+            "appendix4": [
+                context_block.get("APPENDIX4_FILES"),
+                attachments_block.get("appendix4_files"),
+            ],
+            "appendix5": [
+                context_block.get("APPENDIX5_FILES"),
+                attachments_block.get("appendix5_files"),
+            ],
+        }
+
+        attachments_export: dict[str, list[str]] = {}
+        for section, sources in attachment_sources.items():
+            merged = []
+            for source in sources:
+                merged.extend(_normalise_attachment_list(source))
+            deduped = []
+            seen = set()
+            for url in merged:
+                if url not in seen:
+                    seen.add(url)
+                    deduped.append(url)
+            attachments_export[section] = deduped
+
+        export_payload = {
+            "submission_id": submission_id,
+            "generated_at": datetime.utcnow().isoformat(),
+            "report_metadata": {
+                "title": report.document_title,
+                "project_reference": report.project_reference,
+                "document_reference": report.document_reference,
+                "client_name": report.client_name,
+                "revision": report.revision,
+                "prepared_by": report.prepared_by,
+                "updated_at": report.updated_at.isoformat() if report.updated_at else None,
+            },
+            "flat_submission": hydrated_submission,
+            "context": context_block,
+            "attachments": attachments_export,
+            "system_architecture_layout": architecture_layout,
+        }
+
+        buffer = io.BytesIO()
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        archive_name = f"FDS_{submission_id}_{timestamp}.zip"
+
+        with zipfile.ZipFile(buffer, mode='w', compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr(
+                "submission.json",
+                json.dumps(export_payload, indent=2, default=str),
+            )
+
+            if architecture_layout:
+                archive.writestr(
+                    "system_architecture_layout.json",
+                    json.dumps(architecture_layout, indent=2),
+                )
+
+            readme_lines = [
+                "FDS Draft Export",
+                f"Submission ID: {submission_id}",
+                f"Generated: {datetime.utcnow().isoformat()} UTC",
+                "",
+                "Contents:",
+                "- submission.json: all captured form inputs in JSON format.",
+                "- system_architecture_layout.json: saved architecture layout (when available).",
+                "- attachments/: uploaded files grouped by section.",
+                "",
+                "To view the submission data, open submission.json with any JSON viewer.",
+            ]
+            archive.writestr("README.txt", "\n".join(readme_lines))
+
+            for section, urls in attachments_export.items():
+                for url in urls:
+                    absolute_path, relative_url = _resolve_static_file(url)
+                    if not absolute_path or not os.path.isfile(absolute_path):
+                        current_app.logger.debug(
+                            "Skipping missing attachment %s for section %s (submission %s)",
+                            url,
+                            section,
+                            submission_id,
+                        )
+                        continue
+                    arcname = os.path.join("attachments", section, relative_url).replace("\\", "/")
+                    archive.write(absolute_path, arcname=arcname)
+
+        buffer.seek(0)
+        return send_file(
+            buffer,
+            mimetype="application/zip",
+            as_attachment=True,
+            download_name=archive_name,
+        )
+
+    except PermissionError:
+        abort(403, description="You do not have permission to download this report.")
+    except Exception as exc:
+        current_app.logger.error("Failed to prepare FDS download for %s: %s", submission_id, exc, exc_info=True)
+        flash('Unable to download the FDS draft at this time.', 'error')
+        return redirect(url_for('reports.fds_wizard', submission_id=submission_id, edit_mode='true'))
 
 
 @reports_bp.route('/submit-site-survey', methods=['POST'])
