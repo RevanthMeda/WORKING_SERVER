@@ -13,6 +13,7 @@ sqlalchemy
 python-docx
 docxtpl==0.16.7
 pypandoc
+PyMuPDF>=1.23.1
 
 # Image processing
 pillow>=10.4.0

@@ -54,6 +54,11 @@ from werkzeug.utils import secure_filename
 from docx import Document
 from docx.shared import Inches
 
+try:  # Optional dependency for PDF previews
+    import fitz  # PyMuPDF
+except ImportError:  # pragma: no cover - PDF preview is optional
+    fitz = None
+
 reports_bp = Blueprint('reports', __name__)
 
 
@@ -2042,6 +2047,7 @@ def download_fds_submission(submission_id: str):
         if requested_format not in {'docx', 'pdf'}:
             requested_format = 'docx'
 
+        temp_dir = tempfile.mkdtemp(prefix="fds_export_")
         doc = Document()
         try:
             code_style = doc.styles['Code']
@@ -2121,6 +2127,35 @@ def download_fds_submission(submission_id: str):
                         value = to_plain_text(row)
                     table_row[idx].text = value
 
+        def render_pdf_preview(pdf_path: str, display_name: str) -> tuple[list[str], int]:
+            previews: list[str] = []
+            total_pages = 0
+            if not fitz:
+                current_app.logger.debug(
+                    "PyMuPDF not available; skipping PDF preview embedding for %s", pdf_path
+                )
+                return previews, total_pages
+            try:
+                pdf_doc = fitz.open(pdf_path)
+                total_pages = pdf_doc.page_count
+                max_pages = min(total_pages, 3)
+                zoom_matrix = fitz.Matrix(2, 2)
+                for page_index in range(max_pages):
+                    page = pdf_doc.load_page(page_index)
+                    pix = page.get_pixmap(matrix=zoom_matrix)
+                    safe_name = os.path.splitext(display_name or f"attachment_{page_index + 1}")[0]
+                    preview_path = os.path.join(
+                        temp_dir, f"{safe_name}_page{page_index + 1}.png"
+                    )
+                    pix.save(preview_path)
+                    previews.append(preview_path)
+                pdf_doc.close()
+            except Exception as exc:  # pragma: no cover - depends on system libraries
+                current_app.logger.warning(
+                    "Failed to render PDF preview for %s: %s", pdf_path, exc, exc_info=True
+                )
+            return previews, total_pages
+
         def add_attachment_section(title: str, urls: list[str]) -> None:
             add_heading(title, level=2)
             if not urls:
@@ -2140,8 +2175,26 @@ def download_fds_submission(submission_id: str):
                                 "Unable to embed image %s: %s", absolute_path, exc, exc_info=True
                             )
                             paragraph.add_run(" (unable to embed image)")
+                    elif ext == '.pdf':
+                        previews, total_pages = render_pdf_preview(absolute_path, display_name or 'attachment')
+                        if previews:
+                            for preview_path in previews:
+                                try:
+                                    doc.add_picture(preview_path, width=Inches(5.5))
+                                except Exception as exc:
+                                    current_app.logger.warning(
+                                        "Unable to embed PDF preview %s: %s", preview_path, exc, exc_info=True
+                                    )
+                            if total_pages and len(previews) < total_pages:
+                                doc.add_paragraph(
+                                    "(Additional pages not shown. See stored file for full content.)"
+                                )
+                        else:
+                            paragraph.add_run(" - PDF preview unavailable; file stored at ")
+                            doc.add_paragraph(url)
                     else:
-                        paragraph.add_run(f" — stored at {url}")
+                        paragraph.add_run(" - file stored at ")
+                        doc.add_paragraph(url)
                 else:
                     paragraph.add_run(" (file missing)")
 
@@ -2198,12 +2251,13 @@ def download_fds_submission(submission_id: str):
 
         attachment_labels = {
             "system_architecture": "System Architecture Attachments",
-            "appendix1": "Appendix – 1 (Wiring Diagram)",
-            "appendix2": "Appendix – 2 (RAMS)",
-            "appendix3": "Appendix – 3 (SAT)",
-            "appendix4": "Appendix – 4 (Job Completion Reference)",
-            "appendix5": "Appendix – 5 (Equipment Data Sheet)",
+            "appendix1": "Appendix - 1 (Wiring Diagram)",
+            "appendix2": "Appendix - 2 (RAMS)",
+            "appendix3": "Appendix - 3 (SAT)",
+            "appendix4": "Appendix - 4 (Job Completion Reference)",
+            "appendix5": "Appendix - 5 (Equipment Data Sheet)",
         }
+
 
         skip_list_keys = {
             "SYSTEM_ARCHITECTURE_FILES",
@@ -2233,7 +2287,6 @@ def download_fds_submission(submission_id: str):
                 else:
                     doc.add_paragraph(line)
 
-        temp_dir = tempfile.mkdtemp(prefix="fds_export_")
         timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
         project_ref = hydrated_submission.get("PROJECT_REFERENCE") or report.project_reference or submission_id[:8]
         safe_proj_ref = "".join(c if c.isalnum() or c in ['_', '-'] else "_" for c in project_ref)
@@ -2388,5 +2441,6 @@ def submit_site_survey():
 
         flash(error_message, 'error')
         return redirect(url_for('reports.new_site_survey'))
+
 
 
