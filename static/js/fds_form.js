@@ -221,6 +221,11 @@
     event.preventDefault();
 
     const form = event.target;
+    if (!form || form.dataset.submitting === 'true') {
+      return false;
+    }
+    form.dataset.submitting = 'true';
+
     const submitBtn = form.querySelector('button[type="submit"]');
     const formData = new FormData(form);
 
@@ -264,6 +269,7 @@
           submitBtn.disabled = false;
           submitBtn.innerHTML = '<i class="fas fa-save"></i> Save FDS Draft';
         }
+        delete form.dataset.submitting;
       });
 
     return false;

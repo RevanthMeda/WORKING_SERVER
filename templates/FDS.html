@@ -106,8 +106,7 @@
       <form id="fdsForm"
             method="POST"
             action="{{ url_for('reports.submit_fds') }}"
-            novalidate
-            onsubmit="return handleFormSubmit(event)">
+            novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
         <input type="hidden" name="submission_id" value="{{ submission_id }}"/>
 
