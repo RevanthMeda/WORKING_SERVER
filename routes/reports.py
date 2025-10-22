@@ -394,17 +394,17 @@ def _hydrate_fds_submission(fds_payload: Optional[dict]) -> dict:
 
         def _normalise_file_list(value):
             if isinstance(value, list):
-                return [str(item) for item in value]
+                return [str(item) for item in value if str(item).strip()]
             if isinstance(value, str):
                 if not value.strip():
                     return []
                 try:
                     parsed = json.loads(value)
                     if isinstance(parsed, list):
-                        return [str(item) for item in parsed]
+                        return [str(item) for item in parsed if str(item).strip()]
                 except Exception:
                     pass
-                return [value]
+                return [value] if value.strip() else []
             return []
 
         submission["SYSTEM_ARCHITECTURE_FILES"] = _normalise_file_list(context_block.get("SYSTEM_ARCHITECTURE_FILES"))
@@ -1655,12 +1655,21 @@ def submit_fds():
                 return [value]
             return []
 
-        architecture_files = normalise_urls(existing_context.get("SYSTEM_ARCHITECTURE_FILES"))
-        appendix1_files = normalise_urls(existing_context.get("APPENDIX1_FILES"))
-        appendix2_files = normalise_urls(existing_context.get("APPENDIX2_FILES"))
-        appendix3_files = normalise_urls(existing_context.get("APPENDIX3_FILES"))
-        appendix4_files = normalise_urls(existing_context.get("APPENDIX4_FILES"))
-        appendix5_files = normalise_urls(existing_context.get("APPENDIX5_FILES"))
+        def dedupe(items):
+            seen = set()
+            ordered = []
+            for item in items:
+                if item and item not in seen:
+                    seen.add(item)
+                    ordered.append(item)
+            return ordered
+
+        architecture_files = dedupe(normalise_urls(existing_context.get("SYSTEM_ARCHITECTURE_FILES")))
+        appendix1_files = dedupe(normalise_urls(existing_context.get("APPENDIX1_FILES")))
+        appendix2_files = dedupe(normalise_urls(existing_context.get("APPENDIX2_FILES")))
+        appendix3_files = dedupe(normalise_urls(existing_context.get("APPENDIX3_FILES")))
+        appendix4_files = dedupe(normalise_urls(existing_context.get("APPENDIX4_FILES")))
+        appendix5_files = dedupe(normalise_urls(existing_context.get("APPENDIX5_FILES")))
 
         def append_file(field_name, url_list, allow_docs=True):
             for storage in request.files.getlist(field_name):
@@ -1756,12 +1765,12 @@ def submit_fds():
 
         if architecture_layout:
             context["SYSTEM_ARCHITECTURE_LAYOUT"] = architecture_layout
-        context["SYSTEM_ARCHITECTURE_FILES"] = architecture_files
-        context["APPENDIX1_FILES"] = appendix1_files
-        context["APPENDIX2_FILES"] = appendix2_files
-        context["APPENDIX3_FILES"] = appendix3_files
-        context["APPENDIX4_FILES"] = appendix4_files
-        context["APPENDIX5_FILES"] = appendix5_files
+        context["SYSTEM_ARCHITECTURE_FILES"] = dedupe(architecture_files)
+        context["APPENDIX1_FILES"] = dedupe(appendix1_files)
+        context["APPENDIX2_FILES"] = dedupe(appendix2_files)
+        context["APPENDIX3_FILES"] = dedupe(appendix3_files)
+        context["APPENDIX4_FILES"] = dedupe(appendix4_files)
+        context["APPENDIX5_FILES"] = dedupe(appendix5_files)
 
         fds_data = {
             "context": context,
@@ -1805,12 +1814,12 @@ def submit_fds():
         if architecture_layout:
             fds_data["system_architecture"] = architecture_layout
         fds_data["attachments"] = {
-            "system_architecture_files": architecture_files,
-            "appendix1_files": appendix1_files,
-            "appendix2_files": appendix2_files,
-            "appendix3_files": appendix3_files,
-            "appendix4_files": appendix4_files,
-            "appendix5_files": appendix5_files,
+            "system_architecture_files": context["SYSTEM_ARCHITECTURE_FILES"],
+            "appendix1_files": context["APPENDIX1_FILES"],
+            "appendix2_files": context["APPENDIX2_FILES"],
+            "appendix3_files": context["APPENDIX3_FILES"],
+            "appendix4_files": context["APPENDIX4_FILES"],
+            "appendix5_files": context["APPENDIX5_FILES"],
         }
 
         if not fds_report:
