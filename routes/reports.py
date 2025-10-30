@@ -2047,7 +2047,7 @@ def download_fds_submission(submission_id: str):
         if requested_format not in {'docx', 'pdf'}:
             requested_format = 'docx'
 
-        template_rel_path = current_app.config.get("FDS_TEMPLATE_PATH", "templates/FDS_templete.docx")
+        template_rel_path = current_app.config.get("FDS_TEMPLATE_PATH", "templates/FDS_Template.docx")
         template_path = template_rel_path if os.path.isabs(template_rel_path) else os.path.join(
             current_app.root_path, template_rel_path
         )
