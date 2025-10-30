@@ -51,7 +51,7 @@ from datetime import datetime
 from typing import Optional
 from urllib.parse import urlparse
 from werkzeug.utils import secure_filename
-from docx import Document
+from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Inches
 
 try:  # Optional dependency for PDF previews
@@ -1976,7 +1976,7 @@ def submit_fds():
 @login_required
 @role_required(['Engineer', 'Automation Manager', 'PM', 'Admin'])
 def download_fds_submission(submission_id: str):
-    """Generate a Word (or PDF) export of an FDS draft with uploaded content."""
+    """Render an FDS draft using the Word template (optionally converting to PDF)."""
     temp_dir = None
     try:
         if not submission_id:
@@ -2047,85 +2047,43 @@ def download_fds_submission(submission_id: str):
         if requested_format not in {'docx', 'pdf'}:
             requested_format = 'docx'
 
+        template_rel_path = current_app.config.get("FDS_TEMPLATE_PATH", "templates/FDS_templete.docx")
+        template_path = template_rel_path if os.path.isabs(template_rel_path) else os.path.join(
+            current_app.root_path, template_rel_path
+        )
+        if not os.path.isfile(template_path):
+            current_app.logger.error("FDS template not found at %s", template_path)
+            abort(500, description="FDS export template is missing. Please contact the administrator.")
+
         temp_dir = tempfile.mkdtemp(prefix="fds_export_")
-        doc = Document()
-        try:
-            code_style = doc.styles['Code']
-        except Exception:
-            code_style = None
+        doc = DocxTemplate(template_path)
 
-        def friendly_label(key: str) -> str:
-            return key.replace('_', ' ').replace('-', ' ').title()
+        def coalesce(*values):
+            for value in values:
+                if isinstance(value, str) and value.strip():
+                    return value
+                if value not in (None, '', []):
+                    return value
+            return ''
 
-        def to_plain_text(value) -> str:
+        def coalesce_list(*values):
+            for value in values:
+                if isinstance(value, list) and value:
+                    return value
+            return []
+
+        def plain(value) -> str:
             if value in (None, '', []):
                 return ''
-            if isinstance(value, (list, tuple)):
-                return ', '.join(filter(None, (to_plain_text(item) for item in value)))
-            cleaned = str(value).strip()
-            if not cleaned:
-                return ''
-            return re.sub(r'<[^>]+>', '', cleaned).replace('&nbsp;', ' ').strip()
-
-        def add_heading(text: str, level: int = 2) -> None:
-            if text:
-                doc.add_heading(text, level=level)
-
-        def add_key_value_table(title: str, pairs: list[tuple[str, str]]) -> None:
-            pairs = [(k, v) for k, v in pairs if v not in (None, '')]
-            if not pairs:
-                return
-            add_heading(title, level=2)
-            table = doc.add_table(rows=1, cols=2)
-            hdr_cells = table.rows[0].cells
-            hdr_cells[0].text = "Field"
-            hdr_cells[1].text = "Value"
-            for key, value in pairs:
-                row_cells = table.add_row().cells
-                row_cells[0].text = key
-                row_cells[1].text = to_plain_text(value)
-
-        def add_text_block(title: str, value: str) -> None:
-            if value in (None, ''):
-                return
-            add_heading(title, level=2)
-            for line in to_plain_text(value).splitlines() or ['']:
-                doc.add_paragraph(line or '')
-
-        def add_table_section(title: str, rows) -> None:
-            if not rows:
-                return
-            add_heading(title, level=2)
-            if not isinstance(rows, list):
-                doc.add_paragraph(to_plain_text(rows))
-                return
-            column_order: list[str] = []
-            for row in rows:
-                if isinstance(row, dict):
-                    for key in row:
-                        if key not in column_order:
-                            column_order.append(key)
-            if not column_order:
-                for entry in rows:
-                    doc.add_paragraph(to_plain_text(entry))
-                return
-            table = doc.add_table(rows=1, cols=len(column_order))
-            hdr_cells = table.rows[0].cells
-            for idx, key in enumerate(column_order):
-                hdr_cells[idx].text = friendly_label(key)
-            for row in rows:
-                table_row = table.add_row().cells
-                for idx, key in enumerate(column_order):
-                    value = ""
-                    if isinstance(row, dict):
-                        raw_value = row.get(key, "")
-                        if isinstance(raw_value, (dict, list)):
-                            value = json.dumps(raw_value, ensure_ascii=False)
-                        else:
-                            value = to_plain_text(raw_value)
-                    else:
-                        value = to_plain_text(row)
-                    table_row[idx].text = value
+            if isinstance(value, list):
+                return "\n".join(filter(None, (plain(item) for item in value)))
+            cleaned = str(value).replace('\r\n', '\n')
+            cleaned = re.sub(r'<br\s*/?>', '\n', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r'</p\s*>', '\n', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r'<[^>]+>', '', cleaned)
+            cleaned = cleaned.replace('&nbsp;', ' ')
+            lines = [line.rstrip() for line in cleaned.split('\n')]
+            return '\n'.join(line for line in lines if line).strip()
 
         def render_pdf_preview(pdf_path: str, display_name: str) -> tuple[list[str], int]:
             previews: list[str] = []
@@ -2143,7 +2101,7 @@ def download_fds_submission(submission_id: str):
                 for page_index in range(max_pages):
                     page = pdf_doc.load_page(page_index)
                     pix = page.get_pixmap(matrix=zoom_matrix)
-                    safe_name = os.path.splitext(display_name or f"attachment_{page_index + 1}")[0]
+                    safe_name = re.sub(r'[^A-Za-z0-9_.-]', '_', display_name or f"attachment_{page_index + 1}")
                     preview_path = os.path.join(
                         temp_dir, f"{safe_name}_page{page_index + 1}.png"
                     )
@@ -2156,140 +2114,306 @@ def download_fds_submission(submission_id: str):
                 )
             return previews, total_pages
 
-        def add_attachment_section(title: str, urls: list[str]) -> None:
-            add_heading(title, level=2)
-            if not urls:
-                doc.add_paragraph("No files uploaded.")
-                return
+        image_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
+
+        attachments_render: dict[str, list] = {}
+        for section, urls in attachments_export.items():
+            rendered_items: list = []
             for url in urls:
                 absolute_path, relative_url = _resolve_static_file(url)
                 display_name = os.path.basename(relative_url or url)
-                paragraph = doc.add_paragraph(display_name or url)
                 if absolute_path and os.path.isfile(absolute_path):
                     ext = os.path.splitext(absolute_path)[1].lower()
-                    if ext in {'.png', '.jpg', '.jpeg', '.webp', '.gif'}:
+                    if ext in image_extensions:
                         try:
-                            doc.add_picture(absolute_path, width=Inches(5.5))
+                            rendered_items.append(InlineImage(doc, absolute_path, width=Inches(5.5)))
                         except Exception as exc:
                             current_app.logger.warning(
                                 "Unable to embed image %s: %s", absolute_path, exc, exc_info=True
                             )
-                            paragraph.add_run(" (unable to embed image)")
+                            rendered_items.append(url)
+                        rendered_items.append(url)
                     elif ext == '.pdf':
                         previews, total_pages = render_pdf_preview(absolute_path, display_name or 'attachment')
-                        if previews:
-                            for preview_path in previews:
-                                try:
-                                    doc.add_picture(preview_path, width=Inches(5.5))
-                                except Exception as exc:
-                                    current_app.logger.warning(
-                                        "Unable to embed PDF preview %s: %s", preview_path, exc, exc_info=True
-                                    )
-                            if total_pages and len(previews) < total_pages:
-                                doc.add_paragraph(
-                                    "(Additional pages not shown. See stored file for full content.)"
+                        for preview_path in previews:
+                            try:
+                                rendered_items.append(InlineImage(doc, preview_path, width=Inches(5.5)))
+                            except Exception as exc:
+                                current_app.logger.warning(
+                                    "Unable to embed PDF preview %s: %s", preview_path, exc, exc_info=True
                                 )
-                        else:
-                            paragraph.add_run(" - PDF preview unavailable; file stored at ")
-                            doc.add_paragraph(url)
+                        if total_pages and len(previews) < total_pages:
+                            rendered_items.append(
+                                f"(Additional pages not shown for {display_name}; see stored PDF.)"
+                            )
+                        rendered_items.append(url)
                     else:
-                        paragraph.add_run(" - file stored at ")
-                        doc.add_paragraph(url)
+                        rendered_items.append(url)
                 else:
-                    paragraph.add_run(" (file missing)")
-
-        doc.add_heading(
-            hydrated_submission.get("DOCUMENT_TITLE") or report.document_title or "FDS Draft",
-            level=1,
-        )
-        doc.add_paragraph(f"Generated on {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
-
-        header_pairs = [
-            ("Project Reference", hydrated_submission.get("PROJECT_REFERENCE") or report.project_reference or ""),
-            ("Document Reference", hydrated_submission.get("DOCUMENT_REFERENCE") or report.document_reference or ""),
-            ("Client Name", hydrated_submission.get("PREPARED_FOR") or report.client_name or ""),
-            ("Revision", hydrated_submission.get("REVISION") or report.revision or ""),
-            ("Prepared By", hydrated_submission.get("PREPARED_BY_NAME") or report.prepared_by or ""),
-            ("Prepared By Email", hydrated_submission.get("PREPARED_BY_EMAIL") or report.user_email or ""),
-            ("Prepared By Date", hydrated_submission.get("PREPARED_BY_DATE") or ""),
-            ("Reviewer 1", hydrated_submission.get("REVIEWER1_NAME") or ""),
-            ("Reviewer 2", hydrated_submission.get("REVIEWER2_NAME") or ""),
-            ("Client Approval", hydrated_submission.get("CLIENT_APPROVAL_NAME") or ""),
-            ("Saved By", report.user_email or ""),
-            ("Last Updated", report.updated_at.strftime('%Y-%m-%d %H:%M') if report.updated_at else ""),
-        ]
-        add_key_value_table("Document Header", header_pairs)
+                    rendered_items.append(f"{url} (file missing)")
+            attachments_render[section] = rendered_items
 
         approvals = stored_payload.get("document_approvals") or []
-        if approvals:
-            add_heading("Approval Routing", level=2)
-            approval_keys = []
-            for approval in approvals:
-                for key in approval:
-                    if key not in approval_keys:
-                        approval_keys.append(key)
-            table = doc.add_table(rows=1, cols=len(approval_keys))
-            for idx, key in enumerate(approval_keys):
-                table.rows[0].cells[idx].text = friendly_label(key)
-            for approval in approvals:
-                row = table.add_row().cells
-                for idx, key in enumerate(approval_keys):
-                    value = approval.get(key, "")
-                    row[idx].text = to_plain_text(value)
 
-        text_sections = [
-            ("System Overview", hydrated_submission.get("SYSTEM_OVERVIEW") or context_block.get("SYSTEM_OVERVIEW")),
-            ("Purpose", hydrated_submission.get("SYSTEM_PURPOSE") or context_block.get("SYSTEM_PURPOSE")),
-            ("Scope Of Work", hydrated_submission.get("SCOPE_OF_WORK") or context_block.get("SCOPE_OF_WORK")),
-            ("Functional Requirements", hydrated_submission.get("FUNCTIONAL_REQUIREMENTS") or context_block.get("FUNCTIONAL_REQUIREMENTS")),
-            ("Process Description", hydrated_submission.get("PROCESS_DESCRIPTION") or context_block.get("PROCESS_DESCRIPTION")),
-            ("Control Philosophy", hydrated_submission.get("CONTROL_PHILOSOPHY") or context_block.get("CONTROL_PHILOSOPHY")),
-            ("Confidentiality Notice", hydrated_submission.get("CONFIDENTIALITY_NOTICE") or context_block.get("CONFIDENTIALITY_NOTICE")),
-        ]
-        for title, value in text_sections:
-            add_text_block(title, value)
+        def _approval(index: int) -> dict:
+            if len(approvals) > index and isinstance(approvals[index], dict):
+                return approvals[index]
+            return {}
 
-        attachment_labels = {
-            "system_architecture": "System Architecture Attachments",
-            "appendix1": "Appendix - 1 (Wiring Diagram)",
-            "appendix2": "Appendix - 2 (RAMS)",
-            "appendix3": "Appendix - 3 (SAT)",
-            "appendix4": "Appendix - 4 (Job Completion Reference)",
-            "appendix5": "Appendix - 5 (Equipment Data Sheet)",
+        prepared = _approval(0)
+        reviewer1 = _approval(1)
+        reviewer2 = _approval(2)
+        client = _approval(3)
+
+        document_header = stored_payload.get("document_header") or {}
+
+        document_title = plain(coalesce(
+            hydrated_submission.get("DOCUMENT_TITLE"),
+            document_header.get("document_title"),
+            report.document_title,
+        ))
+        project_reference = plain(coalesce(
+            hydrated_submission.get("PROJECT_REFERENCE"),
+            document_header.get("project_reference"),
+            report.project_reference,
+        ))
+        document_reference_value = plain(coalesce(
+            hydrated_submission.get("DOCUMENT_REFERENCE"),
+            document_header.get("document_reference"),
+        ))
+        document_date = plain(coalesce(
+            hydrated_submission.get("DATE"),
+            document_header.get("date"),
+            context_block.get("DATE"),
+        ))
+        client_name = plain(coalesce(
+            hydrated_submission.get("PREPARED_FOR"),
+            document_header.get("prepared_for"),
+            report.client_name,
+        ))
+        revision = plain(coalesce(
+            hydrated_submission.get("REVISION"),
+            document_header.get("revision"),
+            report.revision,
+        ))
+        prepared_by_name = plain(coalesce(
+            hydrated_submission.get("PREPARED_BY_NAME"),
+            context_block.get("PREPARED_BY_NAME"),
+            prepared.get("name"),
+            report.prepared_by,
+        ))
+        prepared_by_role = plain(coalesce(
+            hydrated_submission.get("PREPARED_BY_ROLE"),
+            context_block.get("PREPARED_BY_ROLE"),
+            prepared.get("role"),
+        ))
+        prepared_by_email = plain(coalesce(
+            hydrated_submission.get("PREPARED_BY_EMAIL"),
+            context_block.get("PREPARED_BY_EMAIL"),
+            prepared.get("email"),
+            report.user_email,
+        ))
+        prepared_by_date = plain(coalesce(
+            hydrated_submission.get("PREPARED_BY_DATE"),
+            context_block.get("PREPARED_BY_DATE"),
+            prepared.get("date"),
+        ))
+        reviewer1_name = plain(coalesce(
+            hydrated_submission.get("REVIEWER1_NAME"),
+            context_block.get("REVIEWER1_NAME"),
+            reviewer1.get("name"),
+        ))
+        reviewer1_role = plain(coalesce(
+            hydrated_submission.get("REVIEWER1_ROLE"),
+            context_block.get("REVIEWER1_ROLE"),
+            reviewer1.get("role"),
+        ))
+        reviewer1_email = plain(coalesce(
+            hydrated_submission.get("REVIEWER1_EMAIL"),
+            context_block.get("REVIEWER1_EMAIL"),
+            reviewer1.get("email"),
+        ))
+        reviewer1_date = plain(coalesce(
+            hydrated_submission.get("REVIEWER1_DATE"),
+            context_block.get("REVIEWER1_DATE"),
+            reviewer1.get("date"),
+        ))
+        reviewer2_name = plain(coalesce(
+            hydrated_submission.get("REVIEWER2_NAME"),
+            context_block.get("REVIEWER2_NAME"),
+            reviewer2.get("name"),
+        ))
+        reviewer2_role = plain(coalesce(
+            hydrated_submission.get("REVIEWER2_ROLE"),
+            context_block.get("REVIEWER2_ROLE"),
+            reviewer2.get("role"),
+        ))
+        reviewer2_email = plain(coalesce(
+            hydrated_submission.get("REVIEWER2_EMAIL"),
+            context_block.get("REVIEWER2_EMAIL"),
+            reviewer2.get("email"),
+        ))
+        reviewer2_date = plain(coalesce(
+            hydrated_submission.get("REVIEWER2_DATE"),
+            context_block.get("REVIEWER2_DATE"),
+            reviewer2.get("date"),
+        ))
+        client_approval_name = plain(coalesce(
+            hydrated_submission.get("CLIENT_APPROVAL_NAME"),
+            context_block.get("CLIENT_APPROVAL_NAME"),
+            client.get("name"),
+        ))
+        client_approval_date = plain(coalesce(
+            hydrated_submission.get("CLIENT_APPROVAL_DATE"),
+            context_block.get("CLIENT_APPROVAL_DATE"),
+            client.get("date"),
+        ))
+        client_approval_email = plain(coalesce(
+            hydrated_submission.get("CLIENT_APPROVAL_EMAIL"),
+            context_block.get("CLIENT_APPROVAL_EMAIL"),
+            client.get("email"),
+        ))
+        client_approval_role = plain(coalesce(
+            context_block.get("CLIENT_APPROVAL_ROLE"),
+            client.get("role"),
+        ))
+
+        confidentiality_notice = plain(coalesce(
+            hydrated_submission.get("CONFIDENTIALITY_NOTICE"),
+            context_block.get("CONFIDENTIALITY_NOTICE"),
+        )) or "This document contains confidential and proprietary information of Cully. Unauthorized distribution or reproduction is strictly prohibited."
+
+        system_overview = plain(coalesce(
+            hydrated_submission.get("SYSTEM_OVERVIEW"),
+            context_block.get("SYSTEM_OVERVIEW"),
+        ))
+        system_purpose = plain(coalesce(
+            hydrated_submission.get("SYSTEM_PURPOSE"),
+            context_block.get("SYSTEM_PURPOSE"),
+        ))
+        scope_of_work = plain(coalesce(
+            hydrated_submission.get("SCOPE_OF_WORK"),
+            context_block.get("SCOPE_OF_WORK"),
+        ))
+        functional_requirements = plain(coalesce(
+            hydrated_submission.get("FUNCTIONAL_REQUIREMENTS"),
+            context_block.get("FUNCTIONAL_REQUIREMENTS"),
+        ))
+        process_description = plain(coalesce(
+            hydrated_submission.get("PROCESS_DESCRIPTION"),
+            context_block.get("PROCESS_DESCRIPTION"),
+        ))
+        control_philosophy = plain(coalesce(
+            hydrated_submission.get("CONTROL_PHILOSOPHY"),
+            context_block.get("CONTROL_PHILOSOPHY"),
+        ))
+
+        version_history = coalesce_list(
+            stored_payload.get("document_versions"),
+            hydrated_submission.get("VERSION_HISTORY"),
+            context_block.get("VERSION_HISTORY"),
+        )
+        equipment_list = coalesce_list(
+            hydrated_submission.get("EQUIPMENT_LIST"),
+            context_block.get("EQUIPMENT_LIST"),
+        )
+        communication_protocols = coalesce_list(
+            hydrated_submission.get("COMMUNICATION_PROTOCOLS"),
+            context_block.get("COMMUNICATION_PROTOCOLS"),
+        )
+        detailed_io_list = coalesce_list(
+            hydrated_submission.get("DETAILED_IO_LIST"),
+            context_block.get("DETAILED_IO_LIST"),
+        )
+        digital_signals = coalesce_list(
+            hydrated_submission.get("DIGITAL_SIGNALS"),
+            context_block.get("DIGITAL_SIGNALS"),
+        )
+        digital_output_signals = coalesce_list(
+            hydrated_submission.get("DIGITAL_OUTPUT_SIGNALS"),
+            context_block.get("DIGITAL_OUTPUT_SIGNALS"),
+        )
+        analogue_input_signals = coalesce_list(
+            hydrated_submission.get("ANALOGUE_INPUT_SIGNALS"),
+            context_block.get("ANALOGUE_INPUT_SIGNALS"),
+        )
+        analogue_output_signals = coalesce_list(
+            hydrated_submission.get("ANALOGUE_OUTPUT_SIGNALS"),
+            context_block.get("ANALOGUE_OUTPUT_SIGNALS"),
+        )
+        modbus_digital_signals = coalesce_list(
+            hydrated_submission.get("MODBUS_DIGITAL_SIGNALS"),
+            context_block.get("MODBUS_DIGITAL_SIGNALS"),
+        )
+        modbus_analogue_signals = coalesce_list(
+            hydrated_submission.get("MODBUS_ANALOGUE_SIGNALS"),
+            context_block.get("MODBUS_ANALOGUE_SIGNALS"),
+        )
+        modbus_digital_registers = coalesce_list(
+            hydrated_submission.get("MODBUS_DIGITAL_REGISTERS"),
+            context_block.get("MODBUS_DIGITAL_REGISTERS"),
+        )
+        modbus_analog_registers = coalesce_list(
+            hydrated_submission.get("MODBUS_ANALOG_REGISTERS"),
+            context_block.get("MODBUS_ANALOG_REGISTERS"),
+        )
+
+        system_architecture_layout_json = json.dumps(architecture_layout, indent=2) if architecture_layout else ""
+
+        doc_context = {
+            "document_title": document_title or "Functional Design Specification",
+            "project_reference": project_reference,
+            "document_reference": document_reference_value,
+            "date": document_date,
+            "client_name": client_name,
+            "revision": revision or "R0",
+            "prepared_by_name": prepared_by_name,
+            "prepared_by_role": prepared_by_role,
+            "prepared_by_email": prepared_by_email,
+            "prepared_by_date": prepared_by_date,
+            "reviewer1_name": reviewer1_name,
+            "reviewer1_role": reviewer1_role,
+            "reviewer1_email": reviewer1_email,
+            "reviewer1_date": reviewer1_date,
+            "reviewer2_name": reviewer2_name,
+            "reviewer2_role": reviewer2_role,
+            "reviewer2_email": reviewer2_email,
+            "reviewer2_date": reviewer2_date,
+            "client_approval_name": client_approval_name,
+            "client_approval_role": client_approval_role,
+            "client_approval_email": client_approval_email,
+            "client_approval_date": client_approval_date,
+            "saved_by": plain(report.user_email or ""),
+            "last_updated": report.updated_at.strftime('%Y-%m-%d %H:%M') if report.updated_at else "",
+            "confidentiality_notice": confidentiality_notice,
+            "system_overview": system_overview,
+            "system_purpose": system_purpose,
+            "scope_of_work": scope_of_work,
+            "functional_requirements": functional_requirements,
+            "process_description": process_description,
+            "control_philosophy": control_philosophy,
+            "version_history": version_history,
+            "equipment_list": equipment_list,
+            "communication_protocols": communication_protocols,
+            "detailed_io_list": detailed_io_list,
+            "digital_signals": digital_signals,
+            "digital_output_signals": digital_output_signals,
+            "analogue_input_signals": analogue_input_signals,
+            "analogue_output_signals": analogue_output_signals,
+            "modbus_digital_signals": modbus_digital_signals,
+            "modbus_analogue_signals": modbus_analogue_signals,
+            "modbus_digital_registers": modbus_digital_registers,
+            "modbus_analog_registers": modbus_analog_registers,
+            "system_architecture_layout": system_architecture_layout_json,
+            "attachments": attachments_render,
+            "attachments_urls": attachments_export,
         }
 
-
-        skip_list_keys = {
-            "SYSTEM_ARCHITECTURE_FILES",
-            "APPENDIX1_FILES",
-            "APPENDIX2_FILES",
-            "APPENDIX3_FILES",
-            "APPENDIX4_FILES",
-            "APPENDIX5_FILES",
-        }
-
-        for key, value in context_block.items():
-            if key in skip_list_keys:
-                continue
-            if isinstance(value, list):
-                add_table_section(friendly_label(key), value)
-
-        for section, files in attachments_export.items():
-            add_attachment_section(attachment_labels.get(section, friendly_label(section)), files)
-
-        if architecture_layout:
-            add_heading("System Architecture Layout (JSON Snapshot)", level=2)
-            layout_text = json.dumps(architecture_layout, indent=2)
-            for line in layout_text.splitlines():
-                if code_style:
-                    paragraph = doc.add_paragraph(style=code_style)
-                    paragraph.add_run(line)
-                else:
-                    doc.add_paragraph(line)
+        doc.render(doc_context)
 
         timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-        project_ref = hydrated_submission.get("PROJECT_REFERENCE") or report.project_reference or submission_id[:8]
-        safe_proj_ref = "".join(c if c.isalnum() or c in ['_', '-'] else "_" for c in project_ref)
+        project_ref_for_filename = project_reference or report.project_reference or submission_id[:8]
+        safe_proj_ref = "".join(c if c.isalnum() or c in ['_', '-'] else '_' for c in project_ref_for_filename)
         base_name = f"FDS_{safe_proj_ref}_{timestamp}"
         docx_path = os.path.join(temp_dir, f"{base_name}.docx")
         doc.save(docx_path)
@@ -2333,7 +2457,6 @@ def download_fds_submission(submission_id: str):
     finally:
         if temp_dir and os.path.isdir(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
-
 
 @reports_bp.route('/submit-site-survey', methods=['POST'])
 @login_required
@@ -2441,6 +2564,8 @@ def submit_site_survey():
 
         flash(error_message, 'error')
         return redirect(url_for('reports.new_site_survey'))
+
+
 
 
 
