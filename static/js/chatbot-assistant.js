@@ -19,6 +19,25 @@
     const hintsContainer = root.querySelector('[data-assistant-hints]');
     const defaultHintsMarkup = hintsContainer ? hintsContainer.innerHTML : '';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    const satForm = document.getElementById('satForm');
+    const rawTableConfig = Array.isArray(window.SAT_TABLE_CONFIG) ? window.SAT_TABLE_CONFIG : [];
+    const tableSectionMap = rawTableConfig.reduce((acc, section) => {
+        if (!section || !section.ui_section || !section.tbody_id || !section.template_id) {
+            return acc;
+        }
+        const fieldMap = {};
+        (section.fields || []).forEach((field) => {
+            if (field && field.ui && field.form) {
+                fieldMap[field.ui] = field.form;
+            }
+        });
+        acc[section.ui_section] = {
+            bodyId: section.tbody_id,
+            templateId: section.template_id,
+            fieldMap
+        };
+        return acc;
+    }, {});
 
     const FIELD_LABELS = {
         DOCUMENT_TITLE: 'document title',
@@ -39,6 +58,17 @@
         reset: root.dataset.assistantReset,
         upload: root.dataset.assistantUpload,
         document: root.dataset.assistantDocument
+    };
+    const FIELD_INPUT_TARGETS = {
+        DOCUMENT_TITLE: { selector: '#document_title' },
+        CLIENT_NAME: { selector: '#client_name' },
+        PROJECT_REFERENCE: { selector: '#project_reference' },
+        DOCUMENT_REFERENCE: { selector: '#document_reference' },
+        REVISION: { selector: '#revision' },
+        PURPOSE: { selector: '#purpose', editorSelector: '#purpose-editor' },
+        SCOPE: { selector: '#scope', editorSelector: '#scope-editor' },
+        PREPARED_BY: { selector: '#prepared_by' },
+        USER_EMAIL: { selector: '#user_email' }
     };
 
     let conversationBootstrapped = false;
@@ -215,6 +245,106 @@
         appendMessage('bot', sections.join('\n\n'));
     }
 
+    function applyFormUpdates(payload) {
+        if (!satForm || !payload) {
+            return;
+        }
+        if (payload.field_updates && typeof payload.field_updates === 'object') {
+            Object.entries(payload.field_updates).forEach(([field, value]) => {
+                applyFieldValue(field, value);
+            });
+        }
+        if (payload.table_updates && typeof payload.table_updates === 'object') {
+            Object.entries(payload.table_updates).forEach(([section, rows]) => {
+                applyTableRows(section, rows);
+            });
+        }
+    }
+
+    function applyFieldValue(field, value) {
+        const target = FIELD_INPUT_TARGETS[field];
+        if (!target) {
+            return;
+        }
+        const inputEl = target.selector ? document.querySelector(target.selector) : null;
+        if (inputEl) {
+            setInputValue(inputEl, value);
+        }
+        if (target.editorSelector) {
+            const editor = document.querySelector(target.editorSelector);
+            if (editor) {
+                const html = escapeHtml(String(value ?? '')).replace(/\n/g, '<br>');
+                editor.innerHTML = html;
+            }
+        }
+    }
+
+    function setInputValue(element, value) {
+        const nextValue = value == null ? '' : String(value);
+        if ('value' in element) {
+            if (element.value !== nextValue) {
+                element.value = nextValue;
+                element.dispatchEvent(new Event('input', { bubbles: true }));
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        } else if (element.textContent !== nextValue) {
+            element.textContent = nextValue;
+        }
+    }
+
+    function applyTableRows(section, rows) {
+        if (!Array.isArray(rows) || !rows.length) {
+            const meta = tableSectionMap[section];
+            if (!meta) {
+                return;
+            }
+            const body = document.getElementById(meta.bodyId);
+            if (!body) {
+                return;
+            }
+            Array.from(body.querySelectorAll('tr[data-autofill-row=\"true\"]')).forEach((row) => row.remove());
+            return;
+        }
+        const meta = tableSectionMap[section];
+        if (!meta) {
+            return;
+        }
+        const body = document.getElementById(meta.bodyId);
+        const template = document.getElementById(meta.templateId);
+        if (!body || !template) {
+            return;
+        }
+        Array.from(body.querySelectorAll('tr[data-autofill-row=\"true\"]')).forEach((row) => row.remove());
+
+        rows.forEach((rowData) => {
+            if (!rowData || typeof rowData !== 'object') {
+                return;
+            }
+            const fragment = template.content.cloneNode(true);
+            const tr = fragment.querySelector('tr');
+            if (!tr) {
+                return;
+            }
+            tr.dataset.autofillRow = 'true';
+            body.appendChild(fragment);
+            Object.entries(meta.fieldMap).forEach(([uiKey, formName]) => {
+                if (!(uiKey in rowData)) {
+                    return;
+                }
+                const inputEl = tr.querySelector(`[name=\"${formName}\"]`);
+                if (inputEl) {
+                    setInputValue(inputEl, rowData[uiKey]);
+                }
+            });
+        });
+    }
+
+    function escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = value;
+        return div.innerHTML;
+    }
+
     function extractAgentSuggestions(payload) {
         const suggestions = [];
         if (payload) {
@@ -380,6 +510,7 @@
         renderAgentInsights(payload);
         updateDynamicHints(extractAgentSuggestions(payload));
         updateStatus(payload);
+        applyFormUpdates(payload);
     }
 
     function updateStatus(payload) {

@@ -4879,6 +4879,9 @@
 
   </script>
 
+    <script>
+        window.SAT_TABLE_CONFIG = {{ (sat_table_config or []) | tojson }};
+    </script>
     {% include 'partials/chatbot_widget.html' %}
     <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
 </body>

@@ -23,7 +23,7 @@ from utils import (
     handle_image_removals,
     convert_to_pdf,
 )
-from services.sat_tables import migrate_context_tables
+from services.sat_tables import migrate_context_tables, TABLE_CONFIG
 from services.fds_generator import generate_fds_from_sat
 from services.equipment_assets import (
     build_architecture_payload,
@@ -736,7 +736,8 @@ def new_sat_full():
                              unread_count=unread_count,
                              is_new_report=True,
                              edit_mode=False,
-                             prefill_source=prefill_source)
+                             prefill_source=prefill_source,
+                             sat_table_config=TABLE_CONFIG)
     except Exception as e:
         current_app.logger.error(f"Error rendering SAT form: {e}", exc_info=True)
         submission_data = _build_empty_sat_submission()
@@ -749,7 +750,8 @@ def new_sat_full():
                              unread_count=0,
                              is_new_report=True,
                              edit_mode=False,
-                             prefill_source=None)
+                             prefill_source=None,
+                             sat_table_config=TABLE_CONFIG)
 
 
 @reports_bp.route('/sat/wizard')
@@ -811,7 +813,8 @@ def sat_wizard():
                              unread_count=unread_count,
                              user_role=current_user.role if hasattr(current_user, 'role') else 'user',
                              edit_mode=True,
-                             is_new_report=False)
+                             is_new_report=False,
+                             sat_table_config=TABLE_CONFIG)
                              
     except Exception as e:
         current_app.logger.error(f"Error in sat_wizard: {e}", exc_info=True)

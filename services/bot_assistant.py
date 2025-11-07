@@ -25,6 +25,7 @@ except ImportError:  # pragma: no cover - optional dependency
 
 from models import Report, SATReport
 from services.ai_assistant import analyze_user_intent
+from services.form_autofill import analyze_sat_upload, AutoFillResult
 
 
 _ALIAS_SANITIZE = re.compile(r'[^a-z0-9]+')
@@ -83,6 +84,8 @@ NEGATIVE_INTENT_PREFIXES = (
 )
 NEGATIVE_INTENT_COMMANDS = {'cancel', 'stop', 'exit', 'quit', 'no'}
 
+IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tif', '.tiff'}
+DOCUMENT_EXTENSIONS = {'.txt', '.md', '.docx', '.pdf'}
 
 
 def _normalize_alias(value: str) -> str:
@@ -278,6 +281,7 @@ class BotConversationState:
         self.answers: Dict[str, str] = {}
         self.extracted: Dict[str, str] = {}
         self.ingested_files: Dict[str, Dict[str, Any]] = {}
+        self.tables: Dict[str, List[Dict[str, Any]]] = {}
 
     @classmethod
     def load(cls) -> "BotConversationState":
@@ -289,6 +293,7 @@ class BotConversationState:
         state.answers = raw.get("answers", {})
         state.extracted = raw.get("extracted", {})
         state.ingested_files = raw.get("ingested_files", {})
+        state.tables = raw.get("tables", {})
         return state
 
     def save(self) -> None:
@@ -297,6 +302,7 @@ class BotConversationState:
             "answers": self.answers,
             "extracted": self.extracted,
             "ingested_files": self.ingested_files,
+            "tables": self.tables,
         }
 
     def reset(self) -> None:
@@ -305,6 +311,7 @@ class BotConversationState:
         self.answers = {}
         self.extracted = {}
         self.ingested_files = {}
+        self.tables = {}
 
     def sync_to_next_question(self) -> None:
         """Advance pointer to the next unanswered field."""
@@ -447,14 +454,83 @@ def process_user_message(message: str, mode: str = "default") -> Dict[str, Any]:
     return payload
 
 
+def _apply_autofill_updates(state: BotConversationState, autofill_result: Optional[AutoFillResult]):
+    """Apply auto-fill results to the current state."""
+    applied_fields: Dict[str, str] = {}
+    applied_tables: Dict[str, List[Dict[str, str]]] = {}
+    validation_warnings: List[str] = []
+
+    if not autofill_result:
+        return applied_fields, applied_tables, validation_warnings
+
+    for field_name, raw_value in autofill_result.field_updates.items():
+        if field_name not in FIELD_DEFINITIONS:
+            continue
+        ok, normalized, error = _apply_validation(field_name, raw_value)
+        if not ok:
+            if error:
+                validation_warnings.append(f"{_field_label(field_name)} skipped - {error}")
+            continue
+        if _has_value(normalized):
+            state.extracted[field_name] = normalized
+            applied_fields[field_name] = normalized
+
+    for section, rows in autofill_result.table_updates.items():
+        normalised_rows = _normalise_table_rows(rows)
+        if not normalised_rows:
+            continue
+        state.tables[section] = normalised_rows
+        applied_tables[section] = normalised_rows
+
+    return applied_fields, applied_tables, validation_warnings
+
+
+def _normalise_table_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """Ensure table rows are serialisable and non-empty."""
+    normalised: List[Dict[str, str]] = []
+    for row in rows or []:
+        cleaned = {key: _coerce_to_string(value) for key, value in (row or {}).items()}
+        if any(_has_value(value) for value in cleaned.values()):
+            normalised.append(cleaned)
+    return normalised
+
+
+def _merge_autofill_feedback(
+    response: Dict[str, Any],
+    applied_fields: Dict[str, str],
+    applied_tables: Dict[str, List[Dict[str, str]]],
+    autofill_result: Optional[AutoFillResult],
+    validation_warnings: List[str],
+) -> None:
+    """Attach auto-fill metadata to the response payload."""
+    if applied_fields:
+        response.setdefault("field_updates", {}).update(applied_fields)
+    if applied_tables:
+        response.setdefault("table_updates", {}).update(applied_tables)
+
+    messages = response.setdefault("messages", [])
+    if autofill_result and autofill_result.messages:
+        messages.extend(autofill_result.messages)
+
+    warnings: List[str] = []
+    if validation_warnings:
+        warnings.extend(validation_warnings)
+    if autofill_result and autofill_result.warnings:
+        warnings.extend(autofill_result.warnings)
+    if warnings:
+        response.setdefault("warnings", []).extend(warnings)
+
+
 def ingest_upload(file_storage) -> Dict[str, Any]:
     """Route uploaded assets to the right processor."""
     filename = (file_storage.filename or '').lower()
     extension = os.path.splitext(filename)[1]
     if extension in ('.xlsx', '.xls', '.xlsm'):
         return ingest_excel(file_storage)
-    if extension == '.csv':
+    if extension in ('.csv', '.tsv'):
         return ingest_csv(file_storage)
+    if extension in DOCUMENT_EXTENSIONS:
+        return ingest_document(file_storage)
     if extension in IMAGE_EXTENSIONS:
         return ingest_image(file_storage)
     return _ingest_unknown_file(file_storage)
@@ -483,6 +559,9 @@ def ingest_csv(file_storage) -> Dict[str, Any]:
     if extracted:
         state.extracted.update(extracted)
 
+    autofill_result = analyze_sat_upload(file_storage)
+    applied_fields, applied_tables, validation_warnings = _apply_autofill_updates(state, autofill_result)
+
     message = (
         f"Processed {len(extracted)} fields from {file_storage.filename}."
         if extracted
@@ -498,6 +577,7 @@ def ingest_csv(file_storage) -> Dict[str, Any]:
         "completed": payload["completed"],
         "pending_fields": payload.get("pending_fields", []),
     }
+    response.setdefault("messages", []).append(message)
 
     if not payload["completed"]:
         response.update({
@@ -507,9 +587,42 @@ def ingest_csv(file_storage) -> Dict[str, Any]:
         if "help_text" in payload:
             response["help_text"] = payload["help_text"]
 
+    warning_bucket: List[str] = []
     if warnings:
-        response["warnings"] = warnings
+        warning_bucket.extend(warnings)
+    _merge_autofill_feedback(response, applied_fields, applied_tables, autofill_result, validation_warnings)
+    if warning_bucket:
+        response.setdefault("warnings", []).extend(warning_bucket)
 
+    return response
+
+
+def ingest_document(file_storage) -> Dict[str, Any]:
+    state = BotConversationState.load()
+    autofill_result = analyze_sat_upload(file_storage)
+    applied_fields, applied_tables, validation_warnings = _apply_autofill_updates(state, autofill_result)
+
+    base_message = f"Analysed {file_storage.filename or 'the uploaded document'} for contextual fields."
+    payload = _build_question_payload(state)
+    state.save()
+
+    response: Dict[str, Any] = {
+        "message": base_message,
+        "collected": payload.get("collected", _merge_results(state)),
+        "completed": payload["completed"],
+        "pending_fields": payload.get("pending_fields", []),
+    }
+    response.setdefault("messages", []).append(base_message)
+
+    if not payload["completed"]:
+        response.update({
+            "field": payload["field"],
+            "question": payload["question"],
+        })
+        if "help_text" in payload:
+            response["help_text"] = payload["help_text"]
+
+    _merge_autofill_feedback(response, applied_fields, applied_tables, autofill_result, validation_warnings)
     return response
 
 
@@ -674,6 +787,9 @@ def ingest_excel(file_storage) -> Dict[str, Any]:
     if extracted:
         state.extracted.update(extracted)
 
+    autofill_result = analyze_sat_upload(file_storage)
+    applied_fields, applied_tables, validation_warnings = _apply_autofill_updates(state, autofill_result)
+
     message = (
         f"Processed {len(extracted)} fields from {file_storage.filename}."
         if extracted
@@ -689,6 +805,7 @@ def ingest_excel(file_storage) -> Dict[str, Any]:
         "completed": payload["completed"],
         "pending_fields": payload.get("pending_fields", []),
     }
+    response.setdefault("messages", []).append(message)
 
     if not payload["completed"]:
         response.update({
@@ -698,8 +815,14 @@ def ingest_excel(file_storage) -> Dict[str, Any]:
         if "help_text" in payload:
             response["help_text"] = payload["help_text"]
 
+    warning_bucket: List[str] = []
     if warnings:
-        response["warnings"] = warnings
+        warning_bucket.extend(warnings)
+
+    _merge_autofill_feedback(response, applied_fields, applied_tables, autofill_result, validation_warnings)
+
+    if warning_bucket:
+        response.setdefault("warnings", []).extend(warning_bucket)
 
     return response
 

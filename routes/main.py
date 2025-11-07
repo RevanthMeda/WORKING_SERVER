@@ -140,7 +140,8 @@ def sat_form():
     return render_template(
         'SAT.html',
         submission_data=submission_data,
-        user_role=current_user.role if hasattr(current_user, 'role') else 'user'
+        user_role=current_user.role if hasattr(current_user, 'role') else 'user',
+        sat_table_config=TABLE_CONFIG,
     )
 
 

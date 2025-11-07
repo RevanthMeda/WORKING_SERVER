@@ -15,6 +15,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "RELATED_DOCUMENTS",
         "doc_section": "RELATED_DOCUMENTS",
+        "tbody_id": "related-documents-body",
+        "template_id": "tmpl-related-doc",
         "fields": [
             {"form": "doc_ref[]", "ui": "Document_Reference", "doc": "Document_Reference"},
             {"form": "doc_title[]", "ui": "Document_Title", "doc": "Document_Title"},
@@ -23,6 +25,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "PRE_EXECUTION_APPROVAL",
         "doc_section": "PRE_APPROVALS",
+        "tbody_id": "pre-approvals-body",
+        "template_id": "tmpl-pre-approval",
         "fields": [
             {"form": "pre_approval_print_name[]", "ui": "Print_Name", "doc": "Print_Name"},
             {"form": "pre_approval_signature[]", "ui": "Signature", "doc": "Signature"},
@@ -34,6 +38,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "POST_EXECUTION_APPROVAL",
         "doc_section": "POST_APPROVALS",
+        "tbody_id": "post-approvals-body",
+        "template_id": "tmpl-post-approval",
         "fields": [
             {"form": "post_approval_print_name[]", "ui": "Print_Name", "doc": "Print_Name"},
             {"form": "post_approval_signature[]", "ui": "Signature", "doc": "Signature"},
@@ -45,6 +51,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "PRE_TEST_REQUIREMENTS",
         "doc_section": "PRE_TEST_REQUIREMENTS",
+        "tbody_id": "pretest-body",
+        "template_id": "tmpl-pretest",
         "fields": [
             {"form": "pretest_item[]", "ui": "Item", "doc": "Item"},
             {"form": "pretest_test[]", "ui": "Test", "doc": "Test"},
@@ -59,6 +67,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "KEY_COMPONENTS",
         "doc_section": "KEY_COMPONENTS",
+        "tbody_id": "key-components-body",
+        "template_id": "tmpl-keycomp",
         "fields": [
             {"form": "component_sno[]", "ui": "S_No", "doc": "S_no", "aliases": ["S.no", "S. no", "S. No.", "S_No"]},
             {"form": "component_model[]", "ui": "Model", "doc": "Model"},
@@ -69,6 +79,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "IP_RECORDS",
         "doc_section": "IP_RECORDS",
+        "tbody_id": "ip-records-body",
+        "template_id": "tmpl-iprecord",
         "fields": [
             {"form": "ip_device[]", "ui": "Device_Name", "doc": "Device_Name"},
             {"form": "ip_address[]", "ui": "IP_Address", "doc": "IP_Address"},
@@ -78,6 +90,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "DIGITAL_SIGNALS",
         "doc_section": "SIGNAL_LISTS",
+        "tbody_id": "digital-signals-body",
+        "template_id": "tmpl-digital-signal",
         "fields": [
             {"form": "digital_s_no[]", "ui": "S_No", "doc": "S. No.", "aliases": ["S.no", "S_No"]},
             {"form": "digital_rack[]", "ui": "Rack", "doc": "Rack No.", "aliases": ["Rack No.", "Rack_No"]},
@@ -93,6 +107,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "ANALOGUE_INPUT_SIGNALS",
         "doc_section": "ANALOGUE_LISTS",
+        "tbody_id": "analogue-inputs-body",
+        "template_id": "tmpl-analogue-input",
         "fields": [
             {"form": "analogue_input_s_no[]", "ui": "S_No", "doc": "S. No.", "aliases": ["S.no", "S_No"]},
             {"form": "analogue_input_rack_no[]", "ui": "Rack_No", "doc": "Rack No.", "aliases": ["Rack No."]},
@@ -108,6 +124,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "ANALOGUE_OUTPUT_SIGNALS",
         "doc_section": "ANALOGUE_OUTPUT_LISTS",
+        "tbody_id": "analogue-outputs-body",
+        "template_id": "tmpl-analogue-output",
         "fields": [
             {"form": "analogue_output_s_no[]", "ui": "S_No", "doc": "S. No.", "aliases": ["S_No", "S.no", "S. No."]},
             {"form": "analogue_output_rack_no[]", "ui": "Rack_No", "doc": "Rack No.", "aliases": ["Rack_No", "Rack No."]},
@@ -124,6 +142,8 @@ TABLE_CONFIG = [
         "ui_section": "DIGITAL_OUTPUT_SIGNALS",
         "doc_section": "DIGITAL_OUTPUT_LISTS",
         "doc_section_aliases": ["DIGITAL_OUTPUT_SIGNALS"],
+        "tbody_id": "digital-outputs-body",
+        "template_id": "tmpl-digital-output",
         "fields": [
             {"form": "digital_output_s_no[]", "ui": "S_No", "doc": "S. No.", "aliases": ["S_No", "S.no", "S. No."]},
             {"form": "digital_output_rack_no[]", "ui": "Rack_No", "doc": "Rack No.", "aliases": ["Rack_No", "Rack No."]},
@@ -139,6 +159,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "MODBUS_DIGITAL_SIGNALS",
         "doc_section": "MODBUS_DIGITAL_LISTS",
+        "tbody_id": "modbus-digital-body",
+        "template_id": "tmpl-modbus-digital",
         "fields": [
             {"form": "modbus_digital_address[]", "ui": "Address", "doc": "Address"},
             {"form": "modbus_digital_description[]", "ui": "Description", "doc": "Description"},
@@ -152,6 +174,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "MODBUS_ANALOGUE_SIGNALS",
         "doc_section": "MODBUS_ANALOGUE_LISTS",
+        "tbody_id": "modbus-analogue-body",
+        "template_id": "tmpl-modbus-analogue",
         "fields": [
             {"form": "modbus_analogue_address[]", "ui": "Address", "doc": " Address", "aliases": ["Address", " Address"]},
             {"form": "modbus_analogue_description[]", "ui": "Description", "doc": "Description"},
@@ -165,6 +189,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "DATA_VALIDATION",
         "doc_section": "DATA_VALIDATION",
+        "tbody_id": "data-validation-body",
+        "template_id": "tmpl-data-validation",
         "fields": [
             {"form": "data_validation_tag[]", "ui": "Tag", "doc": "Tag"},
             {"form": "data_validation_range[]", "ui": "Range", "doc": "Range"},
@@ -175,6 +201,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "PROCESS_TEST",
         "doc_section": "PROCESS_TEST",
+        "tbody_id": "process-test-body",
+        "template_id": "tmpl-process-test",
         "fields": [
             {"form": "Process_Item[]", "ui": "Item", "doc": "Item"},
             {"form": "Process_Action[]", "ui": "Action", "doc": "Action"},
@@ -186,6 +214,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "SCADA_VERIFICATION",
         "doc_section": "SCADA_VERIFICATION",
+        "tbody_id": "scada-verification-body",
+        "template_id": "tmpl-scada-verification",
         "fields": [
             {"form": "SCADA_Task[]", "ui": "Task", "doc": "Task"},
             {"form": "SCADA_Expected_Result[]", "ui": "Expected Result", "doc": "Expected Result"},
@@ -196,6 +226,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "TRENDS_TESTING",
         "doc_section": "TRENDS_TESTING",
+        "tbody_id": "trends-testing-body",
+        "template_id": "tmpl-trends-testing",
         "fields": [
             {"form": "Trend[]", "ui": "Trend", "doc": "Trend"},
             {"form": "Expected Behavior[]", "ui": "Expected Behavior", "doc": "Expected Behavior"},
@@ -206,6 +238,8 @@ TABLE_CONFIG = [
     {
         "ui_section": "ALARM_LIST",
         "doc_section": "ALARM_LIST",
+        "tbody_id": "alarm-list-body",
+        "template_id": "tmpl-alarm-list",
         "fields": [
             {"form": "Alarm_Type[]", "ui": "Alarm Type", "doc": "Alarm Type"},
             {"form": "Expected / Required Result[]", "ui": "Expected / Required Result", "doc": " Expected / Required Result"},
