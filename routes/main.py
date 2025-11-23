@@ -1,32 +1,84 @@
-import base64
-import datetime as dt
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
+from flask_login import current_user
+from models import db, Report, SATReport, Notification, User
+from auth import login_required
 import json
+from services.sat_tables import extract_ui_tables, build_doc_tables, migrate_context_tables, TABLE_CONFIG
+from typing import Any, Callable
 import os
+import uuid
+import datetime as dt
+from services.dashboard_stats import compute_and_cache_dashboard_stats
+from docxtpl import DocxTemplate, InlineImage
+from docx.shared import Mm
+from werkzeug.utils import secure_filename
+import base64
+import time
 import shutil
 import tempfile
-import time
-import uuid
-from typing import Any
-
-from docx.shared import Mm
-from docxtpl import DocxTemplate, InlineImage
-from flask import (Blueprint, current_app, flash, jsonify, redirect, request,
-                   url_for)
-from flask_login import current_user, login_required
 from PIL import Image
-from werkzeug.utils import secure_filename
 
-from models import SATReport, Report, db, User
-from services.dashboard_stats import compute_and_cache_dashboard_stats
-from utils import (TABLE_UI_KEYS, allowed_file, build_doc_tables,
-                   create_approval_notification,
-                   create_new_submission_notification, extract_ui_tables,
-                   handle_image_removals, load_submissions,
-                   migrate_context_tables, save_submissions,
-                   send_approval_link, send_edit_link,
-                   setup_approval_workflow_db)
+EXTRA_IMAGE_KEYS = ['SCADA_SCREENSHOTS', 'TRENDS_SCREENSHOTS', 'ALARM_SCREENSHOTS']
+TABLE_UI_KEYS = [cfg['ui_section'] for cfg in TABLE_CONFIG] + EXTRA_IMAGE_KEYS
 
 main_bp = Blueprint('main', __name__)
+
+def _utils_unavailable(*args: Any, **kwargs: Any) -> Any:
+    raise RuntimeError("Utility helpers are unavailable; ensure utils module is installed.")
+
+load_submissions: Callable[..., Any] = _utils_unavailable
+save_submissions: Callable[..., Any] = _utils_unavailable
+send_edit_link: Callable[..., Any] = _utils_unavailable
+send_approval_link: Callable[..., Any] = _utils_unavailable
+setup_approval_workflow_db: Callable[..., Any] = _utils_unavailable
+handle_image_removals: Callable[..., Any] = _utils_unavailable
+allowed_file: Callable[..., Any] = _utils_unavailable
+try:
+    from utils import (
+                   load_submissions, save_submissions, send_edit_link, send_approval_link,
+                   setup_approval_workflow_db, handle_image_removals,
+                  allowed_file)
+except ImportError as e:
+    print(f"Warning: Could not import utils: {e}")
+
+def get_unread_count():
+    """Placeholder for getting unread notification count"""
+    return 0
+
+def create_approval_notification(approver_email, submission_id, stage, document_title):
+    """Create approval notification"""
+    try:
+        notification = Notification(
+            user_email=approver_email,
+            title="New Approval Request",
+            message=f"You have a new approval request for: {document_title}",
+            type="approval",
+            read=False
+        )
+        db.session.add(notification)
+        db.session.commit()
+        return True
+    except Exception as e:
+        current_app.logger.error(f"Error creating approval notification: {e}")
+        return False
+
+def create_new_submission_notification(admin_emails, submission_id, document_title, submitter_email):
+    """Create new submission notification for admins"""
+    try:
+        for email in admin_emails:
+            notification = Notification(
+                user_email=email,
+                title="New Report Submission",
+                message=f"New report submitted: {document_title} by {submitter_email}",
+                type="submission",
+                read=False
+            )
+            db.session.add(notification)
+        db.session.commit()
+        return True
+    except Exception as e:
+        current_app.logger.error(f"Error creating submission notifications: {e}")
+        return False
 
 def _normalize_url_list(value: Any) -> list[str]:
     if isinstance(value, list):
@@ -51,24 +103,71 @@ def _resolve_urls(key: str, model_value: Any, existing_data: dict) -> list[str]:
     urls = _normalize_url_list(existing_value)
     return urls if urls else _normalize_url_list(model_value)
 
+@main_bp.route('/edit/<submission_id>')
+@login_required
+def edit_submission(submission_id):
+    """Edit a submission with role-based permissions"""
+    report = Report.query.get(submission_id)
+    if not report:
+        flash('Report not found.', 'error')
+        return redirect(url_for('dashboard.home'))
+    
+    can_edit = False
+    if current_user.role == 'Admin':
+        can_edit = True
+    elif current_user.role == 'Engineer' and current_user.email == report.user_email:
+        if report.approvals_json:
+            try:
+                approvals = json.loads(report.approvals_json)
+                tm_approved = any(a.get("status") == "approved" and a.get("stage") == 1 for a in approvals)
+                can_edit = not tm_approved
+            except:
+                can_edit = True
+        else:
+            can_edit = True
+    elif current_user.role == 'Automation Manager':
+        if report.approvals_json:
+            try:
+                approvals = json.loads(report.approvals_json)
+                pm_approved = any(a.get("status") == "approved" and a.get("stage") == 2 for a in approvals)
+                can_edit = not pm_approved
+            except:
+                can_edit = True
+        else:
+            can_edit = True
+    
+    if not can_edit:
+        flash('You do not have permission to edit this report.', 'error')
+        return redirect(url_for('status.view_status', submission_id=submission_id))
+    
+    return redirect(url_for('reports.sat_wizard', submission_id=submission_id))
+
+@main_bp.route('/sat_form', methods=['GET'])
+@login_required
+def sat_form():
+    """Render the SAT form (index.html) for creating a new report"""
+    submission_data = {
+        'USER_EMAIL': current_user.email if current_user.is_authenticated else '',
+        'PREPARED_BY': current_user.full_name if current_user.is_authenticated else '',
+    }
+    return render_template(
+        'SAT.html',
+        submission_data=submission_data,
+        user_role=current_user.role if hasattr(current_user, 'role') else 'user'
+    )
+
 @main_bp.route('/generate', methods=['POST'])
 @login_required
 def generate():
     """Generate a SAT report from form data"""
     try:
-        # Log request details for debugging
         current_app.logger.info(f"Generate request from: {request.remote_addr}")
         current_app.logger.info(f"Request form data keys: {list(request.form.keys())}")
 
-
-        # Retrieve submission id and current report
         submission_id = request.form.get("submission_id", "").strip()
-
-        # Create a new submission ID if needed
         if not submission_id:
             submission_id = str(uuid.uuid4())
 
-        # Get or create report record
         report = Report.query.get(submission_id)
         is_new_report = False
         if not report:
@@ -79,11 +178,10 @@ def generate():
                 status='DRAFT',
                 user_email=current_user.email if hasattr(current_user, 'email') else '',
                 approvals_json='[]',
-                version='R0'  # Always start with R0 for new reports
+                version='R0'
             )
             db.session.add(report)
         else:
-            # This is an edit/resubmit - increment version
             if not is_new_report:
                 current_version = report.version or 'R0'
                 if current_version.startswith('R'):
@@ -95,13 +193,10 @@ def generate():
                 else:
                     report.version = 'R1'
                 current_app.logger.info(f"Version incremented to: {report.version}")
-
-            # Reset approval workflow for resubmission
             report.status = 'DRAFT'
             report.locked = False
             report.approval_notification_sent = False
 
-        # Get or create SAT report record
         sat_report = SATReport.query.filter_by(report_id=submission_id).first()
         if not sat_report:
             sat_report = SATReport(
@@ -113,9 +208,8 @@ def generate():
             )
             db.session.add(sat_report)
 
-        # Load existing data for processing
         existing_data = json.loads(sat_report.data_json) if sat_report.data_json != '{}' else {}
-        sub = existing_data  # For compatibility with existing code
+        sub = existing_data
         existing_context = existing_data.get('context', {}) if isinstance(existing_data, dict) else {}
 
         prepared_signature_filename = (
@@ -132,19 +226,16 @@ def generate():
         existing_sig_review_pm_file = existing_context.get('SIG_REVIEW_PM', '') or ''
         existing_sig_client_file = existing_context.get('SIG_APPROVAL_CLIENT', '') or ''
 
-        # Grab the approver emails from the form
         approver_emails = [
             request.form.get("approver_1_email", "").strip(),
             request.form.get("approver_2_email", "").strip(),
             request.form.get("approver_3_email", "").strip(),
         ]
 
-        # Initialize (or update) the approvals list and lock flag
         approvals, locked = setup_approval_workflow_db(report, approver_emails)
         report.locked = locked
         report.approvals_json = json.dumps(approvals)
 
-        # Create the upload directory for this submission
         upload_root_cfg = current_app.config.get('UPLOAD_ROOT')
         if not isinstance(upload_root_cfg, str) or not upload_root_cfg:
             static_root = current_app.static_folder or os.path.join(current_app.root_path, 'static')
@@ -152,16 +243,13 @@ def generate():
         upload_dir = os.path.join(upload_root_cfg, submission_id)
         os.makedirs(upload_dir, exist_ok=True)
 
-        # Initialize DocxTemplate
         doc = DocxTemplate(current_app.config['TEMPLATE_FILE'])
 
-        # Initialize image URLs lists from database
         scada_urls = _normalize_url_list(sat_report.scada_image_urls)
         trends_urls = _normalize_url_list(sat_report.trends_image_urls)
         alarm_urls = _normalize_url_list(sat_report.alarm_image_urls)
 
         def load_signature_inline(filename, width_mm=40):
-            """Rehydrate stored signature filenames into InlineImage objects for rendering."""
             if not filename:
                 return ""
             base_names = [filename]
@@ -182,7 +270,6 @@ def generate():
                     current_app.logger.error(f"Error loading signature from {candidate}: {e}", exc_info=True)
             return ""
 
-        # Process signature data
         sig_data_url = request.form.get("sig_prepared_data", "")
         sig_prepared_image: Any = ""
 
@@ -192,29 +279,22 @@ def generate():
                     raise ValueError("Invalid signature data format")
                 _, encoded = sig_data_url.split(",", 1)
                 data = base64.b64decode(encoded)
-
                 sig_folder_cfg = current_app.config.get('SIGNATURES_FOLDER')
                 if not isinstance(sig_folder_cfg, str) or not sig_folder_cfg:
                     raise KeyError("SIGNATURES_FOLDER not configured")
                 os.makedirs(sig_folder_cfg, exist_ok=True)
-
                 fn = f"{submission_id}_prepared_{int(time.time())}.png"
                 out_path = os.path.join(sig_folder_cfg, fn)
-
                 with open(out_path, "wb") as signature_file:
                     signature_file.write(data)
-
                 if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
                     sub.setdefault("context", {})["prepared_signature"] = fn
                     sub["prepared_signature"] = fn
-
                     current_timestamp = dt.datetime.now().isoformat()
                     sub.setdefault("context", {})["prepared_timestamp"] = current_timestamp
                     prepared_signature_filename = fn
                     prepared_timestamp = current_timestamp
-
                     current_app.logger.info("Stored preparer signature at %s", os.path.abspath(out_path))
-
                     try:
                         sig_prepared_image = InlineImage(doc, out_path, width=Mm(40))
                     except Exception as inline_error:
@@ -226,43 +306,26 @@ def generate():
         else:
             sig_prepared_image = load_signature_inline(prepared_signature_filename)
 
-        # Initialize approval signatures
         SIG_APPROVER_1 = load_signature_inline(existing_sig_review_tech_file)
         SIG_APPROVER_2 = load_signature_inline(existing_sig_review_pm_file)
         SIG_APPROVER_3 = load_signature_inline(existing_sig_client_file)
 
-        # Improved image file handling
         def save_new(field, url_list, inline_list):
-            """Save new uploaded files with better error handling and path resolution"""
             for f in request.files.getlist(field):
                 if not f or not f.filename:
                     continue
-
                 try:
-                    # Create a secure filename and ensure uniqueness
                     fn = secure_filename(f.filename)
                     uniq_fn = f"{uuid.uuid4().hex}_{fn}"
-
-                    # Ensure the upload directory exists
                     os.makedirs(upload_dir, exist_ok=True)
-
-                    # Create absolute path for file storage
                     disk_fp = os.path.join(upload_dir, uniq_fn)
-
-                    # Save the file
                     f.save(disk_fp)
                     current_app.logger.info(f"Saved uploaded file to: {disk_fp}")
-
-                    # Create proper URL and add image object
                     try:
-                        # Add public URL for edit-mode preview
-                        # Use posix-style paths for URLs (forward slashes)
-                        rel_path = os.path.join("uploads", submission_id, uniq_fn).replace("\\", "/")
+                        rel_path = os.path.join("uploads", submission_id, uniq_fn).replace("\\\\", "/")
                         url = url_for("static", filename=rel_path)
                         url_list.append(url)
                         current_app.logger.info(f"Added image URL: {url}")
-
-                        # 2) Create InlineImage and handle potential corruption
                         try:
                             current_app.logger.info(f"Attempting to create InlineImage with path: {disk_fp}")
                             inline_image = InlineImage(doc, disk_fp, width=Mm(150))
@@ -272,11 +335,9 @@ def generate():
                             current_app.logger.error(f"Error creating InlineImage for {fn}: {e}", exc_info=True)
                     except Exception as e:
                         current_app.logger.error(f"Error processing image {fn}: {e}", exc_info=True)
-
                 except Exception as e:
                     current_app.logger.error(f"Failed to save file {f.filename}: {e}", exc_info=True)
 
-        # Remove images flagged for deletion
         handle_image_removals(request.form, "removed_scada_screenshots", scada_urls)
         handle_image_removals(request.form, "removed_trends_screenshots", trends_urls)
         handle_image_removals(request.form, "removed_alarm_screenshots", alarm_urls)
@@ -285,26 +346,20 @@ def generate():
         trends_image_objects = []
         alarm_image_objects = []
 
-        # Process new image uploads (appends to both URL lists and image object lists)
         save_new("scada_screenshots[]", scada_urls, scada_image_objects)
         save_new("trends_screenshots[]", trends_urls, trends_image_objects)
         save_new("alarm_screenshots[]", alarm_urls, alarm_image_objects)
 
-        # Prepare signature placeholders
-        # Prepare signature placeholders (legacy fields retained for compatibility)
         sig_prepared_by = ""
         SIG_REVIEW_TECH = ""
         SIG_APPROVAL_CLIENT = ""
 
-        # Extract table data using the unified schema helpers
         ui_tables = extract_ui_tables(request.form)
         doc_tables = build_doc_tables(ui_tables)
         legacy_tables = migrate_context_tables(existing_data.get('context', {}))
         combined_tables = dict(legacy_tables)
         combined_tables.update(ui_tables)
 
-        # Build final context for the DOCX
-        # Build final context for document rendering
         context: dict[str, Any] = {
             "DOCUMENT_TITLE": request.form.get('document_title', ''),
             "PROJECT_REFERENCE": request.form.get('project_reference', ''),
@@ -340,7 +395,7 @@ def generate():
         for key, value in doc_tables.items():
             if key not in context:
                 context[key] = value
-        # For storage, remove the InlineImage objects recursively
+        
         context_to_store: dict[str, Any] = dict(context)
         for key, value in combined_tables.items():
             context_to_store[key] = value
@@ -354,8 +409,8 @@ def generate():
             context_to_store['SIG_REVIEW_PM'] = existing_sig_review_pm_file
         if existing_sig_client_file:
             context_to_store['SIG_APPROVAL_CLIENT'] = existing_sig_client_file
+        
         def remove_inline_images(obj):
-            """Recursively remove InlineImage objects from nested data structures"""
             if isinstance(obj, InlineImage):
                 return None
             elif isinstance(obj, dict):
@@ -365,16 +420,13 @@ def generate():
             else:
                 return obj
 
-        # Apply the cleaning function to all context data
         for key in list(context_to_store.keys()):
             context_to_store[key] = remove_inline_images(context_to_store[key])
 
-        # Store approver emails in context for later retrieval in edit form
         context_to_store["approver_1_email"] = approver_emails[0]
         context_to_store["approver_2_email"] = approver_emails[1]
         context_to_store["approver_3_email"] = approver_emails[2]
 
-        # Update report metadata
         report.document_title = context_to_store.get('DOCUMENT_TITLE', '')
         report.document_reference = context_to_store.get('DOCUMENT_REFERENCE', '')
         report.project_reference = context_to_store.get('PROJECT_REFERENCE', '')
@@ -383,18 +435,14 @@ def generate():
         report.prepared_by = context_to_store.get('PREPARED_BY', '')
         report.updated_at = dt.datetime.utcnow()
         
-        # CRITICAL: Update status to PENDING when submitted for approval
-        # Only change from DRAFT to PENDING if there are approvers
         if approvals and len(approvals) > 0:
             report.status = 'PENDING'
             current_app.logger.info(f"Report {submission_id} status changed to PENDING (submitted for approval)")
         else:
-            # No approvers = stays as DRAFT
             if not report.status or report.status == '':
                 report.status = 'DRAFT'
             current_app.logger.info(f"Report {submission_id} status remains {report.status} (no approvals)")
 
-        # Prepare submission data for storage
         submission_data = {
             "context": context_to_store,
             "user_email": current_user.email if hasattr(current_user, 'email') else request.form.get("user_email", ""),
@@ -420,7 +468,7 @@ def generate():
             save_submissions(submissions)
         except Exception as save_error:
             current_app.logger.info(f"Could not persist final snapshot to file: {save_error}")
-        # Update SAT report data
+
         sat_report.data_json = json.dumps(submission_data)
         sat_report.date = context_to_store.get('DATE', '')
         sat_report.purpose = context_to_store.get('PURPOSE', '')
@@ -429,10 +477,8 @@ def generate():
         sat_report.trends_image_urls = json.dumps(trends_urls)
         sat_report.alarm_image_urls = json.dumps(alarm_urls)
 
-        # Save to database
         db.session.commit()
 
-        # Refresh dashboard statistics for assigned approvers
         try:
             role_map = {0: 'Automation Manager', 1: 'PM'}
             for idx, email in enumerate(approver_emails[:2]):
@@ -441,12 +487,10 @@ def generate():
         except Exception as stats_error:
             current_app.logger.warning(f"Could not refresh dashboard stats: {stats_error}")
 
-        # Render the DOCX template with error handling
         try:
             current_app.logger.info("Starting document rendering...")
             current_app.logger.debug(f"Context keys: {list(context.keys())}")
             
-            # Check for problematic values in context
             for key, value in context.items():
                 if value is None:
                     current_app.logger.warning(f"Context key '{key}' has None value")
@@ -460,7 +504,6 @@ def generate():
             flash(f"Error generating document: {str(render_error)}", "error")
             return redirect(url_for('index'))
 
-        # Build a timestamped filename and save to the OS temp directory
         timestamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"SAT_Report_{timestamp}.docx"
         temp_path = os.path.join(tempfile.gettempdir(), filename)
@@ -469,12 +512,11 @@ def generate():
             doc.save(temp_path)
             current_app.logger.info(f"Document saved to temp path: {temp_path}")
             
-            # Verify the file exists and has content
             if not os.path.exists(temp_path):
                 raise Exception(f"Document file was not created at {temp_path}")
             
             file_size = os.path.getsize(temp_path)
-            if file_size < 1000:  # A valid docx should be at least a few KB
+            if file_size < 1000:
                 raise Exception(f"Document file is too small ({file_size} bytes), likely corrupt")
             
             current_app.logger.info(f"Document file verified: {file_size} bytes")
@@ -483,7 +525,6 @@ def generate():
             flash(f"Error saving document: {str(save_error)}", "error")
             return redirect(url_for('index'))
 
-        # Save to a permanent, submission-specific location
         try:
             output_dir = current_app.config.get('OUTPUT_DIR')
             if not isinstance(output_dir, str) or not output_dir:
@@ -498,8 +539,7 @@ def generate():
             current_app.logger.warning(f"Could not copy to permanent outputs folder: {e}")
 
         first_stage = approvals[0] if approvals else None
-
-        # AI Email Content Generation
+        
         approver_email_subject = None
         approver_email_body = None
         submitter_email_subject = None
@@ -523,7 +563,6 @@ def generate():
                 )
                 return None
 
-            # Generate approver-focused content
             approver_payload = {'submission_id': submission_id, 'audience': 'approver'}
             if first_stage:
                 approver_payload['stage'] = first_stage.get('stage')
@@ -534,7 +573,6 @@ def generate():
                 approver_email_body = approver_content.get('body')
                 current_app.logger.info(f"Generated approver email content for {submission_id}")
 
-            # Generate submitter-focused content
             submitter_content = _call_email_generator({'submission_id': submission_id, 'audience': 'submitter'})
             if submitter_content:
                 submitter_email_subject = submitter_content.get('subject')
@@ -543,11 +581,9 @@ def generate():
         except Exception as e:
             current_app.logger.error(f"Error calling AI email generation service: {e}")
 
-        # Notify first approver exactly once
         if not report.approval_notification_sent:
             if first_stage:
                 first_email = first_stage["approver_email"]
-                # Corrected call to send_approval_link
                 sent = send_approval_link(
                     first_email,
                     submission_id,
@@ -557,7 +593,6 @@ def generate():
                 )
                 current_app.logger.info(f"Approval email to {first_email}: {sent}")
 
-                # Create approval notification
                 try:
                     document_title = context.get("DOCUMENT_TITLE", "SAT Report")
                     create_approval_notification(
@@ -567,8 +602,6 @@ def generate():
                         document_title=document_title
                     )
 
-                    # Also notify admins about new submission
-                    from models import User
                     admin_emails = [u.email for u in User.query.filter_by(role='Admin').all()]
                     if admin_emails:
                         create_new_submission_notification(
@@ -583,14 +616,11 @@ def generate():
                 report.approval_notification_sent = True
                 db.session.commit()
 
-        # Send edit link email to user (with graceful failure)
         email_sent = False
         if current_app.config.get('ENABLE_EMAIL_NOTIFICATIONS', True):
             try:
-                # Use generated email content if available, but adapt it for the user
                 user_email_subject = f"SAT Report Submitted: {report.document_title}"
-                user_email_body = submitter_email_body  # Can be adapted if needed
-
+                user_email_body = submitter_email_body
                 email_result = send_edit_link(
                     report.user_email, 
                     submission_id,
@@ -605,7 +635,6 @@ def generate():
             except Exception as e:
                 current_app.logger.error(f"Email sending error: {e}")
 
-        # Always show success message regardless of email status
         success_message = "Report generated successfully!"
         if email_sent:
             success_message += " An edit link has been sent to your email."
@@ -642,34 +671,28 @@ def generate():
 def save_progress():
     """Save form progress without generating report"""
     try:
-        # Get submission ID or create new one
         submission_id = request.form.get("submission_id", "").strip()
         if not submission_id:
             submission_id = str(uuid.uuid4())
 
-        # Get or create report record
         report = Report.query.get(submission_id)
         if not report:
             report = Report(
                 id=submission_id,
                 type='SAT',
-                status='DRAFT',  # Always start as DRAFT
+                status='DRAFT',
                 user_email=current_user.email if hasattr(current_user, 'email') else '',
                 approvals_json='[]'
             )
             db.session.add(report)
         
-        # Ensure user_email is set
         if not report.user_email and hasattr(current_user, 'email'):
             report.user_email = current_user.email
 
-        # IMPORTANT: Ensure status remains DRAFT for save progress (not submission)
-        # Only preserve existing non-draft status if it's already PENDING/APPROVED
         if not report.status or report.status == '':
             report.status = 'DRAFT'
         current_app.logger.info(f"Save progress: Report {submission_id} status is {report.status}")
 
-        # Get or create SAT report record
         sat_report = SATReport.query.filter_by(report_id=submission_id).first()
         if not sat_report:
             sat_report = SATReport(
@@ -681,10 +704,9 @@ def save_progress():
             )
             db.session.add(sat_report)
 
-        # Load existing data
         existing_data = json.loads(sat_report.data_json) if sat_report.data_json != '{}' else {}
         form_data = request.form.to_dict()
-        # Build context from current form data
+        
         context = {
             "DOCUMENT_TITLE": form_data.get('document_title', ''),
             "PROJECT_REFERENCE": form_data.get('project_reference', ''),
@@ -721,9 +743,6 @@ def save_progress():
         trends_urls = _resolve_urls('trends_image_urls', sat_report.trends_image_urls, existing_data)
         alarm_urls = _resolve_urls('alarm_image_urls', sat_report.alarm_image_urls, existing_data)
 
-        # Handle removal of images marked for deletion in the form
-        # The `handle_image_removals` function processes the comma-separated
-        # string of URLs from the `removed_scada_screenshots` field.
         handle_image_removals(request.form, 'removed_scada_screenshots', scada_urls)
         handle_image_removals(request.form, 'removed_trends_screenshots', trends_urls)
         handle_image_removals(request.form, 'removed_alarm_screenshots', alarm_urls)
@@ -740,7 +759,6 @@ def save_progress():
                     unique_name = f"{uuid.uuid4().hex}_{filename}"
                     disk_path = os.path.join(upload_dir, unique_name)
                     storage.save(disk_path)
-
                     try:
                         with Image.open(disk_path) as img:
                             img.verify()
@@ -751,7 +769,6 @@ def save_progress():
                         except Exception:
                             pass
                         continue
-
                     rel_path = os.path.join('uploads', submission_id, unique_name).replace('\\', '/')
                     url = url_for('static', filename=rel_path)
                     url_list.append(url)
@@ -775,11 +792,9 @@ def save_progress():
             if key not in context:
                 context[key] = value
 
-        # Update report metadata
         report.document_title = context.get('DOCUMENT_TITLE', '')
         report.updated_at = dt.datetime.utcnow()
 
-        # Prepare submission data for storage
         submission_data = {
             "context": context,
             "user_email": current_user.email if hasattr(current_user, 'email') else form_data.get("user_email", ""),
@@ -805,7 +820,6 @@ def save_progress():
         except Exception as save_error:
             current_app.logger.debug(f"Auto-save snapshot file update skipped: {save_error}")
 
-        # Update SAT report data
         sat_report.data_json = json.dumps(submission_data)
         sat_report.scada_image_urls = json.dumps(scada_urls)
         sat_report.trends_image_urls = json.dumps(trends_urls)
@@ -814,7 +828,6 @@ def save_progress():
         sat_report.purpose = context.get('PURPOSE', '')
         sat_report.scope = context.get('SCOPE', '')
 
-        # Save to database
         db.session.commit()
 
         return jsonify({
