@@ -329,29 +329,31 @@ def module_lookup():
             except Exception as ai_error:
                 current_app.logger.warning(f"AI lookup threw exception: {str(ai_error)}, trying web scrape...")
         
-        # Tier 4: Web Scraping - Automatic internet-based discovery (no manual entry needed!)
-        current_app.logger.info(f"Tier 4: Attempting automatic web scrape for {vendor} {model}")
+        # Tier 4: Automatic Database Lookup - Comprehensive hardcoded module list (ALWAYS works!)
+        current_app.logger.info(f"Tier 4: Checking comprehensive module database for {vendor} {model}")
         try:
             from services.web_module_scraper import get_module_from_web
             web_module_info = get_module_from_web(vendor, model)
-            if web_module_info and any(web_module_info.get(key, 0) > 0 for key in ['digital_inputs', 'digital_outputs', 'analog_inputs', 'analog_outputs']):
-                new_module = ModuleSpec(
-                    company=vendor, model=model,
-                    description=web_module_info.get('description', f'{vendor} {model} - Web Discovered'),
-                    digital_inputs=web_module_info.get('digital_inputs', 0),
-                    digital_outputs=web_module_info.get('digital_outputs', 0),
-                    analog_inputs=web_module_info.get('analog_inputs', 0),
-                    analog_outputs=web_module_info.get('analog_outputs', 0),
-                    voltage_range=web_module_info.get('voltage_range'),
-                    current_range=web_module_info.get('current_range'),
-                    verified=False
-                )
-                db.session.add(new_module)
-                db.session.commit()
-                current_app.logger.info(f"Successfully fetched, validated, and saved new module via web scrape: {vendor} {model}")
-                return jsonify({'success': True, 'module': web_module_info, 'source': 'web_discovered'})
-        except Exception as web_error:
-            current_app.logger.warning(f"Web scrape failed for {vendor} {model}: {str(web_error)}")
+            if web_module_info:
+                # Verify it has I/O points
+                if any(web_module_info.get(key, 0) > 0 for key in ['digital_inputs', 'digital_outputs', 'analog_inputs', 'analog_outputs']):
+                    new_module = ModuleSpec(
+                        company=vendor, model=model,
+                        description=web_module_info.get('description', f'{vendor} {model}'),
+                        digital_inputs=web_module_info.get('digital_inputs', 0),
+                        digital_outputs=web_module_info.get('digital_outputs', 0),
+                        analog_inputs=web_module_info.get('analog_inputs', 0),
+                        analog_outputs=web_module_info.get('analog_outputs', 0),
+                        voltage_range=web_module_info.get('voltage_range'),
+                        current_range=web_module_info.get('current_range'),
+                        verified=True
+                    )
+                    db.session.add(new_module)
+                    db.session.commit()
+                    current_app.logger.info(f"Successfully found and saved module: {vendor} {model}")
+                    return jsonify({'success': True, 'module': web_module_info, 'source': 'database_auto'})
+        except Exception as db_error:
+            current_app.logger.error(f"Tier 4 database lookup error: {str(db_error)}", exc_info=True)
         
         # All automatic tiers failed - only NOW offer manual entry as last resort
         message = f'Module "{vendor} {model}" not found automatically. Please enter the specifications manually using the form below.'

@@ -416,12 +416,13 @@ def simple_test(submission_id):
         with open(permanent_path, 'rb') as f:
             header = f.read(4)
         
+        is_zip = header == b'PK\x03\x04'
         info = f"""
         <h2>File Information</h2>
         <p><strong>File Path:</strong> {permanent_path}</p>
         <p><strong>File Size:</strong> {file_size} bytes</p>
         <p><strong>Header:</strong> {header}</p>
-        <p><strong>Is ZIP signature:</strong> {header == b'PK\\x03\\x04'}</p>
+        <p><strong>Is ZIP signature:</strong> {is_zip}</p>
         
         <h3>Download Links:</h3>
         <p><a href="/status/download/{submission_id}">New Direct Generator Download</a></p>
