@@ -148,6 +148,26 @@ def get_comprehensive_module_database():
             'signal_type': 'Analog',
             'verified': True
         },
+        'ABB_DC523': {
+            'description': 'ABB DC523 - 8-channel 24VDC Digital Input Module with configurable outputs',
+            'digital_inputs': 8,
+            'digital_outputs': 8,
+            'analog_inputs': 0,
+            'analog_outputs': 0,
+            'voltage_range': '24 VDC',
+            'signal_type': 'Digital',
+            'verified': False
+        },
+        'DC523': {
+            'description': 'DC523 - 8-channel 24VDC Digital Input Module with configurable outputs',
+            'digital_inputs': 8,
+            'digital_outputs': 8,
+            'analog_inputs': 0,
+            'analog_outputs': 0,
+            'voltage_range': '24 VDC',
+            'signal_type': 'Digital',
+            'verified': False
+        },
 
         # Siemens Modules
         'SIEMENS_SM1221': {
@@ -336,11 +356,14 @@ def _get_specs_from_gemini(company: str, model: str):
         if not has_io and not has_desc:
             current_app.logger.warning(f"AI response for {company} {model} lacked I/O points and description. Discarding.")
             return None
-            
-        required_keys = {"digital_inputs", "digital_outputs", "analog_inputs", "analog_outputs"}
-        if not required_keys.issubset(json_response.keys()):
-            current_app.logger.warning(f"AI response missing required keys: {json_response}")
-            return None
+        
+        # Fill in missing keys with 0 (not strict about having ALL keys)
+        json_response.setdefault('digital_inputs', 0)
+        json_response.setdefault('digital_outputs', 0)
+        json_response.setdefault('analog_inputs', 0)
+        json_response.setdefault('analog_outputs', 0)
+        json_response.setdefault('voltage_range', None)
+        json_response.setdefault('current_range', None)
 
         current_app.logger.info(f"Successfully validated specs from AI for {company} {model}")
         return json_response
