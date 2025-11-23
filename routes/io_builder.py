@@ -383,13 +383,18 @@ def _get_specs_from_gemini(company: str, model: str):
         request_options = {"timeout": 45}
         response = gemini_model.generate_content(prompt_1, generation_config=generation_config, request_options=request_options)
         text_response = _gemini_text_from_response(response)
+        current_app.logger.debug(f"Strategy 1 raw response: {text_response[:200] if text_response else 'None'}")
         if text_response:
             json_response = _parse_json_from_text(text_response)
+            current_app.logger.debug(f"Strategy 1 parsed JSON: {json_response}")
             validated_json = _validate_spec_json(json_response)
             if validated_json:
+                current_app.logger.info(f"Strategy 1 SUCCESS for {company} {model}")
                 return validated_json
+        else:
+            current_app.logger.debug(f"Strategy 1: No text response from Gemini")
     except Exception as e:
-        current_app.logger.warning(f"AI Strategy 1 failed for {company} {model}: {e}")
+        current_app.logger.warning(f"AI Strategy 1 failed for {company} {model}: {str(e)}", exc_info=True)
 
     # --- Strategy 2: Two-step prompt (Summarize then Extract) ---
     current_app.logger.info(f"AI Lookup (Strategy 2: Summarize-then-Extract) for {company} {model}")
@@ -403,6 +408,7 @@ def _get_specs_from_gemini(company: str, model: str):
         request_options = {"timeout": 60}
         summary_response = gemini_model.generate_content(prompt_2a_summarize, generation_config=generation_config, request_options=request_options)
         summary_text = _gemini_text_from_response(summary_response)
+        current_app.logger.debug(f"Strategy 2 summary: {summary_text[:200] if summary_text else 'None'}")
 
         if summary_text and len(summary_text) > 20:
             current_app.logger.info(f"AI Strategy 2 got summary, now extracting JSON.")
@@ -420,13 +426,17 @@ def _get_specs_from_gemini(company: str, model: str):
             extract_config = genai.types.GenerationConfig(temperature=0.0, max_output_tokens=500)
             extract_response = gemini_model.generate_content(prompt_2b_extract, generation_config=extract_config, request_options={"timeout": 30})
             extract_text = _gemini_text_from_response(extract_response)
+            current_app.logger.debug(f"Strategy 2 extracted JSON: {extract_text}")
             if extract_text:
                 json_response = _parse_json_from_text(extract_text)
                 validated_json = _validate_spec_json(json_response)
                 if validated_json:
+                    current_app.logger.info(f"Strategy 2 SUCCESS for {company} {model}")
                     return validated_json
+        else:
+            current_app.logger.debug(f"Strategy 2: Summary too short or empty")
     except Exception as e:
-        current_app.logger.warning(f"AI Strategy 2 failed for {company} {model}: {e}")
+        current_app.logger.warning(f"AI Strategy 2 failed for {company} {model}: {str(e)}", exc_info=True)
 
     # --- Strategy 3: Simple question, then extract ---
     current_app.logger.info(f"AI Lookup (Strategy 3: Simple Query) for {company} {model}")
@@ -437,6 +447,7 @@ def _get_specs_from_gemini(company: str, model: str):
         request_options = {"timeout": 60}
         simple_response = gemini_model.generate_content(prompt_3a_simple, generation_config=generation_config, request_options=request_options)
         simple_text = _gemini_text_from_response(simple_response)
+        current_app.logger.debug(f"Strategy 3 simple response: {simple_text[:200] if simple_text else 'None'}")
 
         if simple_text and len(simple_text) > 20:
             current_app.logger.info(f"AI Strategy 3 got a text response, now extracting JSON.")
@@ -474,6 +485,84 @@ def _get_specs_from_gemini(company: str, model: str):
 
     current_app.logger.error(f"All AI lookup strategies failed for {company} {model}.")
     return None
+
+@io_builder_bp.route('/api/module-manual-entry', methods=['POST'])
+@login_required
+def module_manual_entry():
+    """Manual fallback endpoint for users to add module specs when AI fails"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        company = data.get('company', '').strip().upper()
+        model = data.get('model', '').strip().upper()
+        description = data.get('description', '').strip()
+        digital_inputs = int(data.get('digital_inputs', 0))
+        digital_outputs = int(data.get('digital_outputs', 0))
+        analog_inputs = int(data.get('analog_inputs', 0))
+        analog_outputs = int(data.get('analog_outputs', 0))
+        voltage_range = data.get('voltage_range', '').strip()
+        current_range = data.get('current_range', '').strip()
+        
+        # Validation
+        if not company or not model:
+            return jsonify({'success': False, 'message': 'Company and Model are required'}), 400
+        if not description:
+            return jsonify({'success': False, 'message': 'Description is required'}), 400
+        if digital_inputs + digital_outputs + analog_inputs + analog_outputs == 0:
+            return jsonify({'success': False, 'message': 'At least one I/O point must be specified'}), 400
+        
+        # Check if already exists
+        existing = ModuleSpec.query.filter_by(company=company, model=model).first()
+        if existing:
+            # Update existing
+            existing.description = description
+            existing.digital_inputs = digital_inputs
+            existing.digital_outputs = digital_outputs
+            existing.analog_inputs = analog_inputs
+            existing.analog_outputs = analog_outputs
+            existing.voltage_range = voltage_range or None
+            existing.current_range = current_range or None
+            existing.verified = True  # User-verified
+            db.session.commit()
+            current_app.logger.info(f"Updated module in database: {company} {model}")
+        else:
+            # Create new
+            new_module = ModuleSpec(
+                company=company,
+                model=model,
+                description=description,
+                digital_inputs=digital_inputs,
+                digital_outputs=digital_outputs,
+                analog_inputs=analog_inputs,
+                analog_outputs=analog_outputs,
+                voltage_range=voltage_range or None,
+                current_range=current_range or None,
+                verified=True  # User-verified
+            )
+            db.session.add(new_module)
+            db.session.commit()
+            current_app.logger.info(f"Saved new module to database via manual entry: {company} {model}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Module {company} {model} saved successfully',
+            'module': {
+                'description': description,
+                'digital_inputs': digital_inputs,
+                'digital_outputs': digital_outputs,
+                'analog_inputs': analog_inputs,
+                'analog_outputs': analog_outputs,
+                'voltage_range': voltage_range or None,
+                'current_range': current_range or None,
+                'verified': True
+            },
+            'source': 'manual'
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error in module_manual_entry: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to save module. Check server logs.'}), 500
 
 @io_builder_bp.route('/api/generate-io-table', methods=['POST'])
 def generate_io_table():
