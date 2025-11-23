@@ -329,39 +329,74 @@ def module_lookup():
             except Exception as ai_error:
                 current_app.logger.warning(f"AI lookup threw exception: {str(ai_error)}, trying web scrape...")
         
-        # Tier 4: Automatic Database Lookup - Comprehensive hardcoded module list (ALWAYS works!)
-        current_app.logger.info(f"Tier 4: Checking comprehensive module database for {vendor} {model}")
-        try:
-            from services.web_module_scraper import get_module_from_web
-            web_module_info = get_module_from_web(vendor, model)
-            if web_module_info:
-                # Verify it has I/O points
-                if any(web_module_info.get(key, 0) > 0 for key in ['digital_inputs', 'digital_outputs', 'analog_inputs', 'analog_outputs']):
-                    new_module = ModuleSpec(
-                        company=vendor, model=model,
-                        description=web_module_info.get('description', f'{vendor} {model}'),
-                        digital_inputs=web_module_info.get('digital_inputs', 0),
-                        digital_outputs=web_module_info.get('digital_outputs', 0),
-                        analog_inputs=web_module_info.get('analog_inputs', 0),
-                        analog_outputs=web_module_info.get('analog_outputs', 0),
-                        voltage_range=web_module_info.get('voltage_range'),
-                        current_range=web_module_info.get('current_range'),
-                        verified=True
-                    )
-                    db.session.add(new_module)
-                    db.session.commit()
-                    current_app.logger.info(f"Successfully found and saved module: {vendor} {model}")
-                    return jsonify({'success': True, 'module': web_module_info, 'source': 'database_auto'})
-        except Exception as db_error:
-            current_app.logger.error(f"Tier 4 database lookup error: {str(db_error)}", exc_info=True)
-        
-        # All automatic tiers failed - only NOW offer manual entry as last resort
-        message = f'Module "{vendor} {model}" not found automatically. Please enter the specifications manually using the form below.'
+        # Tier 4: Module not found - Manual entry required (saved to database for ALL future users)
+        current_app.logger.info(f"Module {vendor} {model} not found - manual entry required")
+        message = f'Module "{vendor} {model}" not in database. Please enter specifications below - they will be saved for all future reports.'
         return jsonify({'success': False, 'message': message, 'manual_entry_required': True}), 404
 
     except Exception as e:
         current_app.logger.error(f"Critical error in module_lookup: {str(e)}", exc_info=True)
         return jsonify({'success': False, 'message': 'An unexpected internal server error occurred. Please check the logs.'}), 500
+
+
+@io_builder_bp.route('/api/save-module', methods=['POST'])
+@login_required
+def save_module():
+    """
+    Save manually entered module specifications to database.
+    Once saved, it's available for ALL future users and reports.
+    This is the reliable, scalable solution.
+    """
+    try:
+        data = request.get_json()
+        company = data.get('company', '').strip().upper()
+        model = data.get('model', '').strip().upper()
+        
+        if not company or not model:
+            return jsonify({'success': False, 'error': 'Company and model are required'}), 400
+        
+        # Check if module already exists
+        existing = ModuleSpec.query.filter(
+            db.func.upper(ModuleSpec.company) == company,
+            db.func.upper(ModuleSpec.model) == model
+        ).first()
+        
+        specs = {
+            'description': data.get('description', f'{company} {model}'),
+            'digital_inputs': int(data.get('digital_inputs', 0)),
+            'digital_outputs': int(data.get('digital_outputs', 0)),
+            'analog_inputs': int(data.get('analog_inputs', 0)),
+            'analog_outputs': int(data.get('analog_outputs', 0)),
+            'voltage_range': data.get('voltage_range'),
+            'current_range': data.get('current_range')
+        }
+        
+        if existing:
+            current_app.logger.info(f"Updating module: {company} {model}")
+            for key, value in specs.items():
+                setattr(existing, key, value)
+            existing.verified = True
+        else:
+            current_app.logger.info(f"Creating new module: {company} {model}")
+            new_module = ModuleSpec(
+                company=company,
+                model=model,
+                **specs,
+                verified=True
+            )
+            db.session.add(new_module)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Module {company} {model} saved successfully. Now available for all future reports!',
+            'module': {
+                'company': company,
+                'model': model,
+                **specs
+            }
+        })
 
 def _get_specs_from_gemini(company: str, model: str):
     """
