@@ -405,6 +405,50 @@ def _get_specs_from_gemini(company: str, model: str):
     except Exception as e:
         current_app.logger.warning(f"AI Strategy 2 failed for {company} {model}: {e}")
 
+    # --- Strategy 3: Simple question, then extract ---
+    current_app.logger.info(f"AI Lookup (Strategy 3: Simple Query) for {company} {model}")
+    prompt_3a_simple = f"{company} {model}"
+    try:
+        # Use a higher temperature to encourage a more conversational, less "recited" response
+        generation_config = genai.types.GenerationConfig(temperature=0.4, max_output_tokens=1500)
+        request_options = {"timeout": 60}
+        simple_response = gemini_model.generate_content(prompt_3a_simple, generation_config=generation_config, request_options=request_options)
+        simple_text = _gemini_text_from_response(simple_response)
+
+        if simple_text and len(simple_text) > 20:
+            current_app.logger.info(f"AI Strategy 3 got a text response, now extracting JSON.")
+            # Use the same extractor as Strategy 2
+            prompt_3b_extract = f"""
+            Analyze the following text and extract the technical specifications into a single, minified JSON object.
+            The JSON object must have these exact keys: "description", "digital_inputs", "digital_outputs", "analog_inputs", "analog_outputs", "voltage_range", "current_range".
+            If a value is not found, set it to 0 for numeric fields and null for string fields. For configurable I/O, assign the total number of channels to the most likely category (e.g., digital_inputs).
+            For the 'description', provide a concise, one-sentence summary.
+            Do not add any explanation, just the JSON object.
+
+            Text to analyze:
+            ---
+            {simple_text}
+            ---
+            """
+            extract_config = genai.types.GenerationConfig(temperature=0.0, max_output_tokens=500)
+            extract_response = gemini_model.generate_content(prompt_3b_extract, generation_config=extract_config, request_options={"timeout": 30})
+            extract_text = _gemini_text_from_response(extract_response)
+            if extract_text:
+                json_response = _parse_json_from_text(extract_text)
+                validated_json = _validate_spec_json(json_response)
+                if validated_json:
+                    # Special handling for configurable I/O like DC523
+                    if "configurable" in simple_text.lower() and validated_json.get('digital_inputs', 0) == 0 and validated_json.get('digital_outputs', 0) == 0:
+                        match = re.search(r'(\d+)\s*configurable', simple_text, re.IGNORECASE)
+                        if match:
+                            total_channels = int(match.group(1))
+                            validated_json['digital_inputs'] = total_channels
+                            validated_json['description'] += f" ({total_channels} configurable DI/DO)"
+                            current_app.logger.info(f"Populated {total_channels} configurable channels for {company} {model}")
+                    return validated_json
+    except Exception as e:
+        current_app.logger.warning(f"AI Strategy 3 failed for {company} {model}: {e}")
+
     current_app.logger.error(f"All AI lookup strategies failed for {company} {model}.")
     return None
 
