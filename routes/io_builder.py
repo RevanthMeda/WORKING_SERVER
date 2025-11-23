@@ -309,29 +309,52 @@ def module_lookup():
                 module_info = _get_specs_from_gemini(vendor, model)
                 if module_info:
                     if not any(module_info.get(key, 0) > 0 for key in ['digital_inputs', 'digital_outputs', 'analog_inputs', 'analog_outputs']):
-                        current_app.logger.warning(f"AI lookup for {vendor} {model} returned data with no I/O points. Discarding.")
-                        return jsonify({'success': False, 'message': f'Module {vendor} {model} found, but no valid I/O specs could be parsed. Please enter specifications manually.', 'manual_entry_required': True}), 404
-
-                    new_module = ModuleSpec(
-                        company=vendor, model=model,
-                        description=module_info.get('description', f'{vendor} {model} - AI Generated'),
-                        digital_inputs=module_info.get('digital_inputs', 0),
-                        digital_outputs=module_info.get('digital_outputs', 0),
-                        analog_inputs=module_info.get('analog_inputs', 0),
-                        analog_outputs=module_info.get('analog_outputs', 0),
-                        voltage_range=module_info.get('voltage_range'),
-                        current_range=module_info.get('current_range'),
-                        verified=False
-                    )
-                    db.session.add(new_module)
-                    db.session.commit()
-                    current_app.logger.info(f"Successfully fetched, validated, and saved new module via AI: {vendor} {model}")
-                    return jsonify({'success': True, 'module': module_info, 'source': 'ai'})
+                        current_app.logger.warning(f"AI lookup for {vendor} {model} returned data with no I/O points. Trying web scrape.")
+                    else:
+                        new_module = ModuleSpec(
+                            company=vendor, model=model,
+                            description=module_info.get('description', f'{vendor} {model} - AI Generated'),
+                            digital_inputs=module_info.get('digital_inputs', 0),
+                            digital_outputs=module_info.get('digital_outputs', 0),
+                            analog_inputs=module_info.get('analog_inputs', 0),
+                            analog_outputs=module_info.get('analog_outputs', 0),
+                            voltage_range=module_info.get('voltage_range'),
+                            current_range=module_info.get('current_range'),
+                            verified=False
+                        )
+                        db.session.add(new_module)
+                        db.session.commit()
+                        current_app.logger.info(f"Successfully fetched, validated, and saved new module via AI: {vendor} {model}")
+                        return jsonify({'success': True, 'module': module_info, 'source': 'ai'})
             except Exception as ai_error:
-                current_app.logger.warning(f"AI lookup threw exception: {str(ai_error)}")
-
-        # All tiers failed - provide helpful message
-        message = f'Module "{vendor} {model}" not found in database or AI lookup failed. Please enter the specifications manually using the form below.'
+                current_app.logger.warning(f"AI lookup threw exception: {str(ai_error)}, trying web scrape...")
+        
+        # Tier 4: Web Scraping - Automatic internet-based discovery (no manual entry needed!)
+        current_app.logger.info(f"Tier 4: Attempting automatic web scrape for {vendor} {model}")
+        try:
+            from services.web_module_scraper import get_module_from_web
+            web_module_info = get_module_from_web(vendor, model)
+            if web_module_info and any(web_module_info.get(key, 0) > 0 for key in ['digital_inputs', 'digital_outputs', 'analog_inputs', 'analog_outputs']):
+                new_module = ModuleSpec(
+                    company=vendor, model=model,
+                    description=web_module_info.get('description', f'{vendor} {model} - Web Discovered'),
+                    digital_inputs=web_module_info.get('digital_inputs', 0),
+                    digital_outputs=web_module_info.get('digital_outputs', 0),
+                    analog_inputs=web_module_info.get('analog_inputs', 0),
+                    analog_outputs=web_module_info.get('analog_outputs', 0),
+                    voltage_range=web_module_info.get('voltage_range'),
+                    current_range=web_module_info.get('current_range'),
+                    verified=False
+                )
+                db.session.add(new_module)
+                db.session.commit()
+                current_app.logger.info(f"Successfully fetched, validated, and saved new module via web scrape: {vendor} {model}")
+                return jsonify({'success': True, 'module': web_module_info, 'source': 'web_discovered'})
+        except Exception as web_error:
+            current_app.logger.warning(f"Web scrape failed for {vendor} {model}: {str(web_error)}")
+        
+        # All automatic tiers failed - only NOW offer manual entry as last resort
+        message = f'Module "{vendor} {model}" not found automatically. Please enter the specifications manually using the form below.'
         return jsonify({'success': False, 'message': message, 'manual_entry_required': True}), 404
 
     except Exception as e:

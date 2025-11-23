@@ -4,18 +4,25 @@ This is a comprehensive Flask-based web application for generating System Accept
 
 ## Recent Updates
 
-### November 23, 2025 - Intelligent Lookup System & Document Corruption Fix (COMPLETE)
+### November 23, 2025 - Intelligent Lookup System & Automated Web Discovery (COMPLETE)
 - **Word Document Corruption FIXED**: Removed InlineImage objects that were corrupting Word documents
-- **Intelligent Lookup Service Created**: Built reusable Tier 1→2→3→Manual pattern for any resource type
-- **AI-Powered Module Lookup**: System automatically fetches module details from any user request using tiered search:
+- **Intelligent Lookup Service Created**: Built reusable Tier 1→2→3→4 pattern for any resource type
+- **Fully Automated Module Discovery**: System automatically fetches module details WITHOUT manual entry:
   - Tier 1: Database (previously found modules) - instant
-  - Tier 2: Hardcoded common modules - instant  
-  - Tier 3: Gemini AI search (with rate-limit fallback) - saves to database automatically
-  - Tier 4: Manual entry form - user-verified data saved to database
-- **Automatic Caching**: All discovered modules stored in database for future users (shared knowledge)
-- **IO Builder Enhancements**: Fixed quota handling, added manual entry endpoint, improved error logging
-- **Reusable Search Endpoints**: Created `/api/search/templates`, `/api/search/signals`, `/api/search/components` for any resource
-- **App.py Updated**: Registered intelligent search blueprint with all search functionality
+  - Tier 2: Hardcoded common modules (ABB DC523, Siemens, etc.) - instant  
+  - Tier 3: Gemini AI search - saves to database automatically
+  - Tier 4: Automatic Web Scraping - fetches from datasheets, Alibaba, manufacturer sites, automation databases
+  - ONLY IF ALL 4 FAIL: Manual entry form offered as last resort
+- **Web Scraper Features**:
+  - Automatic pattern matching for I/O specifications (DI, DO, AI, AO counts)
+  - Voltage and current range extraction
+  - Supports 6+ internet sources (datasheets, Alibaba, manufacturer sites, automation resources)
+  - No external API keys needed - uses public internet data
+  - Zero dependencies beyond requests + BeautifulSoup (already installed)
+- **Automatic Caching**: All discovered modules stored in database for all future users
+- **IO Builder Enhancements**: Fixed quota handling, integrated web scraper, improved error logging
+- **Reusable Search Endpoints**: Created `/api/search/templates`, `/api/search/signals`, `/api/search/components`
+- **App.py Updated**: Registered intelligent search blueprint with all functionality
 
 ### October 2, 2025 - Word Document Corruption Fix (RESOLVED)
 - **Root Cause Identified**: InlineImage objects from docxtpl library were corrupting the Word document XML structure
