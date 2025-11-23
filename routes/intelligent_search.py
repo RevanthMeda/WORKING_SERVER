@@ -7,7 +7,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required
 from services.intelligent_lookup import get_intelligent_lookup
 
-search_bp = Blueprint('search', __name__, url_prefix='/api/search')
+search_bp = Blueprint('intelligent_search', __name__, url_prefix='/api/search')
 
 
 @search_bp.route('/templates', methods=['POST'])

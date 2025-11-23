@@ -614,7 +614,7 @@ def create_app(config_name='default'):
         app.register_blueprint(ai_bp)
         app.register_blueprint(mcp_bp)
         app.register_blueprint(test_download_bp)
-        app.register_blueprint(intelligent_search_bp)
+        app.register_blueprint(intelligent_search_bp, url_prefix='/api/search')
         
         # Register new RESTful API at /api/v1
         app.register_blueprint(restful_api_bp)
