@@ -306,30 +306,34 @@ def module_lookup():
 
         # Tier 3: AI Lookup
         if vendor and genai and current_app.config.get('AI_ENABLED'):
-            module_info = _get_specs_from_gemini(vendor, model)
-            if module_info:
-                if not any(module_info.get(key, 0) > 0 for key in ['digital_inputs', 'digital_outputs', 'analog_inputs', 'analog_outputs']):
-                    current_app.logger.warning(f"AI lookup for {vendor} {model} returned data with no I/O points. Discarding.")
-                    return jsonify({'success': False, 'message': f'Module {vendor} {model} found, but no valid I/O specs could be parsed.'}), 404
+            try:
+                module_info = _get_specs_from_gemini(vendor, model)
+                if module_info:
+                    if not any(module_info.get(key, 0) > 0 for key in ['digital_inputs', 'digital_outputs', 'analog_inputs', 'analog_outputs']):
+                        current_app.logger.warning(f"AI lookup for {vendor} {model} returned data with no I/O points. Discarding.")
+                        return jsonify({'success': False, 'message': f'Module {vendor} {model} found, but no valid I/O specs could be parsed. Please enter specifications manually.', 'manual_entry_required': True}), 404
 
-                new_module = ModuleSpec(
-                    company=vendor, model=model,
-                    description=module_info.get('description', f'{vendor} {model} - AI Generated'),
-                    digital_inputs=module_info.get('digital_inputs', 0),
-                    digital_outputs=module_info.get('digital_outputs', 0),
-                    analog_inputs=module_info.get('analog_inputs', 0),
-                    analog_outputs=module_info.get('analog_outputs', 0),
-                    voltage_range=module_info.get('voltage_range'),
-                    current_range=module_info.get('current_range'),
-                    verified=False
-                )
-                db.session.add(new_module)
-                db.session.commit()
-                current_app.logger.info(f"Successfully fetched, validated, and saved new module via AI: {vendor} {model}")
-                return jsonify({'success': True, 'module': module_info, 'source': 'ai'})
+                    new_module = ModuleSpec(
+                        company=vendor, model=model,
+                        description=module_info.get('description', f'{vendor} {model} - AI Generated'),
+                        digital_inputs=module_info.get('digital_inputs', 0),
+                        digital_outputs=module_info.get('digital_outputs', 0),
+                        analog_inputs=module_info.get('analog_inputs', 0),
+                        analog_outputs=module_info.get('analog_outputs', 0),
+                        voltage_range=module_info.get('voltage_range'),
+                        current_range=module_info.get('current_range'),
+                        verified=False
+                    )
+                    db.session.add(new_module)
+                    db.session.commit()
+                    current_app.logger.info(f"Successfully fetched, validated, and saved new module via AI: {vendor} {model}")
+                    return jsonify({'success': True, 'module': module_info, 'source': 'ai'})
+            except Exception as ai_error:
+                current_app.logger.warning(f"AI lookup threw exception: {str(ai_error)}")
 
-        message = f'Module "{vendor} {model}" not found.'
-        return jsonify({'success': False, 'message': message}), 404
+        # All tiers failed - provide helpful message
+        message = f'Module "{vendor} {model}" not found in database or AI lookup failed. Please enter the specifications manually using the form below.'
+        return jsonify({'success': False, 'message': message, 'manual_entry_required': True}), 404
 
     except Exception as e:
         current_app.logger.error(f"Critical error in module_lookup: {str(e)}", exc_info=True)
@@ -485,6 +489,19 @@ def _get_specs_from_gemini(company: str, model: str):
 
     current_app.logger.error(f"All AI lookup strategies failed for {company} {model}.")
     return None
+
+def _handle_ai_failure(company: str, model: str, error_message: str = None):
+    """
+    Gracefully handle AI failures and return user-friendly message.
+    If quota exceeded, user should use manual entry form.
+    """
+    if error_message and "quota" in error_message.lower():
+        msg = f'Module "{company} {model}" not found in database. API quota exceeded. Please enter the specifications manually.'
+    elif error_message and "429" in error_message:
+        msg = f'Module "{company} {model}" not found in database. Too many requests. Please wait a moment or enter manually.'
+    else:
+        msg = f'Module "{company} {model}" not found in database. Please enter specifications manually.'
+    return msg
 
 @io_builder_bp.route('/api/module-manual-entry', methods=['POST'])
 @login_required
