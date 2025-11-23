@@ -314,19 +314,17 @@ def attempt_web_lookup(company, model):
     """
     Attempt to find module specifications online using DuckDuckGo search.
     This version includes more robust error handling, smarter link selection,
-    and validates parsed data before returning. Now handles PDFs.
+    and validates parsed data before returning. Now handles PDFs and checks file sizes.
     """
     try:
         current_app.logger.info(f"Starting robust web lookup for {company} {model}")
 
-        # Prioritize queries that are more likely to yield direct results
         search_queries = [
             f'"{company} {model}" datasheet pdf',
             f'"{company} {model}" technical specifications',
             f"{company} {model} manual",
             f"{model} industrial I/O module specifications"
         ]
-
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -338,34 +336,35 @@ def attempt_web_lookup(company, model):
             try:
                 current_app.logger.info(f"Searching online with query: '{query}'")
                 search_url = f"https://duckduckgo.com/html/?q={quote(query)}"
-                
-                # Make the search request with a timeout and error handling
                 response = requests.get(search_url, headers=headers, timeout=15)
                 response.raise_for_status()
-
                 soup = BeautifulSoup(response.content, 'html.parser')
 
-                # Smarter link filtering
-                links = soup.find_all('a', href=True)
                 relevant_links = []
-                for link in links:
+                for link in soup.find_all('a', href=True):
                     href = link.get('href', '')
                     if 'http' in href and not any(junk in href for junk in ['duckduckgo.com', 'google.com', 'bing.com']):
                         if company.lower() in href.lower() or '.pdf' in href.lower() or 'datasheet' in href.lower():
                             relevant_links.append(href)
                 
-                # Limit to the top 3 most promising links
                 for link_url in relevant_links[:3]:
                     try:
+                        head_response = requests.head(link_url, headers=headers, timeout=5, allow_redirects=True)
+                        head_response.raise_for_status()
+                        
+                        content_type = head_response.headers.get('Content-Type', '').lower()
+                        content_length = head_response.headers.get('Content-Length')
+
+                        if content_length and int(content_length) > 5000000: # 5MB limit
+                            current_app.logger.warning(f"Content at {link_url} is too large ({content_length} bytes), skipping.")
+                            continue
+
                         current_app.logger.info(f"Scraping promising link: {link_url}")
                         link_response = requests.get(link_url, headers=headers, timeout=10)
                         link_response.raise_for_status()
 
                         text_content = ""
-                        content_type = link_response.headers.get('Content-Type', '').lower()
-
                         if 'application/pdf' in content_type:
-                            current_app.logger.info(f"Processing PDF link: {link_url}")
                             try:
                                 with fitz.open(stream=link_response.content, filetype="pdf") as pdf_doc:
                                     for page in pdf_doc:
@@ -376,7 +375,7 @@ def attempt_web_lookup(company, model):
                             except Exception as pdf_error:
                                 current_app.logger.error(f"Failed to parse PDF from {link_url}: {pdf_error}")
                                 continue
-                        else: # Assume HTML
+                        else:
                             link_soup = BeautifulSoup(link_response.content, 'html.parser')
                             tables = link_soup.find_all('table')
                             if tables:
@@ -387,8 +386,7 @@ def attempt_web_lookup(company, model):
                                 text_content = link_soup.body.get_text().lower() if link_soup.body else link_soup.get_text().lower()
 
                         parsed_spec = parse_specifications_from_text(text_content, company, model)
-
-                        if parsed_spec: # Validation is now inside the parsing function
+                        if parsed_spec:
                             current_app.logger.info(f"Successfully parsed valid specs from {link_url}")
                             return parsed_spec
                             
