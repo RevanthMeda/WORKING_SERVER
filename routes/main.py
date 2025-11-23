@@ -1,150 +1,20 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
-from flask_login import current_user
-from models import db, Report, SATReport, Notification
-from auth import login_required
-import json
-from services.sat_tables import extract_ui_tables, build_doc_tables, migrate_context_tables, TABLE_CONFIG
-from typing import Any, Callable
-EXTRA_IMAGE_KEYS = ['SCADA_SCREENSHOTS', 'TRENDS_SCREENSHOTS', 'ALARM_SCREENSHOTS']
-TABLE_UI_KEYS = [cfg['ui_section'] for cfg in TABLE_CONFIG] + EXTRA_IMAGE_KEYS
-import os
-import uuid
-import datetime as dt
-from services.dashboard_stats import compute_and_cache_dashboard_stats
-
-main_bp = Blueprint('main', __name__)
-
-@main_bp.route('/edit/<submission_id>')
-@login_required
-def edit_submission(submission_id):
-    """Edit a submission with role-based permissions"""
-    
-    # Get the report
-    report = Report.query.get(submission_id)
-    if not report:
-        flash('Report not found.', 'error')
-        return redirect(url_for('dashboard.home'))
-    
-    # Check permissions
-    can_edit = False
-    if current_user.role == 'Admin':
-        can_edit = True  # Admin can edit any report
-    elif current_user.role == 'Engineer' and current_user.email == report.user_email:
-        # Engineers can edit their own reports until approved by Automation Manager
-        if report.approvals_json:
-            try:
-                approvals = json.loads(report.approvals_json)
-                tm_approved = any(a.get("status") == "approved" and a.get("stage") == 1 for a in approvals)
-                can_edit = not tm_approved
-            except:
-                can_edit = True  # If can't parse approvals, allow edit
-        else:
-            can_edit = True
-    elif current_user.role == 'Automation Manager':
-        # Automation Manager can edit reports until approved by PM
-        if report.approvals_json:
-            try:
-                approvals = json.loads(report.approvals_json)
-                pm_approved = any(a.get("status") == "approved" and a.get("stage") == 2 for a in approvals)
-                can_edit = not pm_approved
-            except:
-                can_edit = True
-        else:
-            can_edit = True
-    
-    if not can_edit:
-        flash('You do not have permission to edit this report.', 'error')
-        return redirect(url_for('status.view_status', submission_id=submission_id))
-    
-    # If user can edit, redirect to the SAT wizard with the submission ID
-    return redirect(url_for('reports.sat_wizard', submission_id=submission_id))
-
-
-def _utils_unavailable(*args: Any, **kwargs: Any) -> Any:
-    raise RuntimeError("Utility helpers are unavailable; ensure utils module is installed.")
-
-
-load_submissions: Callable[..., Any] = _utils_unavailable
-save_submissions: Callable[..., Any] = _utils_unavailable
-send_edit_link: Callable[..., Any] = _utils_unavailable
-send_approval_link: Callable[..., Any] = _utils_unavailable
-setup_approval_workflow_db: Callable[..., Any] = _utils_unavailable
-handle_image_removals: Callable[..., Any] = _utils_unavailable
-allowed_file: Callable[..., Any] = _utils_unavailable
-try:
-    from utils import (
-                   load_submissions, save_submissions, send_edit_link, send_approval_link,
-                   setup_approval_workflow_db, handle_image_removals,
-                  allowed_file)
-except ImportError as e:
-    print(f"Warning: Could not import utils: {e}")
-
-# Helper function to get unread notification count (assuming it exists elsewhere)
-def get_unread_count():
-    """Placeholder for getting unread notification count"""
-    # Replace with actual implementation if available
-    return 0
-
-
-
-def create_approval_notification(approver_email, submission_id, stage, document_title):
-    """Create approval notification"""
+def _normalize_url_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                return [str(item) for item in parsed]
+        except Exception:
+            pass
+        return [value] if value else []
+    if not value:
+        return []
     try:
-
-        notification = Notification(
-            user_email=approver_email,
-            title="New Approval Request",
-            message=f"You have a new approval request for: {document_title}",
-            type="approval",
-            read=False
-        )
-        db.session.add(notification)
-        db.session.commit()
-        return True
-    except Exception as e:
-        current_app.logger.error(f"Error creating approval notification: {e}")
-        return False
-
-def create_new_submission_notification(admin_emails, submission_id, document_title, submitter_email):
-    """Create new submission notification for admins"""
-    try:
-
-        for email in admin_emails:
-            notification = Notification(
-                user_email=email,
-                title="New Report Submission",
-                message=f"New report submitted: {document_title} by {submitter_email}",
-                type="submission",
-                read=False
-            )
-            db.session.add(notification)
-
-        db.session.commit()
-        return True
-    except Exception as e:
-        current_app.logger.error(f"Error creating submission notifications: {e}")
-        return False
-
-
-
-
-@main_bp.route('/sat_form', methods=['GET'])
-@login_required
-def sat_form():
-    """Render the SAT form (index.html) for creating a new report"""
-    # Always render a blank form for a new report
-    submission_data = {
-        'USER_EMAIL': current_user.email if current_user.is_authenticated else '',
-        'PREPARED_BY': current_user.full_name if current_user.is_authenticated else '',
-    }
-    return render_template(
-        'SAT.html',
-        submission_data=submission_data,
-        user_role=current_user.role if hasattr(current_user, 'role') else 'user',
-        sat_table_config=TABLE_CONFIG,
-    )
-
-
+        return [str(item) for item in list(value)]
+    except TypeError:
+        return [str(value)]
 
 @main_bp.route('/generate', methods=['POST'])
 @login_required
@@ -256,24 +126,6 @@ def generate():
         import shutil
 
         doc = DocxTemplate(current_app.config['TEMPLATE_FILE'])
-
-        def _normalize_url_list(value: Any) -> list[str]:
-            if isinstance(value, list):
-                return [str(item) for item in value]
-            if isinstance(value, str):
-                try:
-                    parsed = json.loads(value)
-                    if isinstance(parsed, list):
-                        return [str(item) for item in parsed]
-                except Exception:
-                    pass
-                return [value] if value else []
-            if not value:
-                return []
-            try:
-                return [str(item) for item in list(value)]
-            except TypeError:
-                return [str(value)]
 
         # Initialize image URLs lists from database
         scada_urls = _normalize_url_list(sat_report.scada_image_urls)
