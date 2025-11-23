@@ -16,6 +16,11 @@ def _normalize_url_list(value: Any) -> list[str]:
     except TypeError:
         return [str(value)]
 
+def _resolve_urls(key: str, model_value: Any, existing_data: dict) -> list[str]:
+    existing_value = existing_data.get(key) if isinstance(existing_data, dict) else None
+    urls = _normalize_url_list(existing_value)
+    return urls if urls else _normalize_url_list(model_value)
+
 @main_bp.route('/generate', methods=['POST'])
 @login_required
 def generate():
@@ -692,14 +697,9 @@ def save_progress():
         upload_dir = os.path.join(upload_root_cfg, submission_id)
         os.makedirs(upload_dir, exist_ok=True)
 
-        def _resolve_urls(key: str, model_value: Any) -> list[str]:
-            existing_value = existing_data.get(key) if isinstance(existing_data, dict) else None
-            urls = _normalize_url_list(existing_value)
-            return urls if urls else _normalize_url_list(model_value)
-
-        scada_urls = _resolve_urls('scada_image_urls', sat_report.scada_image_urls)
-        trends_urls = _resolve_urls('trends_image_urls', sat_report.trends_image_urls)
-        alarm_urls = _resolve_urls('alarm_image_urls', sat_report.alarm_image_urls)
+        scada_urls = _resolve_urls('scada_image_urls', sat_report.scada_image_urls, existing_data)
+        trends_urls = _resolve_urls('trends_image_urls', sat_report.trends_image_urls, existing_data)
+        alarm_urls = _resolve_urls('alarm_image_urls', sat_report.alarm_image_urls, existing_data)
 
         # Handle removal of images marked for deletion in the form
         # The `handle_image_removals` function processes the comma-separated

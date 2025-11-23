@@ -7,6 +7,7 @@ from models import db, ModuleSpec
 import time
 from urllib.parse import quote
 import logging
+import fitz
 
 io_builder_bp = Blueprint('io_builder', __name__)
 
@@ -313,7 +314,7 @@ def attempt_web_lookup(company, model):
     """
     Attempt to find module specifications online using DuckDuckGo search.
     This version includes more robust error handling, smarter link selection,
-    and validates parsed data before returning.
+    and validates parsed data before returning. Now handles PDFs.
     """
     try:
         current_app.logger.info(f"Starting robust web lookup for {company} {model}")
@@ -340,7 +341,7 @@ def attempt_web_lookup(company, model):
                 
                 # Make the search request with a timeout and error handling
                 response = requests.get(search_url, headers=headers, timeout=15)
-                response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+                response.raise_for_status()
 
                 soup = BeautifulSoup(response.content, 'html.parser')
 
@@ -349,7 +350,6 @@ def attempt_web_lookup(company, model):
                 relevant_links = []
                 for link in links:
                     href = link.get('href', '')
-                    # Prioritize official-looking domains and direct PDF links
                     if 'http' in href and not any(junk in href for junk in ['duckduckgo.com', 'google.com', 'bing.com']):
                         if company.lower() in href.lower() or '.pdf' in href.lower() or 'datasheet' in href.lower():
                             relevant_links.append(href)
@@ -361,19 +361,34 @@ def attempt_web_lookup(company, model):
                         link_response = requests.get(link_url, headers=headers, timeout=10)
                         link_response.raise_for_status()
 
-                        # Check if content is PDF, if so, we can't parse it with BeautifulSoup
-                        if 'application/pdf' in link_response.headers.get('Content-Type', ''):
-                            current_app.logger.warning(f"Link {link_url} is a PDF, which cannot be parsed for detailed specs.")
-                            continue # Move to the next link
+                        text_content = ""
+                        content_type = link_response.headers.get('Content-Type', '').lower()
 
-                        link_soup = BeautifulSoup(link_response.content, 'html.parser')
-                        parsed_spec = parse_specifications_from_content(link_soup, company, model)
+                        if 'application/pdf' in content_type:
+                            current_app.logger.info(f"Processing PDF link: {link_url}")
+                            try:
+                                with fitz.open(stream=link_response.content, filetype="pdf") as pdf_doc:
+                                    for page in pdf_doc:
+                                        text_content += page.get_text()
+                                if not text_content.strip():
+                                    current_app.logger.warning(f"PDF at {link_url} had no extractable text.")
+                                    continue
+                            except Exception as pdf_error:
+                                current_app.logger.error(f"Failed to parse PDF from {link_url}: {pdf_error}")
+                                continue
+                        else: # Assume HTML
+                            link_soup = BeautifulSoup(link_response.content, 'html.parser')
+                            tables = link_soup.find_all('table')
+                            if tables:
+                                for table in tables:
+                                    if any(header in table.get_text().lower() for header in ['specification', 'technical data', 'i/o']):
+                                        text_content += table.get_text().lower() + "\n"
+                            if not text_content:
+                                text_content = link_soup.body.get_text().lower() if link_soup.body else link_soup.get_text().lower()
 
-                        # Validate that the parsed data is reasonable
-                        if parsed_spec and (parsed_spec.get('digital_inputs', 0) > 0 or
-                                           parsed_spec.get('digital_outputs', 0) > 0 or
-                                           parsed_spec.get('analog_inputs', 0) > 0 or
-                                           parsed_spec.get('analog_outputs', 0) > 0):
+                        parsed_spec = parse_specifications_from_text(text_content, company, model)
+
+                        if parsed_spec: # Validation is now inside the parsing function
                             current_app.logger.info(f"Successfully parsed valid specs from {link_url}")
                             return parsed_spec
                             
@@ -394,13 +409,12 @@ def attempt_web_lookup(company, model):
         current_app.logger.error(f"A critical error occurred in attempt_web_lookup: {e}")
         return None
 
-def parse_specifications_from_content(soup, company, model):
+def parse_specifications_from_text(text_content, company, model):
     """
-    Parse module specifications from HTML content with improved robustness.
+    Parse module specifications from raw text content (from HTML or PDF).
     Looks for specification tables and uses more flexible regex.
     """
     try:
-        # Initial spec with defaults
         spec = {
             'description': f'{company.upper()} {model.upper()} - Scraped',
             'digital_inputs': 0, 'digital_outputs': 0,
@@ -408,21 +422,9 @@ def parse_specifications_from_content(soup, company, model):
             'voltage_range': None, 'current_range': None,
             'signal_type': 'Unknown', 'verified': False
         }
-
-        # Try to find a specification table first
-        tables = soup.find_all('table')
-        text_content = ""
-        if tables:
-            for table in tables:
-                # Check if the table seems relevant based on headers
-                if any(header in table.get_text().lower() for header in ['specification', 'technical data', 'i/o']):
-                    text_content += table.get_text().lower() + "\n"
         
-        # If no relevant table found, use the whole body text
-        if not text_content:
-            text_content = soup.body.get_text().lower() if soup.body else soup.get_text().lower()
+        lowered_text = text_content.lower()
 
-        # Define more specific and flexible regex patterns
         io_patterns = {
             'digital_inputs': [r'(\d+)\s*(?:-channel)?\s*digital\s*input[s]?'],
             'digital_outputs': [r'(\d+)\s*(?:-channel)?\s*digital\s*output[s]?'],
@@ -430,38 +432,36 @@ def parse_specifications_from_content(soup, company, model):
             'analog_outputs': [r'(\d+)\s*(?:-channel)?\s*analog\s*output[s]?']
         }
 
-        # Extract I/O counts
         for io_type, patterns in io_patterns.items():
             for pattern in patterns:
-                matches = re.search(pattern, text_content, re.IGNORECASE)
+                matches = re.search(pattern, lowered_text)
                 if matches:
                     try:
                         value = int(matches.group(1))
-                        if 0 < value < 256: # Basic sanity check
+                        if 0 < value < 256:
                             spec[io_type] = value
                             current_app.logger.info(f"Found {io_type}: {value} from web scrape")
-                            # Don't break, allow later patterns to override if they are more specific (though not in this simple setup)
                     except (ValueError, IndexError):
                         continue
         
-        # Simple voltage/current parsing (can be expanded)
         if not spec['voltage_range']:
-            voltage_match = re.search(r'(\d+\s*VDC)', text_content, re.IGNORECASE)
+            voltage_match = re.search(r'(\d+\s*VDC)', lowered_text, re.IGNORECASE)
             if voltage_match:
                 spec['voltage_range'] = voltage_match.group(1).upper()
 
         if not spec['current_range']:
-            current_match = re.search(r'((?:4-20|0-20)\s*mA)', text_content, re.IGNORECASE)
+            current_match = re.search(r'((?:4-20|0-20)\s*mA)', lowered_text, re.IGNORECASE)
             if current_match:
                 spec['current_range'] = current_match.group(1)
 
-        # Determine signal type
-        if (spec['digital_inputs'] > 0 or spec['digital_outputs'] > 0) and \
-           (spec['analog_inputs'] > 0 or spec['analog_outputs'] > 0):
+        is_di_do = spec['digital_inputs'] > 0 or spec['digital_outputs'] > 0
+        is_ai_ao = spec['analog_inputs'] > 0 or spec['analog_outputs'] > 0
+
+        if is_di_do and is_ai_ao:
             spec['signal_type'] = 'Mixed'
-        elif spec['digital_inputs'] > 0 or spec['digital_outputs'] > 0:
+        elif is_di_do:
             spec['signal_type'] = 'Digital'
-        elif spec['analog_inputs'] > 0 or spec['analog_outputs'] > 0:
+        elif is_ai_ao:
             spec['signal_type'] = 'Analog'
 
         # Only return a spec if it has at least one I/O point identified
@@ -473,7 +473,7 @@ def parse_specifications_from_content(soup, company, model):
         return None
 
     except Exception as e:
-        current_app.logger.error(f"Error parsing specifications from web content: {e}")
+        current_app.logger.error(f"Error parsing specifications from text: {e}")
         return None
 
 @io_builder_bp.route('/api/generate-io-table', methods=['POST'])
