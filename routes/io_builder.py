@@ -345,7 +345,12 @@ def _get_specs_from_gemini(company: str, model: str):
         """
 
         generation_config = genai.types.GenerationConfig(temperature=0.1, max_output_tokens=500)
-        response = gemini_model.generate_content(prompt, generation_config=generation_config)
+        request_options = {"timeout": 60}  # 60-second timeout
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config=generation_config,
+            request_options=request_options
+        )
         
         text_response = _gemini_text_from_response(response)
         if not text_response:
