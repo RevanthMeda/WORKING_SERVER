@@ -468,14 +468,12 @@
         });
 
         // Lookup module specifications online
-        async function lookupModuleSpecs() {
+       async function lookupModuleSpecs() {
             const vendor = document.getElementById('vendor').value;
             const model = document.getElementById('model').value;
 
-            console.log(`Looking up: Vendor='${vendor}', Model='${model}'`);
-
             if (!vendor || !model) {
-                showStatusMessage('Please select a vendor and enter a model number', 'warning');
+                showStatusMessage('Please select a vendor and enter a model number.', 'warning');
                 return;
             }
 
@@ -483,68 +481,45 @@
             const originalText = lookupBtn.innerHTML;
             lookupBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Searching...';
             lookupBtn.disabled = true;
+            showStatusMessage(`🔍 Searching for ${vendor} ${model}...`, 'info');
 
             try {
-                showStatusMessage(`🔍 Searching for ${vendor} ${model} specifications...`, 'info');
-
                 const response = await fetch('/io-builder/api/module-lookup', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': getCSRFToken()
                     },
-                    body: JSON.stringify({ 
-                        company: vendor, 
-                        model: model 
-                    })
+                    body: JSON.stringify({ company: vendor, model: model })
                 });
 
-                console.log('Response status:', response.status);
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
                 const data = await response.json();
-                console.log('Lookup response:', data);
 
-                if (data.success && data.module) {
+                if (response.ok && data.success) {
                     currentModuleSpec = data.module;
-                    console.log('Current module spec:', currentModuleSpec);
-                    
                     displayModuleSpecs(data.module);
                     
-                    let message = '';
-                    let messageType = 'success';
+                    let sourceText = "from an unknown source";
+                    if (data.source === 'database') sourceText = "from database";
+                    if (data.source === 'internal_db') sourceText = "from internal database";
+                    else if (data.source === 'web') sourceText = "online (unverified)";
                     
-                    if (data.source === 'database') {
-                        message = `✅ Found ${vendor} ${model} specifications in database`;
-                    } else if (data.source === 'web') {
-                        message = `✅ Found ${vendor} ${model} specifications online!`;
-                    } else if (data.source === 'manual') {
-                        message = data.message || `⚠ Module ${vendor} ${model} not found. Please enter specifications manually.`;
-                        messageType = 'warning';
-                        showManualSpecEditor();
-                    }
+                    const specSummary = `DI: ${data.module.digital_inputs || 0}, DO: ${data.module.digital_outputs || 0}, AI: ${data.module.analog_inputs || 0}, AO: ${data.module.analog_outputs || 0}`;
+                    showStatusMessage(`✅ Success! Found ${vendor} ${model} ${sourceText}. Specs: ${specSummary}`, 'success');
 
-                    // Add detailed I/O info to message
-                    const totalChannels = (data.module.digital_inputs || 0) + (data.module.digital_outputs || 0) + 
-                                         (data.module.analog_inputs || 0) + (data.module.analog_outputs || 0);
-                    
-                    if (totalChannels > 0) {
-                        message += ` | DI: ${data.module.digital_inputs || 0}, DO: ${data.module.digital_outputs || 0}, AI: ${data.module.analog_inputs || 0}, AO: ${data.module.analog_outputs || 0}`;
-                    }
-
-                    showStatusMessage(message, messageType);
                 } else {
-                    const errorMessage = data.error || 'Module not found. Please enter specifications manually.';
-                    showStatusMessage(errorMessage, 'warning');
+                    // This handles cases where the server returns a non-2xx status code (e.g., 404, 500)
+                    const errorMessage = data.message || `Module ${vendor} ${model} not found. Please enter specifications manually.`;
+                    showStatusMessage(`⚠️ ${errorMessage}`, 'warning');
                     showManualSpecEditor();
                 }
+
             } catch (error) {
-                console.error('Lookup error:', error);
-                showStatusMessage(`❌ Network error: ${error.message}. Please try again or enter specifications manually.`, 'error');
+                console.error('A critical error occurred during lookup:', error);
+                // This will catch genuine network errors or if the server is down
+                showStatusMessage('❌ A network error occurred. Please check your connection and try again.', 'error');
                 showManualSpecEditor();
+
             } finally {
                 lookupBtn.innerHTML = originalText;
                 lookupBtn.disabled = false;

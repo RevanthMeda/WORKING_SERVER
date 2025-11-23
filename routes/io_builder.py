@@ -222,19 +222,16 @@ def module_lookup():
         if not data:
             return jsonify({'success': False, 'message': 'No data provided'}), 400
 
-        # Accept both vendor and company field names for compatibility
         vendor = data.get('company', data.get('vendor', '')).strip().upper()
         model = data.get('model', '').strip().upper()
 
-        # Allow searching by model only if vendor is not provided
         if not model:
             return jsonify({'success': False, 'message': 'Model is required'}), 400
 
-        # Try to find in database first using ModuleSpec model
+        # Tier 1: Database Lookup
         if vendor:
             module = ModuleSpec.query.filter_by(company=vendor, model=model).first()
         else:
-            # If no vendor specified, search by model only (case-insensitive)
             module = ModuleSpec.query.filter(ModuleSpec.model.ilike(f'%{model}%')).first()
 
         if module:
@@ -248,273 +245,235 @@ def module_lookup():
                     'analog_inputs': module.analog_inputs,
                     'analog_outputs': module.analog_outputs,
                     'voltage_range': module.voltage_range,
-                    'current_range': module.current_range
+                    'current_range': module.current_range,
+                    'verified': module.verified
                 },
                 'source': 'database'
             })
 
-        # Try to find in comprehensive module database
+        # Tier 2: Hardcoded Comprehensive Database
         module_db = get_comprehensive_module_database()
-        
-        # Check various key patterns with case-insensitive matching
-        test_keys = []
-        if vendor:
-            test_keys.extend([
-                f"{vendor}_{model}",
-                f"{vendor.upper()}_{model.upper()}",
-                f"{vendor}_{model.replace('-', '_')}",
-                f"{vendor}_{model.replace(' ', '_')}"
-            ])
-        # Always check model alone for flexibility
-        test_keys.extend([
-            model,
-            model.upper(),
-            model.replace('-', '_'),
-            model.replace(' ', '_')
-        ])
-        
-        # Also check with case-insensitive matching
-        for key in test_keys:
-            # Direct key match
-            if key in module_db:
-                module_info = module_db[key]
-                current_app.logger.info(f"Found module in comprehensive database: {key}")
-                
-                # Save to database for future use if vendor is provided
-                if vendor:
-                    new_module = ModuleSpec(
-                        company=vendor,
-                        model=model,
-                        description=module_info.get('description', ''),
-                        digital_inputs=module_info.get('digital_inputs', 0),
-                        digital_outputs=module_info.get('digital_outputs', 0),
-                        analog_inputs=module_info.get('analog_inputs', 0),
-                        analog_outputs=module_info.get('analog_outputs', 0),
-                        voltage_range=module_info.get('voltage_range'),
-                        current_range=module_info.get('current_range'),
-                        verified=module_info.get('verified', False)
-                    )
-                    
-                    db.session.add(new_module)
-                    db.session.commit()
-                
-                return jsonify({
-                    'success': True,
-                    'module': module_info,
-                    'source': 'database'
-                })
-
-        # If not found in databases, try partial matching in comprehensive database
-        # Check for partial matches (case-insensitive)
-        for db_key, db_module in module_db.items():
-            if model.upper() in db_key.upper() or db_key.upper() in model.upper():
-                current_app.logger.info(f"Found partial match in comprehensive database: {db_key}")
-                return jsonify({
-                    'success': True,
-                    'module': db_module,
-                    'source': 'database'
-                })
-        
-        # If still not found and vendor is provided, try web lookup
-        if vendor:
-            module_info = attempt_web_lookup(vendor, model)
-        else:
-            module_info = None
+        search_key = f"{vendor}_{model}" if vendor else model
+        module_info = module_db.get(search_key)
 
         if module_info:
-            # Save to database for future use
-            new_module = ModuleSpec(
-                company=vendor,
-                model=model,
-                description=module_info.get('description', ''),
-                digital_inputs=module_info.get('digital_inputs', 0),
-                digital_outputs=module_info.get('digital_outputs', 0),
-                analog_inputs=module_info.get('analog_inputs', 0),
-                analog_outputs=module_info.get('analog_outputs', 0),
-                voltage_range=module_info.get('voltage_range'),
-                current_range=module_info.get('current_range'),
-                verified=False
-            )
+            current_app.logger.info(f"Found module in internal database: {search_key}")
+            # Save to DB for future consistency if vendor is provided
+            if vendor:
+                new_module = ModuleSpec(
+                    company=vendor, model=model,
+                    description=module_info.get('description', ''),
+                    digital_inputs=module_info.get('digital_inputs', 0),
+                    digital_outputs=module_info.get('digital_outputs', 0),
+                    analog_inputs=module_info.get('analog_inputs', 0),
+                    analog_outputs=module_info.get('analog_outputs', 0),
+                    voltage_range=module_info.get('voltage_range'),
+                    current_range=module_info.get('current_range'),
+                    verified=module_info.get('verified', True)
+                )
+                db.session.add(new_module)
+                db.session.commit()
+            return jsonify({'success': True, 'module': module_info, 'source': 'internal_db'})
 
-            db.session.add(new_module)
-            db.session.commit()
-
-            current_app.logger.info(f"Fetched and saved module: {vendor} {model}")
-            return jsonify({
-                'success': True,
-                'module': module_info,
-                'source': 'web'
-            })
-
+        # Tier 3: Web Scraping Lookup
         if vendor:
-            return jsonify({'success': False, 'message': f'Module {vendor} {model} not found'}), 404
-        else:
-            return jsonify({'success': False, 'message': f'Module {model} not found'}), 404
+            module_info = attempt_web_lookup(vendor, model)
+            if module_info:
+                # Data validation before saving
+                if not any(module_info.get(key, 0) > 0 for key in ['digital_inputs', 'digital_outputs', 'analog_inputs', 'analog_outputs']):
+                    current_app.logger.warning(f"Web lookup for {vendor} {model} returned data with no I/O points. Discarding.")
+                    return jsonify({'success': False, 'message': f'Module {vendor} {model} found, but no valid I/O specs could be parsed.'}), 404
+
+                # Save the validated, scraped data to the database
+                new_module = ModuleSpec(
+                    company=vendor, model=model,
+                    description=module_info.get('description', f'{vendor} {model} - Scraped'),
+                    digital_inputs=module_info.get('digital_inputs', 0),
+                    digital_outputs=module_info.get('digital_outputs', 0),
+                    analog_inputs=module_info.get('analog_inputs', 0),
+                    analog_outputs=module_info.get('analog_outputs', 0),
+                    voltage_range=module_info.get('voltage_range'),
+                    current_range=module_info.get('current_range'),
+                    verified=False  # Scraped data is never considered verified
+                )
+                db.session.add(new_module)
+                db.session.commit()
+                current_app.logger.info(f"Successfully fetched, validated, and saved new module: {vendor} {model}")
+                return jsonify({'success': True, 'module': module_info, 'source': 'web'})
+
+        # If all lookups fail
+        message = f'Module "{vendor} {model}" not found in any database, and web lookup was unsuccessful.' if vendor else f'Module "{model}" not found.'
+        return jsonify({'success': False, 'message': message}), 404
 
     except Exception as e:
-        current_app.logger.error(f"Error in module lookup: {str(e)}")
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        current_app.logger.error(f"Critical error in module_lookup: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'An unexpected internal server error occurred. Please check the logs.'}), 500
 
 def attempt_web_lookup(company, model):
-    """Attempt to find module specifications online"""
+    """
+    Attempt to find module specifications online using DuckDuckGo search.
+    This version includes more robust error handling, smarter link selection,
+    and validates parsed data before returning.
+    """
     try:
-        current_app.logger.info(f"Starting web lookup for {company} {model}")
+        current_app.logger.info(f"Starting robust web lookup for {company} {model}")
 
-        # Search queries
+        # Prioritize queries that are more likely to yield direct results
         search_queries = [
-            f"{company} {model} datasheet",
-            f"{company} {model} specifications",
-            f"{company} {model} I/O module",
-            f"{model} industrial automation module"
+            f'"{company} {model}" datasheet pdf',
+            f'"{company} {model}" technical specifications',
+            f"{company} {model} manual",
+            f"{model} industrial I/O module specifications"
         ]
 
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
+            'Referer': 'https://www.google.com/'
         }
 
         for query in search_queries:
             try:
-                current_app.logger.info(f"Searching: {query}")
+                current_app.logger.info(f"Searching online with query: '{query}'")
                 search_url = f"https://duckduckgo.com/html/?q={quote(query)}"
+                
+                # Make the search request with a timeout and error handling
+                response = requests.get(search_url, headers=headers, timeout=15)
+                response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
 
-                response = requests.get(search_url, headers=headers, timeout=10)
-                if response.status_code == 200:
-                    soup = BeautifulSoup(response.content, 'html.parser')
+                soup = BeautifulSoup(response.content, 'html.parser')
 
-                    # Extract links
-                    links = soup.find_all('a', href=True)
-                    relevant_links = []
+                # Smarter link filtering
+                links = soup.find_all('a', href=True)
+                relevant_links = []
+                for link in links:
+                    href = link.get('href', '')
+                    # Prioritize official-looking domains and direct PDF links
+                    if 'http' in href and not any(junk in href for junk in ['duckduckgo.com', 'google.com', 'bing.com']):
+                        if company.lower() in href.lower() or '.pdf' in href.lower() or 'datasheet' in href.lower():
+                            relevant_links.append(href)
+                
+                # Limit to the top 3 most promising links
+                for link_url in relevant_links[:3]:
+                    try:
+                        current_app.logger.info(f"Scraping promising link: {link_url}")
+                        link_response = requests.get(link_url, headers=headers, timeout=10)
+                        link_response.raise_for_status()
 
-                    for link in links:
-                        href = link.get('href', '')
-                        if any(domain in href.lower() for domain in [company.lower(), 'automation', 'industrial', 'datasheet']):
-                            if 'http' in href:
-                                relevant_links.append(href)
-                                if len(relevant_links) >= 2:
-                                    break
+                        # Check if content is PDF, if so, we can't parse it with BeautifulSoup
+                        if 'application/pdf' in link_response.headers.get('Content-Type', ''):
+                            current_app.logger.warning(f"Link {link_url} is a PDF, which cannot be parsed for detailed specs.")
+                            continue # Move to the next link
 
-                    # Try to scrape relevant links
-                    for link_url in relevant_links:
-                        try:
-                            link_response = requests.get(link_url, headers=headers, timeout=8)
-                            if link_response.status_code == 200:
-                                link_soup = BeautifulSoup(link_response.content, 'html.parser')
-                                parsed_spec = parse_specifications_from_content(link_soup, company, model)
-                                if parsed_spec:
-                                    current_app.logger.info(f"Successfully parsed specs from {link_url}")
-                                    return parsed_spec
-                        except Exception as link_error:
-                            current_app.logger.warning(f"Error processing link {link_url}: {link_error}")
-                            continue
+                        link_soup = BeautifulSoup(link_response.content, 'html.parser')
+                        parsed_spec = parse_specifications_from_content(link_soup, company, model)
 
-            except Exception as search_error:
-                current_app.logger.warning(f"Search failed for '{query}': {search_error}")
-                continue
+                        # Validate that the parsed data is reasonable
+                        if parsed_spec and (parsed_spec.get('digital_inputs', 0) > 0 or
+                                           parsed_spec.get('digital_outputs', 0) > 0 or
+                                           parsed_spec.get('analog_inputs', 0) > 0 or
+                                           parsed_spec.get('analog_outputs', 0) > 0):
+                            current_app.logger.info(f"Successfully parsed valid specs from {link_url}")
+                            return parsed_spec
+                            
+                    except requests.exceptions.RequestException as link_error:
+                        current_app.logger.warning(f"Failed to fetch or process link {link_url}: {link_error}")
+                    except Exception as e:
+                        current_app.logger.error(f"An unexpected error occurred while processing link {link_url}: {e}")
 
+            except requests.exceptions.RequestException as search_error:
+                current_app.logger.error(f"Web search failed for query '{query}': {search_error}")
+            except Exception as e:
+                current_app.logger.error(f"An unexpected error occurred during web search: {e}")
+
+        current_app.logger.warning(f"Web lookup completed for {company} {model} with no definitive results.")
         return None
 
     except Exception as e:
-        current_app.logger.error(f"Web lookup error: {e}")
+        current_app.logger.error(f"A critical error occurred in attempt_web_lookup: {e}")
         return None
 
 def parse_specifications_from_content(soup, company, model):
-    """Parse module specifications from HTML content"""
+    """
+    Parse module specifications from HTML content with improved robustness.
+    Looks for specification tables and uses more flexible regex.
+    """
     try:
-        text_content = soup.get_text().lower()
-
+        # Initial spec with defaults
         spec = {
-            'description': f'{company} {model}',
-            'digital_inputs': 0,
-            'digital_outputs': 0,
-            'analog_inputs': 0,
-            'analog_outputs': 0,
-            'voltage_range': '24 VDC',
-            'current_range': '4-20mA',
-            'signal_type': 'Unknown',
-            'verified': True
+            'description': f'{company.upper()} {model.upper()} - Scraped',
+            'digital_inputs': 0, 'digital_outputs': 0,
+            'analog_inputs': 0, 'analog_outputs': 0,
+            'voltage_range': None, 'current_range': None,
+            'signal_type': 'Unknown', 'verified': False
         }
 
-        # Enhanced regex patterns for I/O detection
+        # Try to find a specification table first
+        tables = soup.find_all('table')
+        text_content = ""
+        if tables:
+            for table in tables:
+                # Check if the table seems relevant based on headers
+                if any(header in table.get_text().lower() for header in ['specification', 'technical data', 'i/o']):
+                    text_content += table.get_text().lower() + "\n"
+        
+        # If no relevant table found, use the whole body text
+        if not text_content:
+            text_content = soup.body.get_text().lower() if soup.body else soup.get_text().lower()
+
+        # Define more specific and flexible regex patterns
         io_patterns = {
-            'digital_inputs': [
-                r'(\d+)\s*(?:ch|channel[s]?)\s*(?:24\s*v\s*)?digital\s*input[s]?',
-                r'digital\s*input[s]?[:\s]*(\d+)\s*(?:ch|channel[s]?)?',
-                r'(\d+)\s*di\b',
-                r'(\d+)\s*x\s*di\b',
-                r'di\s*(\d+)',
-                r'(\d+)\s*digital\s*in'
-            ],
-            'digital_outputs': [
-                r'(\d+)\s*(?:ch|channel[s]?)\s*(?:24\s*v\s*)?digital\s*output[s]?',
-                r'digital\s*output[s]?[:\s]*(\d+)\s*(?:ch|channel[s]?)?',
-                r'(\d+)\s*do\b',
-                r'(\d+)\s*x\s*do\b',
-                r'do\s*(\d+)',
-                r'(\d+)\s*digital\s*out'
-            ],
-            'analog_inputs': [
-                r'(\d+)\s*(?:ch|channel[s]?)\s*analog\s*input[s]?',
-                r'analog\s*input[s]?[:\s]*(\d+)\s*(?:ch|channel[s]?)?',
-                r'(\d+)\s*ai\b',
-                r'(\d+)\s*x\s*ai\b',
-                r'ai\s*(\d+)',
-                r'(\d+)\s*analog\s*in'
-            ],
-            'analog_outputs': [
-                r'(\d+)\s*(?:ch|channel[s]?)\s*analog\s*output[s]?',
-                r'analog\s*output[s]?[:\s]*(\d+)\s*(?:ch|channel[s]?)?',
-                r'(\d+)\s*ao\b',
-                r'(\d+)\s*x\s*ao\b',
-                r'ao\s*(\d+)',
-                r'(\d+)\s*analog\s*out'
-            ]
+            'digital_inputs': [r'(\d+)\s*(?:-channel)?\s*digital\s*input[s]?'],
+            'digital_outputs': [r'(\d+)\s*(?:-channel)?\s*digital\s*output[s]?'],
+            'analog_inputs': [r'(\d+)\s*(?:-channel)?\s*analog\s*input[s]?'],
+            'analog_outputs': [r'(\d+)\s*(?:-channel)?\s*analog\s*output[s]?']
         }
 
         # Extract I/O counts
         for io_type, patterns in io_patterns.items():
             for pattern in patterns:
-                matches = re.findall(pattern, text_content, re.IGNORECASE)
+                matches = re.search(pattern, text_content, re.IGNORECASE)
                 if matches:
                     try:
-                        value = int(matches[0])
-                        if value > 0:
+                        value = int(matches.group(1))
+                        if 0 < value < 256: # Basic sanity check
                             spec[io_type] = value
-                            current_app.logger.info(f"Found {io_type}: {value}")
-                            break
+                            current_app.logger.info(f"Found {io_type}: {value} from web scrape")
+                            # Don't break, allow later patterns to override if they are more specific (though not in this simple setup)
                     except (ValueError, IndexError):
                         continue
+        
+        # Simple voltage/current parsing (can be expanded)
+        if not spec['voltage_range']:
+            voltage_match = re.search(r'(\d+\s*VDC)', text_content, re.IGNORECASE)
+            if voltage_match:
+                spec['voltage_range'] = voltage_match.group(1).upper()
 
-        # Extract voltage and current ranges
-        voltage_matches = re.findall(r'(\d+(?:\.\d+)?)\s*[-–to]\s*(\d+(?:\.\d+)?)\s*v', text_content, re.IGNORECASE)
-        if voltage_matches:
-            spec['voltage_range'] = f"{voltage_matches[0][0]}-{voltage_matches[0][1]}V"
-
-        current_matches = re.findall(r'(\d+(?:\.\d+)?)\s*[-–to]\s*(\d+(?:\.\d+)?)\s*ma', text_content, re.IGNORECASE)
-        if current_matches:
-            spec['current_range'] = f"{current_matches[0][0]}-{current_matches[0][1]}mA"
+        if not spec['current_range']:
+            current_match = re.search(r'((?:4-20|0-20)\s*mA)', text_content, re.IGNORECASE)
+            if current_match:
+                spec['current_range'] = current_match.group(1)
 
         # Determine signal type
-        total_digital = spec['digital_inputs'] + spec['digital_outputs']
-        total_analog = spec['analog_inputs'] + spec['analog_outputs']
-
-        if total_digital > 0 and total_analog > 0:
+        if (spec['digital_inputs'] > 0 or spec['digital_outputs'] > 0) and \
+           (spec['analog_inputs'] > 0 or spec['analog_outputs'] > 0):
             spec['signal_type'] = 'Mixed'
-        elif total_digital > 0:
+        elif spec['digital_inputs'] > 0 or spec['digital_outputs'] > 0:
             spec['signal_type'] = 'Digital'
-        elif total_analog > 0:
+        elif spec['analog_inputs'] > 0 or spec['analog_outputs'] > 0:
             spec['signal_type'] = 'Analog'
 
-        # Only return if we found valid I/O data
-        if any(spec[key] > 0 for key in ['digital_inputs', 'digital_outputs', 'analog_inputs', 'analog_outputs']):
-            current_app.logger.info(f"Successfully parsed web specifications")
+        # Only return a spec if it has at least one I/O point identified
+        if spec['signal_type'] != 'Unknown':
+            current_app.logger.info("Successfully parsed a valid-looking specification from web content.")
             return spec
 
+        current_app.logger.warning("Could not parse any valid I/O points from the provided web content.")
         return None
 
     except Exception as e:
-        current_app.logger.error(f"Error parsing specifications: {e}")
+        current_app.logger.error(f"Error parsing specifications from web content: {e}")
         return None
 
 @io_builder_bp.route('/api/generate-io-table', methods=['POST'])
