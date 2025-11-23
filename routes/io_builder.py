@@ -7,7 +7,6 @@ from models import db, ModuleSpec
 import time
 from urllib.parse import quote
 import logging
-import fitz
 
 io_builder_bp = Blueprint('io_builder', __name__)
 

@@ -4,6 +4,19 @@ This is a comprehensive Flask-based web application for generating System Accept
 
 ## Recent Updates
 
+### November 23, 2025 - Intelligent Lookup System & Document Corruption Fix (COMPLETE)
+- **Word Document Corruption FIXED**: Removed InlineImage objects that were corrupting Word documents
+- **Intelligent Lookup Service Created**: Built reusable Tier 1→2→3→Manual pattern for any resource type
+- **AI-Powered Module Lookup**: System automatically fetches module details from any user request using tiered search:
+  - Tier 1: Database (previously found modules) - instant
+  - Tier 2: Hardcoded common modules - instant  
+  - Tier 3: Gemini AI search (with rate-limit fallback) - saves to database automatically
+  - Tier 4: Manual entry form - user-verified data saved to database
+- **Automatic Caching**: All discovered modules stored in database for future users (shared knowledge)
+- **IO Builder Enhancements**: Fixed quota handling, added manual entry endpoint, improved error logging
+- **Reusable Search Endpoints**: Created `/api/search/templates`, `/api/search/signals`, `/api/search/components` for any resource
+- **App.py Updated**: Registered intelligent search blueprint with all search functionality
+
 ### October 2, 2025 - Word Document Corruption Fix (RESOLVED)
 - **Root Cause Identified**: InlineImage objects from docxtpl library were corrupting the Word document XML structure
 - **Solution Implemented**: Removed ALL InlineImage creation code that was causing "unreadable content" errors in Microsoft Word
@@ -21,8 +34,8 @@ This is a comprehensive Flask-based web application for generating System Accept
 
 ### October 1, 2025 - Edit Mode Data Display Fixes  
 - **Fixed Step 2 approver email visibility**: Added value attributes to hidden email/name fields and JavaScript initialization to populate display fields when editing existing reports
-- **Fixed Step 4+ table data visibility**: Updated save_progress route to process and save list/table fields (RELATED_DOCUMENTS, PRE_EXECUTION_APPROVAL, POST_EXECUTION_APPROVAL, PRE_TEST_REQUIREMENTS, KEY_COMPONENTS, IP_RECORDS)
-- **Data integrity protection**: Implemented conditional list field processing that preserves existing data when saving from earlier steps (prevents data loss on partial saves)
+- **Fixed Step 4+ table data visibility**: Updated save_progress route to process and save list/table fields
+- **Data integrity protection**: Implemented conditional list field processing that preserves existing data when saving from earlier steps
 - Edit mode now correctly displays all saved data across all form steps
 
 ### October 1, 2025 - SAT Report State Management Fixes
@@ -33,20 +46,6 @@ This is a comprehensive Flask-based web application for generating System Accept
 - Added automatic data saving when navigating between form steps (Next/Back buttons)
 - Implemented legacy localStorage cleanup for reports created before submission_id tracking
 - Ensured localStorage backup consistency by including submission_id after server response
-
-### October 1, 2025 - Replit Environment Setup
-- Configured application for Replit deployment
-- Created main.py entry point for gunicorn server
-- Set up workflow with gunicorn (2 workers, 120s timeout, auto-reload)
-- Created stub cache modules for non-Redis environments
-- Configured deployment for autoscale with proper gunicorn settings
-- Verified application is running successfully on port 5000
-
-### September 14, 2025
-- Fixed report status persistence - reports now correctly maintain DRAFT status across browser sessions
-- Restored edit functionality - users can now properly edit DRAFT and PENDING reports
-- Fixed manager dashboards - approval workflows now display pending reports correctly
-- Implemented comprehensive performance optimizations - 50-70% faster with database query optimization, caching, and compression
 
 # User Preferences
 
@@ -68,9 +67,19 @@ Preferred communication style: Simple, everyday language.
 - **Database ORM**: SQLAlchemy for database operations and migrations
 - **Session Management**: Server-side sessions with automatic timeout and complete clearing on logout
 
+## Intelligent Lookup System (NEW)
+- **Purpose**: Automatic discovery and caching of any resource (modules, templates, signals, components)
+- **Tier 1 (Database)**: Check PostgreSQL for previously found resources
+- **Tier 2 (Internal Cache)**: Check hardcoded common resources (ABB DC523, Siemens modules, etc.)
+- **Tier 3 (AI)**: Use Gemini AI to search online for specifications
+- **Tier 4 (Manual)**: Fallback form for user to enter specifications manually
+- **Auto-Caching**: All discovered resources automatically saved to database for all future users
+- **Use Cases**: Module specs, report templates, signal definitions, component configurations
+
 ## Database Design
 - **User Management**: Users table with roles (Admin, Engineer, TM, PM), status tracking, and password hashing
 - **Report Storage**: Reports table with JSON data storage for form submissions
+- **Module Specs**: ModuleSpec table for caching discovered I/O module specifications
 - **System Settings**: Key-value configuration storage for application settings
 - **Notifications**: User notification system with read/unread status tracking
 
@@ -78,6 +87,7 @@ Preferred communication style: Simple, everyday language.
 - **Template Processing**: DocxTemplate for Word document generation from templates
 - **PDF Conversion**: Windows COM integration (pywin32) for automated Word-to-PDF conversion
 - **File Management**: Organized directory structure for uploads, signatures, and generated outputs
+- **Image Handling**: Images saved to filesystem and database, but NOT embedded in Word (prevents corruption)
 
 ## Email Integration
 - **SMTP Configuration**: Gmail integration with app password authentication
