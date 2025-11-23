@@ -40,9 +40,15 @@ def _ensure_gemini_model(error_cls=RuntimeError):
 
 
 def _gemini_text_from_response(response: Any) -> str:
-    text = getattr(response, 'text', None)
-    if text:
-        return text.strip()
+    try:
+        text = getattr(response, 'text', None)
+        if text:
+            return text.strip()
+    except (ValueError, IndexError):
+        # If .text accessor fails (e.g., due to safety settings blocking),
+        # gracefully fall back to checking candidates directly.
+        pass
+
     candidates = getattr(response, 'candidates', []) or []
     for candidate in candidates:
         content = getattr(candidate, 'content', None)
