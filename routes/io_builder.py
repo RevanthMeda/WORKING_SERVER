@@ -397,6 +397,11 @@ def save_module():
                 **specs
             }
         })
+    
+    except Exception as e:
+        current_app.logger.error(f"Error saving module: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 def _get_specs_from_gemini(company: str, model: str):
     """
