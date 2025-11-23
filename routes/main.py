@@ -17,13 +17,13 @@ from PIL import Image
 from werkzeug.utils import secure_filename
 
 from models import SATReport, Report, db, User
-from services.dashboard_service import compute_and_cache_dashboard_stats
-from services.email_service import send_approval_link, send_edit_link
-from services.notification_service import (
-    create_approval_notification, create_new_submission_notification)
+from services.dashboard_stats import compute_and_cache_dashboard_stats
 from utils import (TABLE_UI_KEYS, allowed_file, build_doc_tables,
-                   extract_ui_tables, handle_image_removals, load_submissions,
+                   create_approval_notification,
+                   create_new_submission_notification, extract_ui_tables,
+                   handle_image_removals, load_submissions,
                    migrate_context_tables, save_submissions,
+                   send_approval_link, send_edit_link,
                    setup_approval_workflow_db)
 
 main_bp = Blueprint('main', __name__)
