@@ -1,5 +1,32 @@
-from typing import Any
+import base64
+import datetime as dt
 import json
+import os
+import shutil
+import tempfile
+import time
+import uuid
+from typing import Any
+
+from docx.shared import Mm
+from docxtpl import DocxTemplate, InlineImage
+from flask import (Blueprint, current_app, flash, jsonify, redirect, request,
+                   url_for)
+from flask_login import current_user, login_required
+from PIL import Image
+from werkzeug.utils import secure_filename
+
+from models import SATReport, Report, db, User
+from services.dashboard_service import compute_and_cache_dashboard_stats
+from services.email_service import send_approval_link, send_edit_link
+from services.notification_service import (
+    create_approval_notification, create_new_submission_notification)
+from utils import (TABLE_UI_KEYS, allowed_file, build_doc_tables,
+                   extract_ui_tables, handle_image_removals, load_submissions,
+                   migrate_context_tables, save_submissions,
+                   setup_approval_workflow_db)
+
+main_bp = Blueprint('main', __name__)
 
 def _normalize_url_list(value: Any) -> list[str]:
     if isinstance(value, list):
@@ -126,13 +153,6 @@ def generate():
         os.makedirs(upload_dir, exist_ok=True)
 
         # Initialize DocxTemplate
-        from docxtpl import DocxTemplate, InlineImage
-        from docx.shared import Mm
-        from werkzeug.utils import secure_filename
-        import base64
-        import time
-        import shutil
-
         doc = DocxTemplate(current_app.config['TEMPLATE_FILE'])
 
         # Initialize image URLs lists from database
@@ -441,7 +461,6 @@ def generate():
             return redirect(url_for('index'))
 
         # Build a timestamped filename and save to the OS temp directory
-        import tempfile
         timestamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"SAT_Report_{timestamp}.docx"
         temp_path = os.path.join(tempfile.gettempdir(), filename)
@@ -623,8 +642,6 @@ def generate():
 def save_progress():
     """Save form progress without generating report"""
     try:
-        from models import db, Report, SATReport
-
         # Get submission ID or create new one
         submission_id = request.form.get("submission_id", "").strip()
         if not submission_id:
@@ -710,9 +727,6 @@ def save_progress():
         handle_image_removals(request.form, 'removed_scada_screenshots', scada_urls)
         handle_image_removals(request.form, 'removed_trends_screenshots', trends_urls)
         handle_image_removals(request.form, 'removed_alarm_screenshots', alarm_urls)
-
-        from werkzeug.utils import secure_filename
-        from PIL import Image
 
         def save_uploaded_images(field_name, url_list):
             for storage in request.files.getlist(field_name):
