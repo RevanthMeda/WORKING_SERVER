@@ -317,62 +317,96 @@ def module_lookup():
 
 def _get_specs_from_gemini(company: str, model: str):
     """
-    Uses the Gemini AI to find specifications for an I/O module.
+    Uses the Gemini AI with a multi-step, retry-enabled process to find specifications for an I/O module.
     """
     from typing import Dict, Any, Optional
-    try:
-        current_app.logger.info(f"Attempting AI lookup for {company} {model}")
-        gemini_model = _ensure_gemini_model()
-
-        prompt = f"""
-        Find the technical specifications for the industrial I/O module: '{company} {model}'.
-
-        I need the following details:
-        - A brief description of the module.
-        - The number of digital inputs.
-        - The number of digital outputs.
-        - The number of analog inputs.
-        - The number of analog outputs.
-        - The typical voltage range (e.g., "24 VDC", "0-10V").
-        - The typical current range (e.g., "4-20mA").
-
-        Return the information in a single, minified JSON object with no markdown formatting.
-        The JSON object must have these exact keys: "description", "digital_inputs", "digital_outputs", "analog_inputs", "analog_outputs", "voltage_range", "current_range".
-
-        If a value is not found, set it to 0 for numeric fields and null for string fields.
-        Example response for a fictional module:
-        {{"description":"8-channel 24VDC digital input module","digital_inputs":8,"digital_outputs":0,"analog_inputs":0,"analog_outputs":0,"voltage_range":"24 VDC","current_range":null}}
-        """
-
-        generation_config = genai.types.GenerationConfig(temperature=0.1, max_output_tokens=500)
-        request_options = {"timeout": 60}  # 60-second timeout
-        response = gemini_model.generate_content(
-            prompt,
-            generation_config=generation_config,
-            request_options=request_options
-        )
-        
-        text_response = _gemini_text_from_response(response)
-        if not text_response:
-            current_app.logger.warning(f"Gemini returned an empty response for {company} {model}")
-            return None
-        
-        json_response = _parse_json_from_text(text_response)
+    
+    current_app.logger.info(f"Attempting advanced AI lookup for {company} {model}")
+    gemini_model = _ensure_gemini_model()
+    
+    # --- Helper to validate the final JSON ---
+    def _validate_spec_json(json_response):
         if not json_response or not isinstance(json_response, dict):
-            current_app.logger.warning(f"Failed to parse JSON from Gemini response: {text_response}")
-            return None
-
-        required_keys = {"digital_inputs", "digital_outputs", "analog_inputs", "analog_outputs"}
-        if not required_keys.issubset(json_response.keys()):
-            current_app.logger.warning(f"Gemini response missing required keys: {json_response}")
             return None
             
-        current_app.logger.info(f"Successfully received specs from Gemini for {company} {model}")
+        # Basic validation: ensure some I/O points exist or a description is present.
+        has_io = any(json_response.get(key, 0) > 0 for key in ['digital_inputs', 'digital_outputs', 'analog_inputs', 'analog_outputs'])
+        has_desc = bool(json_response.get('description'))
+
+        if not has_io and not has_desc:
+            current_app.logger.warning(f"AI response for {company} {model} lacked I/O points and description. Discarding.")
+            return None
+            
+        required_keys = {"digital_inputs", "digital_outputs", "analog_inputs", "analog_outputs"}
+        if not required_keys.issubset(json_response.keys()):
+            current_app.logger.warning(f"AI response missing required keys: {json_response}")
+            return None
+
+        current_app.logger.info(f"Successfully validated specs from AI for {company} {model}")
         return json_response
 
+    # --- Strategy 1: Precise, one-shot JSON prompt ---
+    current_app.logger.info(f"AI Lookup (Strategy 1: Precise JSON) for {company} {model}")
+    prompt_1 = f"""
+        Act as a helpful engineering assistant. I need to get the technical specifications for an industrial I/O module: '{company} {model}'.
+        Please analyze available information for this module and provide a summary of its key specs.
+        Your response must be a single, minified JSON object with no markdown. The JSON object must use these exact keys: "description", "digital_inputs", "digital_outputs", "analog_inputs", "analog_outputs", "voltage_range", "current_range".
+        If you cannot find a specific value, use 0 for numeric fields and null for string fields. Do not add any extra explanation outside of the JSON.
+        For example:
+        {{"description":"8-channel 24VDC digital input module","digital_inputs":8,"digital_outputs":0,"analog_inputs":0,"analog_outputs":0,"voltage_range":"24 VDC","current_range":null}}
+    """
+    try:
+        generation_config = genai.types.GenerationConfig(temperature=0.1, max_output_tokens=500)
+        request_options = {"timeout": 45}
+        response = gemini_model.generate_content(prompt_1, generation_config=generation_config, request_options=request_options)
+        text_response = _gemini_text_from_response(response)
+        if text_response:
+            json_response = _parse_json_from_text(text_response)
+            validated_json = _validate_spec_json(json_response)
+            if validated_json:
+                return validated_json
     except Exception as e:
-        current_app.logger.error(f"Error during Gemini lookup for {company} {model}: {e}", exc_info=True)
-        return None
+        current_app.logger.warning(f"AI Strategy 1 failed for {company} {model}: {e}")
+
+    # --- Strategy 2: Two-step prompt (Summarize then Extract) ---
+    current_app.logger.info(f"AI Lookup (Strategy 2: Summarize-then-Extract) for {company} {model}")
+    prompt_2a_summarize = f"""
+        Provide a detailed text summary of the technical specifications for the industrial I/O module: '{company} {model}'.
+        Focus on the number of inputs and outputs (digital and analog), voltage ratings, and current ratings.
+        Do not use JSON or markdown formatting. Just provide a plain text paragraph.
+    """
+    try:
+        generation_config = genai.types.GenerationConfig(temperature=0.3, max_output_tokens=1000)
+        request_options = {"timeout": 60}
+        summary_response = gemini_model.generate_content(prompt_2a_summarize, generation_config=generation_config, request_options=request_options)
+        summary_text = _gemini_text_from_response(summary_response)
+
+        if summary_text and len(summary_text) > 20:
+            current_app.logger.info(f"AI Strategy 2 got summary, now extracting JSON.")
+            prompt_2b_extract = f"""
+            Analyze the following text and extract the technical specifications into a single, minified JSON object.
+            The JSON object must have these exact keys: "description", "digital_inputs", "digital_outputs", "analog_inputs", "analog_outputs", "voltage_range", "current_range".
+            If a value is not found, set it to 0 for numeric fields and null for string fields.
+            Do not add any explanation, just the JSON object.
+
+            Text to analyze:
+            ---
+            {summary_text}
+            ---
+            """
+            extract_config = genai.types.GenerationConfig(temperature=0.0, max_output_tokens=500)
+            extract_response = gemini_model.generate_content(prompt_2b_extract, generation_config=extract_config, request_options={"timeout": 30})
+            extract_text = _gemini_text_from_response(extract_response)
+            if extract_text:
+                json_response = _parse_json_from_text(extract_text)
+                validated_json = _validate_spec_json(json_response)
+                if validated_json:
+                    return validated_json
+    except Exception as e:
+        current_app.logger.warning(f"AI Strategy 2 failed for {company} {model}: {e}")
+
+    current_app.logger.error(f"All AI lookup strategies failed for {company} {model}.")
+    return None
 
 @io_builder_bp.route('/api/generate-io-table', methods=['POST'])
 def generate_io_table():
