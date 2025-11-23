@@ -216,6 +216,15 @@ def get_comprehensive_module_database():
         }
     }
 
+from services.ai_assistant import (_ensure_gemini_model,
+                                _gemini_text_from_response,
+                                _parse_json_from_text)
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
+
+
 @io_builder_bp.route('/api/module-lookup', methods=['POST'])
 def module_lookup():
     try:
@@ -259,7 +268,6 @@ def module_lookup():
 
         if module_info:
             current_app.logger.info(f"Found module in internal database: {search_key}")
-            # Save to DB for future consistency if vendor is provided
             if vendor:
                 new_module = ModuleSpec(
                     company=vendor, model=model,
@@ -276,202 +284,89 @@ def module_lookup():
                 db.session.commit()
             return jsonify({'success': True, 'module': module_info, 'source': 'internal_db'})
 
-        # Tier 3: Web Scraping Lookup
-        if vendor:
-            module_info = attempt_web_lookup(vendor, model)
+        # Tier 3: AI Lookup
+        if vendor and genai and current_app.config.get('AI_ENABLED'):
+            module_info = _get_specs_from_gemini(vendor, model)
             if module_info:
-                # Data validation before saving
                 if not any(module_info.get(key, 0) > 0 for key in ['digital_inputs', 'digital_outputs', 'analog_inputs', 'analog_outputs']):
-                    current_app.logger.warning(f"Web lookup for {vendor} {model} returned data with no I/O points. Discarding.")
+                    current_app.logger.warning(f"AI lookup for {vendor} {model} returned data with no I/O points. Discarding.")
                     return jsonify({'success': False, 'message': f'Module {vendor} {model} found, but no valid I/O specs could be parsed.'}), 404
 
-                # Save the validated, scraped data to the database
                 new_module = ModuleSpec(
                     company=vendor, model=model,
-                    description=module_info.get('description', f'{vendor} {model} - Scraped'),
+                    description=module_info.get('description', f'{vendor} {model} - AI Generated'),
                     digital_inputs=module_info.get('digital_inputs', 0),
                     digital_outputs=module_info.get('digital_outputs', 0),
                     analog_inputs=module_info.get('analog_inputs', 0),
                     analog_outputs=module_info.get('analog_outputs', 0),
                     voltage_range=module_info.get('voltage_range'),
                     current_range=module_info.get('current_range'),
-                    verified=False  # Scraped data is never considered verified
+                    verified=False
                 )
                 db.session.add(new_module)
                 db.session.commit()
-                current_app.logger.info(f"Successfully fetched, validated, and saved new module: {vendor} {model}")
-                return jsonify({'success': True, 'module': module_info, 'source': 'web'})
+                current_app.logger.info(f"Successfully fetched, validated, and saved new module via AI: {vendor} {model}")
+                return jsonify({'success': True, 'module': module_info, 'source': 'ai'})
 
-        # If all lookups fail
-        message = f'Module "{vendor} {model}" not found in any database, and web lookup was unsuccessful.' if vendor else f'Module "{model}" not found.'
+        message = f'Module "{vendor} {model}" not found.'
         return jsonify({'success': False, 'message': message}), 404
 
     except Exception as e:
         current_app.logger.error(f"Critical error in module_lookup: {str(e)}", exc_info=True)
         return jsonify({'success': False, 'message': 'An unexpected internal server error occurred. Please check the logs.'}), 500
 
-def attempt_web_lookup(company, model):
+def _get_specs_from_gemini(company: str, model: str):
     """
-    Attempt to find module specifications online using DuckDuckGo search.
-    This version includes more robust error handling, smarter link selection,
-    and validates parsed data before returning. Now handles PDFs and checks file sizes.
+    Uses the Gemini AI to find specifications for an I/O module.
     """
+    from typing import Dict, Any, Optional
     try:
-        current_app.logger.info(f"Starting robust web lookup for {company} {model}")
+        current_app.logger.info(f"Attempting AI lookup for {company} {model}")
+        gemini_model = _ensure_gemini_model()
 
-        search_queries = [
-            f'"{company} {model}" datasheet pdf',
-            f'"{company} {model}" technical specifications',
-            f"{company} {model} manual",
-            f"{model} industrial I/O module specifications"
-        ]
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Referer': 'https://www.google.com/'
-        }
+        prompt = f"""
+        Find the technical specifications for the industrial I/O module: '{company} {model}'.
 
-        for query in search_queries:
-            try:
-                current_app.logger.info(f"Searching online with query: '{query}'")
-                search_url = f"https://duckduckgo.com/html/?q={quote(query)}"
-                response = requests.get(search_url, headers=headers, timeout=15)
-                response.raise_for_status()
-                soup = BeautifulSoup(response.content, 'html.parser')
+        I need the following details:
+        - A brief description of the module.
+        - The number of digital inputs.
+        - The number of digital outputs.
+        - The number of analog inputs.
+        - The number of analog outputs.
+        - The typical voltage range (e.g., "24 VDC", "0-10V").
+        - The typical current range (e.g., "4-20mA").
 
-                relevant_links = []
-                for link in soup.find_all('a', href=True):
-                    href = link.get('href', '')
-                    if 'http' in href and not any(junk in href for junk in ['duckduckgo.com', 'google.com', 'bing.com']):
-                        if company.lower() in href.lower() or '.pdf' in href.lower() or 'datasheet' in href.lower():
-                            relevant_links.append(href)
-                
-                for link_url in relevant_links[:3]:
-                    try:
-                        head_response = requests.head(link_url, headers=headers, timeout=5, allow_redirects=True)
-                        head_response.raise_for_status()
-                        
-                        content_type = head_response.headers.get('Content-Type', '').lower()
-                        content_length = head_response.headers.get('Content-Length')
+        Return the information in a single, minified JSON object with no markdown formatting.
+        The JSON object must have these exact keys: "description", "digital_inputs", "digital_outputs", "analog_inputs", "analog_outputs", "voltage_range", "current_range".
 
-                        if content_length and int(content_length) > 5000000: # 5MB limit
-                            current_app.logger.warning(f"Content at {link_url} is too large ({content_length} bytes), skipping.")
-                            continue
+        If a value is not found, set it to 0 for numeric fields and null for string fields.
+        Example response for a fictional module:
+        {{"description":"8-channel 24VDC digital input module","digital_inputs":8,"digital_outputs":0,"analog_inputs":0,"analog_outputs":0,"voltage_range":"24 VDC","current_range":null}}
+        """
 
-                        current_app.logger.info(f"Scraping promising link: {link_url}")
-                        link_response = requests.get(link_url, headers=headers, timeout=10)
-                        link_response.raise_for_status()
+        generation_config = genai.types.GenerationConfig(temperature=0.1, max_output_tokens=500)
+        response = gemini_model.generate_content(prompt, generation_config=generation_config)
+        
+        text_response = _gemini_text_from_response(response)
+        if not text_response:
+            current_app.logger.warning(f"Gemini returned an empty response for {company} {model}")
+            return None
+        
+        json_response = _parse_json_from_text(text_response)
+        if not json_response or not isinstance(json_response, dict):
+            current_app.logger.warning(f"Failed to parse JSON from Gemini response: {text_response}")
+            return None
 
-                        text_content = ""
-                        if 'application/pdf' in content_type:
-                            try:
-                                with fitz.open(stream=link_response.content, filetype="pdf") as pdf_doc:
-                                    for page in pdf_doc:
-                                        text_content += page.get_text()
-                                if not text_content.strip():
-                                    current_app.logger.warning(f"PDF at {link_url} had no extractable text.")
-                                    continue
-                            except Exception as pdf_error:
-                                current_app.logger.error(f"Failed to parse PDF from {link_url}: {pdf_error}")
-                                continue
-                        else:
-                            link_soup = BeautifulSoup(link_response.content, 'html.parser')
-                            tables = link_soup.find_all('table')
-                            if tables:
-                                for table in tables:
-                                    if any(header in table.get_text().lower() for header in ['specification', 'technical data', 'i/o']):
-                                        text_content += table.get_text().lower() + "\n"
-                            if not text_content:
-                                text_content = link_soup.body.get_text().lower() if link_soup.body else link_soup.get_text().lower()
-
-                        parsed_spec = parse_specifications_from_text(text_content, company, model)
-                        if parsed_spec:
-                            current_app.logger.info(f"Successfully parsed valid specs from {link_url}")
-                            return parsed_spec
-                            
-                    except requests.exceptions.RequestException as link_error:
-                        current_app.logger.warning(f"Failed to fetch or process link {link_url}: {link_error}")
-                    except Exception as e:
-                        current_app.logger.error(f"An unexpected error occurred while processing link {link_url}: {e}")
-
-            except requests.exceptions.RequestException as search_error:
-                current_app.logger.error(f"Web search failed for query '{query}': {search_error}")
-            except Exception as e:
-                current_app.logger.error(f"An unexpected error occurred during web search: {e}")
-
-        current_app.logger.warning(f"Web lookup completed for {company} {model} with no definitive results.")
-        return None
+        required_keys = {"digital_inputs", "digital_outputs", "analog_inputs", "analog_outputs"}
+        if not required_keys.issubset(json_response.keys()):
+            current_app.logger.warning(f"Gemini response missing required keys: {json_response}")
+            return None
+            
+        current_app.logger.info(f"Successfully received specs from Gemini for {company} {model}")
+        return json_response
 
     except Exception as e:
-        current_app.logger.error(f"A critical error occurred in attempt_web_lookup: {e}")
-        return None
-
-def parse_specifications_from_text(text_content, company, model):
-    """
-    Parse module specifications from raw text content (from HTML or PDF).
-    Looks for specification tables and uses more flexible regex.
-    """
-    try:
-        spec = {
-            'description': f'{company.upper()} {model.upper()} - Scraped',
-            'digital_inputs': 0, 'digital_outputs': 0,
-            'analog_inputs': 0, 'analog_outputs': 0,
-            'voltage_range': None, 'current_range': None,
-            'signal_type': 'Unknown', 'verified': False
-        }
-        
-        lowered_text = text_content.lower()
-
-        io_patterns = {
-            'digital_inputs': [r'(\d+)\s*(?:-channel)?\s*digital\s*input[s]?'],
-            'digital_outputs': [r'(\d+)\s*(?:-channel)?\s*digital\s*output[s]?'],
-            'analog_inputs': [r'(\d+)\s*(?:-channel)?\s*analog\s*input[s]?'],
-            'analog_outputs': [r'(\d+)\s*(?:-channel)?\s*analog\s*output[s]?']
-        }
-
-        for io_type, patterns in io_patterns.items():
-            for pattern in patterns:
-                matches = re.search(pattern, lowered_text)
-                if matches:
-                    try:
-                        value = int(matches.group(1))
-                        if 0 < value < 256:
-                            spec[io_type] = value
-                            current_app.logger.info(f"Found {io_type}: {value} from web scrape")
-                    except (ValueError, IndexError):
-                        continue
-        
-        if not spec['voltage_range']:
-            voltage_match = re.search(r'(\d+\s*VDC)', lowered_text, re.IGNORECASE)
-            if voltage_match:
-                spec['voltage_range'] = voltage_match.group(1).upper()
-
-        if not spec['current_range']:
-            current_match = re.search(r'((?:4-20|0-20)\s*mA)', lowered_text, re.IGNORECASE)
-            if current_match:
-                spec['current_range'] = current_match.group(1)
-
-        is_di_do = spec['digital_inputs'] > 0 or spec['digital_outputs'] > 0
-        is_ai_ao = spec['analog_inputs'] > 0 or spec['analog_outputs'] > 0
-
-        if is_di_do and is_ai_ao:
-            spec['signal_type'] = 'Mixed'
-        elif is_di_do:
-            spec['signal_type'] = 'Digital'
-        elif is_ai_ao:
-            spec['signal_type'] = 'Analog'
-
-        # Only return a spec if it has at least one I/O point identified
-        if spec['signal_type'] != 'Unknown':
-            current_app.logger.info("Successfully parsed a valid-looking specification from web content.")
-            return spec
-
-        current_app.logger.warning("Could not parse any valid I/O points from the provided web content.")
-        return None
-
-    except Exception as e:
-        current_app.logger.error(f"Error parsing specifications from text: {e}")
+        current_app.logger.error(f"Error during Gemini lookup for {company} {model}: {e}", exc_info=True)
         return None
 
 @io_builder_bp.route('/api/generate-io-table', methods=['POST'])
