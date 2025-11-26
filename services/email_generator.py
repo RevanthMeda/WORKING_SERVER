@@ -544,16 +544,32 @@ def _fallback_email(report_data: Dict[str, Any], audience: str, extra: Dict[str,
         or report_data.get("DOCUMENT_REFERENCE")
         or "SAT Report"
     )
+    project_ref = report_data.get("PROJECT_REFERENCE") or report_data.get("project_reference") or ""
+    client_name = report_data.get("CLIENT_NAME") or report_data.get("client_name") or ""
+    purpose = report_data.get("PURPOSE") or report_data.get("purpose") or ""
+    scope = report_data.get("SCOPE") or report_data.get("scope") or ""
     approval_url = extra.get("approval_url")
     status_url = extra.get("status_url")
+    edit_url = extra.get("edit_url")
 
     if audience_key == "approver":
+        details = []
+        if project_ref:
+            details.append(f"Project reference: {escape(project_ref)}")
+        if client_name:
+            details.append(f"Client: {escape(client_name)}")
+        if purpose:
+            details.append(f"Purpose: {escape(purpose)}")
+        if scope:
+            details.append(f"Scope: {escape(scope)}")
+
         subject = f"Approval requested: {document_title}"
         html_body = f"""
         <html>
         <body>
             <h1>{escape(document_title)} - Approval Required</h1>
             <p>A new report is ready for your review.</p>
+            {''.join(f'<p>{line}</p>' for line in details)}
             {f'<p><a href="{escape(approval_url)}">Open approval workspace</a></p>' if approval_url else ''}
             {f'<p><a href="{escape(status_url)}">View live status</a></p>' if status_url else ''}
         </body>
@@ -567,6 +583,11 @@ def _fallback_email(report_data: Dict[str, Any], audience: str, extra: Dict[str,
             <h1>Submission received</h1>
             <p>Your report <strong>{escape(document_title)}</strong> has been submitted.</p>
             {f'<p><a href="{escape(status_url)}">Track approval progress</a></p>' if status_url else ''}
+            {f'<p><a href="{escape(edit_url)}">Update your submission</a></p>' if edit_url else ''}
+            {f'<p>Project reference: {escape(project_ref)}</p>' if project_ref else ''}
+            {f'<p>Client: {escape(client_name)}</p>' if client_name else ''}
+            {f'<p>Purpose: {escape(purpose)}</p>' if purpose else ''}
+            {f'<p>Scope: {escape(scope)}</p>' if scope else ''}
         </body>
         </html>
         """
