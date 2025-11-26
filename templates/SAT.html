@@ -1476,40 +1476,6 @@
         <span>Client: {{ prefill_source.client_name or 'Unknown client' }}</span>{% if prefill_source.project_reference %}<span> - Project: {{ prefill_source.project_reference }}</span>{% endif %}{% if prefill_source.prepared_by %}<span> - Prepared by: {{ prefill_source.prepared_by }}</span>{% endif %}<br/>
         <a href="{{ url_for('status.view_status', submission_id=prefill_source.id) }}" target="_blank" rel="noopener">View source report</a>
       </div>
-    </div>
-    {% endif %}
-
-    {% endwith %}
-
-    <!-- <section class="bot-panel" id="bot-assistant">
-      <div class="bot-header">
-        <h3><i class="fas fa-robot"></i> SAT Copilot</h3>
-        <button type="button" class="bot-reset-btn" id="bot-reset-btn">Reset</button>
-      </div>
-      <div class="bot-body">
-        <div class="bot-messages" id="bot-messages"></div>
-        <div class="bot-upload">
-          <label for="bot-excel-input"><i class="fas fa-file-upload"></i> Upload Excel sheets</label>
-          <input type="file" id="bot-excel-input" multiple accept=".xlsx,.xls"/>
-        </div>
-        <div class="bot-download">
-          <div class="bot-download-controls">
-            <input type="text" id="bot-download-id" placeholder="Submission ID to fetch"/>
-            <button type="button" class="bot-download-btn" id="bot-download-btn">Fetch</button>
-          </div>
-          <div class="bot-download-result" id="bot-download-result"></div>
-        </div>
-        <div class="bot-input">
-          <input type="text" id="bot-message-input" placeholder="Answer the bot or ask for help..."/>
-          <button type="button" class="bot-send-btn" id="bot-send-btn"><i class="fas fa-paper-plane"></i> Send</button>
-        </div>
-      </div>
-    </section> -->
-
-    <!-- Horizontal Progress Bar -->
-    <div class="horizontal-progress-bar">
-      <div class="progress-container">
-        {% set steps = [
           (1, 'Basic Info', 'Document details and project info'),
           (2, 'Approvals', 'Review workflow and signatures'),
           (3, 'Purpose & Scope', 'Define testing objectives'),
