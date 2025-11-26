@@ -1,8 +1,9 @@
 import json
+import os
 from html import escape
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-import google.generativeai as genai
+import requests
 from flask import current_app
 
 
@@ -12,7 +13,7 @@ def generate_email_content(
     extra: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, str]:
     """
-    Generate rich email content for report notifications using the configured Gemini model.
+    Generate rich email content for report notifications using the configured AI model (OpenRouter or HuggingFace).
 
     Args:
         report_data: Dictionary containing the report context.
@@ -23,18 +24,43 @@ def generate_email_content(
         dict with keys: subject, body, and optional preheader.
     """
     extra = extra or {}
+    provider = None
     try:
-        model = _ensure_model()
+        provider, model = _ensure_model()
         prompt, generation_config = construct_prompt(report_data, audience, extra)
-        response = model.generate_content(prompt, generation_config=generation_config)
+
+        if provider == "openrouter":
+            response = _generate_with_openrouter(model, prompt, generation_config)
+        elif provider == "huggingface":
+            response = _generate_with_hf(model, prompt, generation_config)
+        else:
+            raise RuntimeError(f"AI provider '{provider}' is not supported for email generation.")
+
         plan = _parse_email_plan(response)
         if not plan:
-            raise ValueError("Gemini response did not include valid JSON payload.")
+            raise ValueError("AI response did not include valid JSON payload.")
 
         email_package = _compose_email(plan, report_data, audience, extra)
         return email_package
     except Exception as exc:
         current_app.logger.error(f"Error generating email content: {exc}", exc_info=True)
+
+        # If primary failed and Hugging Face is available, try it as a secondary provider
+        try:
+            if provider != "huggingface" and _has_hf_token():
+                hf_model = {
+                    "token": current_app.config.get("HF_API_TOKEN") or os.environ.get("HF_API_TOKEN"),
+                    "model_id": current_app.config.get("HF_MODEL") or "HuggingFaceH4/zephyr-7b-beta",
+                    "api_url": (current_app.config.get("HF_API_URL") or "https://api-inference.huggingface.co/models").rstrip("/"),
+                }
+                prompt, generation_config = construct_prompt(report_data, audience, extra)
+                response = _generate_with_hf(hf_model, prompt, generation_config)
+                plan = _parse_email_plan(response)
+                if plan:
+                    return _compose_email(plan, report_data, audience, extra)
+        except Exception as hf_exc:
+            current_app.logger.error(f"Secondary HuggingFace attempt failed: {hf_exc}", exc_info=True)
+
         return _fallback_email(report_data, audience, extra)
 
 
@@ -42,8 +68,8 @@ def construct_prompt(
     report_data: Dict[str, Any],
     audience: str,
     extra: Dict[str, Any],
-) -> tuple[str, Any]:
-    """Construct a detailed prompt for the Gemini model."""
+) -> tuple[str, Dict[str, Any]]:
+    """Construct a detailed prompt for the AI model."""
     audience_key = (audience or "approver").strip().lower()
     audience_key = audience_key if audience_key in {"approver", "submitter"} else "approver"
 
@@ -105,23 +131,100 @@ def construct_prompt(
         ]
     )
 
-    generation_config = genai.types.GenerationConfig(
-        temperature=0.55,
-        top_p=0.9,
-        max_output_tokens=600,
-    )
+    generation_config = {
+        "temperature": 0.55,
+        "top_p": 0.9,
+        "max_tokens": 600,
+    }
 
     return "\n".join(prompt_lines), generation_config
 
 
-def _ensure_model():
-    api_key = current_app.config.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY not configured.")
+def _current_provider() -> str:
+    provider = (current_app.config.get("AI_PROVIDER") or "openrouter").strip().lower()
+    if provider in ("", "auto", "default"):
+        if current_app.config.get("OPENROUTER_API_KEY"):
+            return "openrouter"
+        if current_app.config.get("HF_API_TOKEN"):
+            return "huggingface"
+        return "none"
+    return provider
 
-    genai.configure(api_key=api_key)
-    model_name = current_app.config.get("GEMINI_MODEL", "gemini-2.5-pro") or "gemini-2.5-pro"
-    return genai.GenerativeModel(model_name)
+
+def _has_hf_token() -> bool:
+    return bool(current_app.config.get("HF_API_TOKEN") or os.environ.get("HF_API_TOKEN"))
+
+
+def _ensure_model() -> Tuple[str, Any]:
+    provider = _current_provider()
+    if provider == "openrouter":
+        token = current_app.config.get("OPENROUTER_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
+        model_id = current_app.config.get("OPENROUTER_MODEL") or "qwen/qwen3-coder:free"
+        if not token:
+            raise RuntimeError("OPENROUTER_API_KEY not configured.")
+        return "openrouter", {"token": token, "model_id": model_id}
+
+    if provider == "huggingface":
+        token = current_app.config.get("HF_API_TOKEN") or os.environ.get("HF_API_TOKEN")
+        model_id = current_app.config.get("HF_MODEL") or "HuggingFaceH4/zephyr-7b-beta"
+        api_url = (current_app.config.get("HF_API_URL") or "https://api-inference.huggingface.co/models").rstrip("/")
+        if not token:
+            raise RuntimeError("HF_API_TOKEN not configured.")
+        return "huggingface", {"token": token, "model_id": model_id, "api_url": api_url}
+    raise RuntimeError(f"AI provider '{provider}' is not configured.")
+
+
+def _generate_with_openrouter(model_cfg: Dict[str, str], prompt: str, generation_config: Dict[str, Any]) -> Dict[str, Any]:
+    token = model_cfg.get("token")
+    model_id = model_cfg.get("model_id")
+    if not token or not model_id:
+        raise RuntimeError("OpenRouter credentials are missing.")
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model_id,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": generation_config.get("temperature", 0.55),
+        "top_p": generation_config.get("top_p", 0.9),
+        "max_tokens": generation_config.get("max_tokens", 600),
+    }
+
+    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30)
+    if response.status_code >= 400:
+        raise RuntimeError(f"OpenRouter error {response.status_code}: {response.text}")
+    return response.json()
+
+
+def _generate_with_hf(model_cfg: Dict[str, str], prompt: str, generation_config: Dict[str, Any]) -> str:
+    token = model_cfg.get("token")
+    model_id = model_cfg.get("model_id")
+    api_url = model_cfg.get("api_url") or "https://api-inference.huggingface.co/models"
+    if not token or not model_id:
+        raise RuntimeError("HuggingFace credentials are missing.")
+
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": generation_config.get("max_tokens", 600),
+            "temperature": generation_config.get("temperature", 0.55),
+            "top_p": generation_config.get("top_p", 0.9),
+        },
+        "options": {"wait_for_model": True},
+    }
+
+    response = requests.post(f"{api_url}/{model_id}", headers=headers, json=payload, timeout=30)
+    if response.status_code >= 400:
+        raise RuntimeError(f"HuggingFace error {response.status_code}: {response.text}")
+
+    data = response.json()
+    text = _extract_hf_text(data)
+    if not text:
+        raise RuntimeError("HuggingFace response was empty.")
+    return text.strip()
 
 
 def _parse_email_plan(response: Any) -> Optional[Dict[str, Any]]:
@@ -135,9 +238,27 @@ def _parse_email_plan(response: Any) -> Optional[Dict[str, Any]]:
 
 
 def _extract_text(response: Any) -> str:
-    text = getattr(response, "text", None)
+    if isinstance(response, str):
+        return response.strip()
+
+    # OpenRouter JSON response
+    if isinstance(response, dict) and response.get("choices"):
+        try:
+            content = response["choices"][0]["message"]["content"]
+            if isinstance(content, str):
+                return content.strip()
+        except Exception:
+            pass
+
+    try:
+        text = getattr(response, "text", None)
+    except Exception:
+        text = None
     if text:
-        return text.strip()
+        try:
+            return text.strip()
+        except Exception:
+            pass
 
     candidates = getattr(response, "candidates", []) or []
     for candidate in candidates:
@@ -154,6 +275,26 @@ def _extract_text(response: Any) -> str:
                 fragments.append(part)
         if fragments:
             return "".join(fragments).strip()
+    return ""
+
+
+def _extract_hf_text(data: Any) -> str:
+    if isinstance(data, list) and data:
+        first = data[0]
+        if isinstance(first, dict) and first.get("generated_text"):
+            return str(first.get("generated_text", "")).strip()
+        if isinstance(first, str):
+            return first.strip()
+
+    if isinstance(data, dict):
+        if data.get("generated_text"):
+            return str(data.get("generated_text", "")).strip()
+        # text-generation-inference style
+        if data.get("choices") and isinstance(data["choices"], list):
+            maybe = data["choices"][0]
+            if isinstance(maybe, dict):
+                return str(maybe.get("text", "")).strip()
+
     return ""
 
 

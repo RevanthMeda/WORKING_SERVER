@@ -438,7 +438,13 @@ def send_approval_link(approver_email, submission_id, stage, subject=None, html_
             break
 
     # Attempt AI-enhanced email if details were not provided
-    if (not subject or not html_content) and current_app.config.get('GEMINI_API_KEY'):
+    ai_enabled = (
+        current_app.config.get('AI_ENABLED')
+        or current_app.config.get('OPENROUTER_API_KEY')
+        or current_app.config.get('HF_API_TOKEN')
+        or current_app.config.get('OPENAI_API_KEY')
+    )
+    if (not subject or not html_content) and ai_enabled:
         try:
             from models import Report, SATReport
             from services.email_generator import generate_email_content

@@ -39,12 +39,20 @@ class Config:
     DASHBOARD_STATS_MAX_AGE_SECONDS = int(os.environ.get('DASHBOARD_STATS_MAX_AGE_SECONDS', 600))
 
     # AI assistance configuration
-    AI_PROVIDER = os.environ.get('AI_PROVIDER', 'gemini')
-    AI_ENABLED = os.environ.get('AI_ENABLED', '').lower() == 'true' or bool(os.environ.get('GEMINI_API_KEY'))
-    GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.5-pro')
-    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+    AI_PROVIDER = os.environ.get('AI_PROVIDER', 'openrouter')
+    AI_ENABLED = (
+        os.environ.get('AI_ENABLED', '').lower() == 'true'
+        or bool(os.environ.get('OPENROUTER_API_KEY'))
+        or bool(os.environ.get('OPENAI_API_KEY'))
+        or bool(os.environ.get('HF_API_TOKEN'))
+    )
     OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
     OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-3.5-turbo')
+    OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
+    OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'qwen/qwen3-coder:free')
+    HF_API_TOKEN = os.environ.get('HF_API_TOKEN', '')
+    HF_MODEL = os.environ.get('HF_MODEL', 'HuggingFaceH4/zephyr-7b-beta')
+    HF_API_URL = os.environ.get('HF_API_URL', 'https://api-inference.huggingface.co/models')
 
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
