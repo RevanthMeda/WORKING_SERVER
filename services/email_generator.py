@@ -175,10 +175,15 @@ def _ensure_model() -> Tuple[str, Any]:
 
 
 def _generate_with_openrouter(model_cfg: Dict[str, str], prompt: str, generation_config: Dict[str, Any]) -> Dict[str, Any]:
-    token = model_cfg.get("token")
+    token = (model_cfg.get("token") or "").strip()
     model_id = model_cfg.get("model_id")
     if not token or not model_id:
         raise RuntimeError("OpenRouter credentials are missing.")
+
+    try:
+        current_app.logger.debug(f"OpenRouter model={model_id}, key_len={len(token)}")
+    except Exception:
+        pass
 
     headers = {
         "Authorization": f"Bearer {token}",
