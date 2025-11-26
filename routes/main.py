@@ -8,6 +8,7 @@ from typing import Any, Callable
 import os
 import uuid
 import datetime as dt
+from services.email_generator import generate_email_content
 from services.dashboard_stats import compute_and_cache_dashboard_stats
 from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Mm
@@ -545,41 +546,61 @@ def generate():
         submitter_email_subject = None
         submitter_email_body = None
         try:
-            import requests
+            def _build_email_content(audience: str, stage: Any = None, approver_title: str | None = None):
+                """Generate email content locally to avoid auth issues on internal calls."""
+                report_data = submission_data.get("context", {}) if isinstance(submission_data, dict) else {}
+                report_data = dict(report_data) if isinstance(report_data, dict) else {}
+                report_data["type"] = report.type
 
-            def _call_email_generator(payload):
-                response = requests.post(
-                    url_for('ai.generate_email', _external=True),
-                    json=payload,
-                    headers={'Content-Type': 'application/json'},
-                    verify=False
-                )
-                if response.status_code == 200:
-                    return response.json()
-                current_app.logger.error(
-                    "AI email generation failed with status %s: %s",
-                    response.status_code,
-                    response.text,
-                )
-                return None
+                # Mirror extra metadata used by the ai blueprint
+                extra: dict[str, Any] = {
+                    "status_url": url_for('status.view_status', submission_id=submission_id, _external=True)
+                }
 
-            approver_payload = {'submission_id': submission_id, 'audience': 'approver'}
+                if report.document_title:
+                    report_data.setdefault("DOCUMENT_TITLE", report.document_title)
+                    report_data["document_title"] = report.document_title
+                if report.project_reference:
+                    report_data.setdefault("PROJECT_REFERENCE", report.project_reference)
+                    report_data["project_reference"] = report.project_reference
+                if report.client_name:
+                    report_data.setdefault("CLIENT_NAME", report.client_name)
+                    report_data["client_name"] = report.client_name
+
+                if audience == "approver":
+                    if stage is not None:
+                        extra["stage"] = stage
+                    if approver_title:
+                        extra["approver_title"] = approver_title
+                    try:
+                        extra["approval_url"] = url_for('approval.approve_submission', submission_id=submission_id, stage=stage or 1, _external=True)
+                    except Exception:
+                        extra["approval_url"] = url_for('approval.approve_submission', submission_id=submission_id, stage=1, _external=True)
+                else:
+                    extra["audience"] = audience
+                    extra["edit_url"] = url_for('main.edit_submission', submission_id=submission_id, _external=True)
+
+                return generate_email_content(report_data, audience=audience, extra=extra)
+
+            approver_content = None
             if first_stage:
-                approver_payload['stage'] = first_stage.get('stage')
-                approver_payload['approver_title'] = first_stage.get('title')
-            approver_content = _call_email_generator(approver_payload)
+                approver_content = _build_email_content(
+                    audience='approver',
+                    stage=first_stage.get('stage'),
+                    approver_title=first_stage.get('title')
+                )
             if approver_content:
                 approver_email_subject = approver_content.get('subject')
                 approver_email_body = approver_content.get('body')
                 current_app.logger.info(f"Generated approver email content for {submission_id}")
 
-            submitter_content = _call_email_generator({'submission_id': submission_id, 'audience': 'submitter'})
+            submitter_content = _build_email_content(audience='submitter')
             if submitter_content:
                 submitter_email_subject = submitter_content.get('subject')
                 submitter_email_body = submitter_content.get('body')
                 current_app.logger.info(f"Generated submitter email content for {submission_id}")
         except Exception as e:
-            current_app.logger.error(f"Error calling AI email generation service: {e}")
+            current_app.logger.error(f"Error generating AI email content: {e}", exc_info=True)
 
         if not report.approval_notification_sent:
             if first_stage:
