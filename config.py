@@ -105,23 +105,23 @@ class Config:
         from dotenv import load_dotenv
         
         # Force refresh environment variables
-        smtp_password = (os.environ.get('SMTP_PASSWORD', '') or '').strip()
+        smtp_password = os.environ.get('SMTP_PASSWORD', '')
         
         # If not found in environment, try .env file (for local development)
         if not smtp_password:
             load_dotenv(override=True)
-            smtp_password = (os.environ.get('SMTP_PASSWORD', '') or '').strip()
+            smtp_password = os.environ.get('SMTP_PASSWORD', '')
         
         print(f"🔄 Fresh SMTP credentials loaded - Password length: {len(smtp_password)}")
         if smtp_password:
             print(f"🔐 Password: {smtp_password[:4]}...{smtp_password[-4:]}")
         
         return {
-            'server': (Config.SMTP_SERVER or '').strip(),
+            'server': Config.SMTP_SERVER,
             'port': Config.SMTP_PORT,
-            'username': (Config.SMTP_USERNAME or '').strip(),
+            'username': Config.SMTP_USERNAME,
             'password': smtp_password,
-            'sender': (Config.DEFAULT_SENDER or '').strip()
+            'sender': Config.DEFAULT_SENDER
         }
 
     # PDF export

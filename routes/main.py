@@ -8,7 +8,6 @@ from typing import Any, Callable
 import os
 import uuid
 import datetime as dt
-from services.email_generator import generate_email_content
 from services.dashboard_stats import compute_and_cache_dashboard_stats
 from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Mm
@@ -546,64 +545,35 @@ def generate():
         submitter_email_subject = None
         submitter_email_body = None
         try:
-            def _build_email_content(audience: str, stage=None, approver_title=None):
-                try:
-                    report_data = dict(submission_data.get("context", {}))
-                    report_data["type"] = report.type
-                    if report.document_title:
-                        report_data.setdefault("DOCUMENT_TITLE", report.document_title)
-                        report_data["document_title"] = report.document_title
-                    if report.project_reference:
-                        report_data.setdefault("PROJECT_REFERENCE", report.project_reference)
-                        report_data["project_reference"] = report.project_reference
-                    if report.client_name:
-                        report_data.setdefault("CLIENT_NAME", report.client_name)
-                        report_data["client_name"] = report.client_name
+            import requests
 
-                    extra = {
-                        "status_url": url_for("status.view_status", submission_id=submission_id, _external=True)
-                    }
+            def _call_email_generator(payload):
+                response = requests.post(
+                    url_for('ai.generate_email', _external=True),
+                    json=payload,
+                    headers={'Content-Type': 'application/json'},
+                    verify=False
+                )
+                if response.status_code == 200:
+                    return response.json()
+                current_app.logger.error(
+                    "AI email generation failed with status %s: %s",
+                    response.status_code,
+                    response.text,
+                )
+                return None
 
-                    if audience == "approver":
-                        if approver_title:
-                            extra["approver_title"] = approver_title
-                        if stage is not None:
-                            try:
-                                stage_int = int(stage)
-                            except (TypeError, ValueError):
-                                stage_int = stage
-                        else:
-                            stage_int = 1
-                        extra["stage"] = stage_int
-                        extra["approval_url"] = url_for(
-                            "approval.approve_submission",
-                            submission_id=submission_id,
-                            stage=stage_int,
-                            _external=True,
-                        )
-                    else:
-                        extra["edit_url"] = url_for(
-                            "main.edit_submission",
-                            submission_id=submission_id,
-                            _external=True,
-                        )
-
-                    return generate_email_content(report_data, audience=audience, extra=extra)
-                except Exception as gen_exc:
-                    current_app.logger.error(
-                        f"Error generating {audience} email content inline: {gen_exc}", exc_info=True
-                    )
-                    return None
-
-            approver_stage = first_stage.get('stage') if first_stage else None
-            approver_title = first_stage.get('title') if first_stage else None
-            approver_content = _build_email_content('approver', approver_stage, approver_title)
+            approver_payload = {'submission_id': submission_id, 'audience': 'approver'}
+            if first_stage:
+                approver_payload['stage'] = first_stage.get('stage')
+                approver_payload['approver_title'] = first_stage.get('title')
+            approver_content = _call_email_generator(approver_payload)
             if approver_content:
                 approver_email_subject = approver_content.get('subject')
                 approver_email_body = approver_content.get('body')
                 current_app.logger.info(f"Generated approver email content for {submission_id}")
 
-            submitter_content = _build_email_content('submitter')
+            submitter_content = _call_email_generator({'submission_id': submission_id, 'audience': 'submitter'})
             if submitter_content:
                 submitter_email_subject = submitter_content.get('subject')
                 submitter_email_body = submitter_content.get('body')

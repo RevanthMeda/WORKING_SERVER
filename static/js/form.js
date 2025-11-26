@@ -1,5 +1,5 @@
 // Wrapped in an IIFE to prevent global scope pollution
-(function () {
+(function() {
   // Track current step
   let currentStep = 1;
   let purposeEditorEl = null;
@@ -71,11 +71,11 @@
   const FORM_KEY = 'satFormState';
   let isEditMode = false;
   let currentSubmissionId = null;
-
+  
   function saveState() {
     // Only save state if we're in edit mode
     if (!isEditMode) return;
-
+    
     const form = document.getElementById('satForm');
     if (!form) return;
 
@@ -83,13 +83,13 @@
       submission_id: currentSubmissionId,
       form_data: {}
     };
-
+    
     Array.from(form.elements).forEach(el => {
       if (!el.name || el.type === 'file') return;
       if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return;
       data.form_data[el.name] = el.value;
     });
-
+    
     // Only save if we have a submission ID (edit mode)
     if (currentSubmissionId) {
       localStorage.setItem(FORM_KEY + '_' + currentSubmissionId, JSON.stringify(data));
@@ -99,7 +99,7 @@
   function loadState() {
     // Only load state if we're in edit mode and have a submission ID
     if (!isEditMode || !currentSubmissionId) return;
-
+    
     const stored = localStorage.getItem(FORM_KEY + '_' + currentSubmissionId);
     if (!stored) return;
 
@@ -112,7 +112,7 @@
       if (el) el.value = val;
     });
   }
-
+  
   function clearFormState() {
     // Clear all form state from localStorage
     Object.keys(localStorage).forEach(key => {
@@ -239,10 +239,10 @@
 
   function setupAddButtons() {
     // Use single event delegation for all add buttons
-    document.addEventListener('click', function (e) {
+    document.addEventListener('click', function(e) {
       // Prevent multiple handlers by checking if we've already handled this event
       if (e.defaultPrevented) return;
-
+      
       // Check if clicked element is an add button
       const addButton = e.target.closest('.btn-add');
       if (addButton) {
@@ -280,10 +280,10 @@
             { btnId: 'add-alarm-list-btn', tmplId: 'tmpl-alarm-list', tbodyId: 'alarm-body' }
           ];
 
-          const mapping = buttonMappings.find(m =>
+          const mapping = buttonMappings.find(m => 
             addButton.id === m.btnId || addButton.closest(`#${m.btnId}`)
           );
-
+          
           if (mapping) {
             addRow(mapping.tmplId, mapping.tbodyId);
           }
@@ -316,7 +316,7 @@
 
       // Add new files to accumulated files (avoid duplicates by name)
       newFiles.forEach(newFile => {
-        const exists = input._accumulatedFiles.some(existingFile =>
+        const exists = input._accumulatedFiles.some(existingFile => 
           existingFile.name === newFile.name && existingFile.size === newFile.size
         );
         if (!exists) {
@@ -463,20 +463,20 @@
   // Handle form submission with AJAX
   function handleFormSubmit(event) {
     event.preventDefault();
-
+    
     const form = event.target;
     const submitBtn = form.querySelector('button[type="submit"]');
     const formData = new FormData(form);
-
+    
     // Show loading state
     if (submitBtn) {
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Generating Report...';
     }
-
+    
     // Clear previous alerts
     document.querySelectorAll('.alert').forEach(alert => alert.remove());
-
+    
     fetch(form.action, {
       method: 'POST',
       body: formData,
@@ -485,36 +485,36 @@
         'Accept': 'application/json'
       }
     })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          // Show success message
-          showAlert(data.message, 'success');
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Show success message
+        showAlert(data.message, 'success');
 
-          // Clear form state to prevent auto-population
-          clearFormState();
+        // Clear form state to prevent auto-population
+        clearFormState();
 
-          // Redirect to status page (auto download handled there)
-          window.location.href = data.redirect_url;
-        } else {
-          throw new Error(data.message || 'Generation failed');
-        }
-      })
-      .catch(error => {
-        console.error('Form submission error:', error);
-        showAlert('Error generating report: ' + error.message, 'error');
-      })
-      .finally(() => {
-        // Restore button state
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = '<i class="fa fa-check"></i> Generate SAT Report';
-        }
-      });
-
+        // Redirect to status page (auto download handled there)
+        window.location.href = data.redirect_url;
+      } else {
+        throw new Error(data.message || 'Generation failed');
+      }
+    })
+    .catch(error => {
+      console.error('Form submission error:', error);
+      showAlert('Error generating report: ' + error.message, 'error');
+    })
+    .finally(() => {
+      // Restore button state
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa fa-check"></i> Generate SAT Report';
+      }
+    });
+    
     return false;
   }
-
+  
   // Show alert messages
   function showAlert(message, type) {
     const alertDiv = document.createElement('div');
@@ -523,12 +523,12 @@
       <i class="fa fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
       ${message}
     `;
-
+    
     // Insert at top of form
     const form = document.getElementById('satForm');
     if (form) {
       form.insertBefore(alertDiv, form.firstChild);
-
+      
       // Auto-remove after 5 seconds for success messages
       if (type === 'success') {
         setTimeout(() => alertDiv.remove(), 5000);
@@ -642,7 +642,7 @@
     // Set up Purpose editor
     purposeEditorEl = document.getElementById('purpose-editor');
     purposeTextareaEl = document.getElementById('purpose');
-    const purposeToolbar = document.querySelector('[data-target="purpose-editor"]');
+        const purposeToolbar = document.querySelector('[data-target="purpose-editor"]');
 
     if (purposeEditorEl && purposeTextareaEl) {
       console.log('Initializing Purpose editor');
@@ -737,145 +737,30 @@
 
   }
 
-  function setupBotInterface() {
-    const sendBtn = document.getElementById('bot-send-btn');
-    const input = document.getElementById('bot-message-input');
-    const messages = document.getElementById('bot-messages');
-    const resetBtn = document.getElementById('bot-reset-btn');
-
-    if (!sendBtn || !input || !messages) return;
-
-    function addMessage(text, type) {
-      const msgDiv = document.createElement('div');
-      msgDiv.className = `bot-message ${type}`;
-      msgDiv.innerHTML = text; // Allow HTML for formatted specs
-      messages.appendChild(msgDiv);
-      messages.scrollTop = messages.scrollHeight;
-    }
-
-    function handleSend() {
-      const text = input.value.trim();
-      if (!text) return;
-
-      // Display user message
-      addMessage(text, 'user');
-      input.value = '';
-
-      // Parse input (assume "Vendor Model")
-      const parts = text.split(' ');
-      let vendor = '';
-      let model = '';
-
-      if (parts.length > 1) {
-        vendor = parts[0];
-        model = parts.slice(1).join(' ');
-      } else {
-        // Fallback or ask for clarification? For now, assume it's just a model if one word, or handle gracefully.
-        // Let's try to send it as model with empty vendor, or maybe just prompt user.
-        // But the backend requires both usually, or at least model.
-        // Let's assume first word is vendor if multiple, else just model?
-        // Actually backend: if vendor is empty, it searches by model ilike.
-        model = text;
-      }
-
-      // Show loading
-      const loadingId = 'bot-loading-' + Date.now();
-      const loadingDiv = document.createElement('div');
-      loadingDiv.className = 'bot-message bot';
-      loadingDiv.id = loadingId;
-      loadingDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
-      messages.appendChild(loadingDiv);
-
-      // Call API
-      fetch('/io_builder/api/module-lookup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify({
-          vendor: vendor,
-          model: model
-        })
-      })
-        .then(response => response.json())
-        .then(data => {
-          // Remove loading
-          const loadingEl = document.getElementById(loadingId);
-          if (loadingEl) loadingEl.remove();
-
-          if (data.success) {
-            const m = data.module;
-            let html = `<strong>Found Module:</strong><br/>`;
-            html += `${m.description}<br/>`;
-            html += `<small>DI: ${m.digital_inputs}, DO: ${m.digital_outputs}, AI: ${m.analog_inputs}, AO: ${m.analog_outputs}</small>`;
-
-            if (data.source === 'manual') {
-              html += `<br/><small class="text-muted">(Source: Manual Entry)</small>`;
-            } else if (data.source === 'ai') {
-              html += `<br/><small class="text-muted">(Source: AI Generated)</small>`;
-            }
-
-            addMessage(html, 'bot');
-          } else {
-            addMessage(data.message || 'Module not found.', 'bot');
-
-            if (data.manual_entry_required) {
-              // Optional: Provide a button or link to open manual entry modal?
-              // For now just text is fine.
-            }
-          }
-        })
-        .catch(err => {
-          const loadingEl = document.getElementById(loadingId);
-          if (loadingEl) loadingEl.remove();
-          console.error(err);
-          addMessage('Error connecting to server.', 'bot');
-        });
-    }
-
-    sendBtn.addEventListener('click', handleSend);
-    input.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') handleSend();
-    });
-
-    if (resetBtn) {
-      resetBtn.addEventListener('click', () => {
-        messages.innerHTML = '';
-        addMessage('Hello! I can help you find I/O module specifications. Just type the vendor and model (e.g., "ABB DA501").', 'bot');
-      });
-    }
-
-    // Initial welcome message
-    if (messages.children.length === 0) {
-      addMessage('Hello! I can help you find I/O module specifications. Just type the vendor and model (e.g., "ABB DA501").', 'bot');
-    }
-  }
-
   // Initialize form mode detection
   function initializeFormMode() {
     // Check if we're in edit mode based on URL parameters or form data
     const urlParams = new URLSearchParams(window.location.search);
     const editModeParam = urlParams.get('edit_mode');
     const submissionIdParam = urlParams.get('submission_id');
-
+    
     // Check for edit mode indicators in the template
     const editModeElement = document.querySelector('[data-edit-mode]');
     const submissionIdElement = document.querySelector('[data-submission-id]');
     const isNewReportElement = document.querySelector('[data-is-new-report]');
-
-    isEditMode = editModeParam === 'true' ||
-      (editModeElement && editModeElement.dataset.editMode === 'true') ||
-      window.location.pathname.includes('/sat/wizard') ||
-      (isNewReportElement && isNewReportElement.dataset.isNewReport === 'false');
-
-    currentSubmissionId = submissionIdParam ||
-      (submissionIdElement && submissionIdElement.dataset.submissionId) ||
-      document.querySelector('input[name="submission_id"]')?.value ||
-      null;
-
+    
+    isEditMode = editModeParam === 'true' || 
+                 (editModeElement && editModeElement.dataset.editMode === 'true') ||
+                 window.location.pathname.includes('/sat/wizard') ||
+                 (isNewReportElement && isNewReportElement.dataset.isNewReport === 'false');
+    
+    currentSubmissionId = submissionIdParam || 
+                         (submissionIdElement && submissionIdElement.dataset.submissionId) ||
+                         document.querySelector('input[name="submission_id"]')?.value ||
+                         null;
+    
     console.log('Form mode initialized:', { isEditMode, currentSubmissionId, url: window.location.pathname });
-
+    
     // If this is a new report, clear any existing state
     if (!isEditMode) {
       clearFormState();
@@ -886,16 +771,16 @@
   // Initialize when document is loaded
   document.addEventListener('DOMContentLoaded', () => {
     console.log('Form script loaded');
-
+    
     // Initialize form mode first
     initializeFormMode();
-
+    
     setupEventHandlers();
     setupRichTextEditor();
     setupSignaturePads();
     setupAISuggestions();
     setupBotInterface();
-
+    
     // Only load state if in edit mode
     if (isEditMode) {
       loadState();
@@ -903,7 +788,7 @@
     } else {
       console.log('Skipped loading state - creating new report');
     }
-
+    
     // Setup form submission handling
     const satForm = document.getElementById('satForm');
     if (satForm) {
