@@ -235,13 +235,7 @@ def get_comprehensive_module_database():
         }
     }
 
-from services.ai_assistant import (_ensure_gemini_model,
-                                _gemini_text_from_response,
-                                _parse_json_from_text)
-try:
-    import google.generativeai as genai
-except ImportError:
-    genai = None
+# AI lookup disabled (Gemini removed); keep imports minimal
 
 
 @io_builder_bp.route('/api/module-lookup', methods=['POST'])
@@ -303,33 +297,7 @@ def module_lookup():
                 db.session.commit()
             return jsonify({'success': True, 'module': module_info, 'source': 'internal_db'})
 
-        # Tier 3: AI Lookup
-        if vendor and genai and current_app.config.get('AI_ENABLED'):
-            try:
-                module_info = _get_specs_from_gemini(vendor, model)
-                if module_info:
-                    if not any(module_info.get(key, 0) > 0 for key in ['digital_inputs', 'digital_outputs', 'analog_inputs', 'analog_outputs']):
-                        current_app.logger.warning(f"AI lookup for {vendor} {model} returned data with no I/O points. Trying web scrape.")
-                    else:
-                        new_module = ModuleSpec(
-                            company=vendor, model=model,
-                            description=module_info.get('description', f'{vendor} {model} - AI Generated'),
-                            digital_inputs=module_info.get('digital_inputs', 0),
-                            digital_outputs=module_info.get('digital_outputs', 0),
-                            analog_inputs=module_info.get('analog_inputs', 0),
-                            analog_outputs=module_info.get('analog_outputs', 0),
-                            voltage_range=module_info.get('voltage_range'),
-                            current_range=module_info.get('current_range'),
-                            verified=False
-                        )
-                        db.session.add(new_module)
-                        db.session.commit()
-                        current_app.logger.info(f"Successfully fetched, validated, and saved new module via AI: {vendor} {model}")
-                        return jsonify({'success': True, 'module': module_info, 'source': 'ai'})
-            except Exception as ai_error:
-                current_app.logger.warning(f"AI lookup threw exception: {str(ai_error)}, trying web scrape...")
-        
-        # Tier 4: Module not found - Manual entry required (saved to database for ALL future users)
+        # Tier 3: Module not found - Manual entry required (saved to database for ALL future users)
         current_app.logger.info(f"Module {vendor} {model} not found - manual entry required")
         message = f'Module "{vendor} {model}" not in database. Please enter specifications below - they will be saved for all future reports.'
         return jsonify({'success': False, 'message': message, 'manual_entry_required': True}), 404
@@ -403,53 +371,6 @@ def save_module():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-def _get_specs_from_gemini(company: str, model: str):
-    """
-    Uses the Gemini AI with a multi-step, retry-enabled process to find specifications for an I/O module.
-    """
-    from typing import Dict, Any, Optional
-    
-    current_app.logger.info(f"Attempting advanced AI lookup for {company} {model}")
-    gemini_model = _ensure_gemini_model()
-    
-    # --- Helper to validate the final JSON ---
-    def _validate_spec_json(json_response):
-        if not json_response or not isinstance(json_response, dict):
-            return None
-            
-        # Basic validation: ensure some I/O points exist or a description is present.
-        has_io = any(json_response.get(key, 0) > 0 for key in ['digital_inputs', 'digital_outputs', 'analog_inputs', 'analog_outputs'])
-        has_desc = bool(json_response.get('description'))
-
-        if not has_io and not has_desc:
-            current_app.logger.warning(f"AI response for {company} {model} lacked I/O points and description. Discarding.")
-            return None
-        
-        # Fill in missing keys with 0 (not strict about having ALL keys)
-        json_response.setdefault('digital_inputs', 0)
-        json_response.setdefault('digital_outputs', 0)
-        json_response.setdefault('analog_inputs', 0)
-        json_response.setdefault('analog_outputs', 0)
-        json_response.setdefault('voltage_range', None)
-        json_response.setdefault('current_range', None)
-
-        current_app.logger.info(f"Successfully validated specs from AI for {company} {model}")
-        return json_response
-
-    # --- Strategy 1: Precise, one-shot JSON prompt ---
-    current_app.logger.info(f"AI Lookup (Strategy 1: Precise JSON) for {company} {model}")
-    prompt_1 = f"""
-        Act as a helpful engineering assistant. I need to get the technical specifications for an industrial I/O module: '{company} {model}'.
-        Please analyze available information for this module and provide a summary of its key specs.
-        Your response must be a single, minified JSON object with no markdown. The JSON object must use these exact keys: "description", "digital_inputs", "digital_outputs", "analog_inputs", "analog_outputs", "voltage_range", "current_range".
-        If you cannot find a specific value, use 0 for numeric fields and null for string fields. Do not add any extra explanation outside of the JSON.
-        For example:
-        {{"description":"8-channel 24VDC digital input module","digital_inputs":8,"digital_outputs":0,"analog_inputs":0,"analog_outputs":0,"voltage_range":"24 VDC","current_range":null}}
-    """
-    try:
-        generation_config = genai.types.GenerationConfig(temperature=0.1, max_output_tokens=500)
-        request_options = {"timeout": 45}
-        response = gemini_model.generate_content(prompt_1, generation_config=generation_config, request_options=request_options)
         text_response = _gemini_text_from_response(response)
         current_app.logger.debug(f"Strategy 1 raw response: {text_response[:200] if text_response else 'None'}")
         if text_response:
