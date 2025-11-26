@@ -1106,10 +1106,10 @@ def delete_report(report_id):
                 except json.JSONDecodeError:
                     has_stage_approved = False
 
-            if status_upper != 'DRAFT' or has_stage_approved:
+            if has_stage_approved or status_upper in ['APPROVED', 'REJECTED']:
                 return jsonify({
                     'success': False,
-                    'message': 'This report has entered the approval workflow and can only be deleted by an administrator.'
+                    'message': 'This report has been approved/rejected and can only be deleted by an administrator.'
                 }), 403
 
         sat_report = SATReport.query.filter_by(report_id=report_id).first()
@@ -1261,11 +1261,9 @@ def my_reports():
             can_delete = True
         else:
             if not is_owner:
-                delete_reason = 'Only the report owner can delete this draft.'
-            elif status_upper != 'DRAFT':
-                delete_reason = 'Report can no longer be deleted because approvals have started.'
-            elif has_stage_approved:
-                delete_reason = 'A stage has already been approved; contact an administrator to remove this report.'
+                delete_reason = 'Only the report owner can delete this report.'
+            elif has_stage_approved or status_upper in ['APPROVED', 'REJECTED']:
+                delete_reason = 'This report has been approved or rejected; only an administrator may delete it.'
             else:
                 can_delete = True
 
