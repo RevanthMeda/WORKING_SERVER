@@ -1554,7 +1554,8 @@
             Step 1 — Basic Information
           </h1>
           <p style="color: #64748b;">Please provide the basic information about your SAT report. Fields marked with
-            <span class="required">*</span> are required.</p>
+            <span class="required">*</span> are required.
+          </p>
         </div>
 
         <div class="form-section">
@@ -4358,74 +4359,6 @@
         return;
       }
 
-      const lookupBtn = document.getElementById('lookup_module_btn');
-      const originalText = lookupBtn.innerHTML;
-      lookupBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Searching...';
-      lookupBtn.disabled = true;
-
-      try {
-        showStatusMessage(`Searching for ${company} ${model} specifications...`, 'info');
-
-        const response = await fetch('/io-builder/api/module-lookup', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCSRFToken()
-          },
-          body: JSON.stringify({
-            company: company,
-            model: model
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('Module lookup response:', data);
-
-        if (data.success && data.module) {
-          // Store module spec with company and model info
-          currentModuleSpec = {
-            ...data.module,
-            company: company,
-            model: model
-          };
-          displayModuleSpecs(data.module);
-
-          let message = `Found ${company} ${model} specifications`;
-          if (data.source === 'database') {
-            message += ' in database';
-          } else if (data.source === 'web') {
-            message += ' online';
-          }
-
-          const totalChannels = (data.module.digital_inputs || 0) + (data.module.digital_outputs || 0) +
-            (data.module.analog_inputs || 0) + (data.module.analog_outputs || 0);
-
-          if (totalChannels > 0) {
-            message += ` | DI: ${data.module.digital_inputs || 0}, DO: ${data.module.digital_outputs || 0}, AI: ${data.module.analog_inputs || 0}, AO: ${data.module.analog_outputs || 0}`;
-          }
-
-          showStatusMessage(message, 'success');
-          document.getElementById('add_module_btn').disabled = false;
-        } else {
-          showStatusMessage('Module not found. Please enter specifications manually.', 'warning');
-          showManualOverride();
-        }
-      } catch (error) {
-        console.error('Module lookup error:', error);
-        showStatusMessage('Network error. Please try again or enter specifications manually.', 'error');
-        showManualOverride();
-      } finally {
-        lookupBtn.innerHTML = originalText;
-        lookupBtn.disabled = false;
-      }
-    }
-
-    function displayModuleSpecs(module) {
-      // Display the specifications
       document.getElementById('spec_description').textContent = module.description || 'No description';
       document.getElementById('spec_di').textContent = module.digital_inputs || 0;
       document.getElementById('spec_do').textContent = module.digital_outputs || 0;
