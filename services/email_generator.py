@@ -340,6 +340,17 @@ def _compose_email(
     call_to_action = plan.get("call_to_action") or "Review Details"
     closing = plan.get("closing") or "Thank you for your continued support."
 
+    # Personalised greeting
+    greeting_name = ""
+    if (audience or "").lower().strip() == "approver":
+        greeting_name = extra.get("approver_name") or extra.get("approver_title") or ""
+    else:
+        greeting_name = extra.get("submitter_name") or extra.get("prepared_by") or report_data.get("PREPARED_BY") or report_data.get("prepared_by") or ""
+    if greeting_name:
+        intro = f"Dear {greeting_name},\n{intro}".strip()
+
+    author_name = extra.get("prepared_by") or report_data.get("PREPARED_BY") or report_data.get("prepared_by") or ""
+
     stage_label = _format_stage_label(extra)
     meta = {
         "document_title": document_title,
@@ -354,6 +365,7 @@ def _compose_email(
         "approval_url": extra.get("approval_url"),
         "status_url": extra.get("status_url"),
         "edit_url": extra.get("edit_url"),
+        "author_line": f"Prepared by {author_name}" if author_name else "",
     }
 
     body_html = _render_email_html(meta)
@@ -419,6 +431,10 @@ def _render_email_html(context: Dict[str, Any]) -> str:
             + "</p>"
         )
 
+    author_html = ""
+    if context.get("author_line"):
+        author_html = _render_paragraph_block(context["author_line"])
+
     stage_badge = ""
     if context.get("stage_label"):
         stage_badge = (
@@ -444,6 +460,7 @@ def _render_email_html(context: Dict[str, Any]) -> str:
                 {highlights_html}
                 {button_html}
                 {secondary_html}
+                {author_html}
                 <p style="margin:24px 0 0 0;color:#1f2a44;line-height:1.45;font-size:15px;">{escape(context.get('closing') or '')}</p>
               </td>
             </tr>
@@ -551,6 +568,7 @@ def _fallback_email(report_data: Dict[str, Any], audience: str, extra: Dict[str,
     approval_url = extra.get("approval_url")
     status_url = extra.get("status_url")
     edit_url = extra.get("edit_url")
+    author_name = extra.get("prepared_by") or report_data.get("PREPARED_BY") or report_data.get("prepared_by") or ""
 
     if audience_key == "approver":
         details = []
@@ -563,12 +581,17 @@ def _fallback_email(report_data: Dict[str, Any], audience: str, extra: Dict[str,
         if scope:
             details.append(f"Scope: {escape(scope)}")
 
+        greeting = ""
+        approver_name = extra.get("approver_name") or extra.get("approver_title")
+        if approver_name:
+            greeting = f"<p>Dear {escape(approver_name)},</p>"
         subject = f"Approval requested: {document_title}"
         html_body = f"""
         <html>
         <body>
             <h1>{escape(document_title)} - Approval Required</h1>
-            <p>A new report is ready for your review.</p>
+            {greeting if greeting else '<p>A new report is ready for your review.</p>'}
+            {'<p>This report was prepared by ' + escape(author_name) + '.</p>' if author_name else ''}
             {''.join(f'<p>{line}</p>' for line in details)}
             {f'<p><a href="{escape(approval_url)}">Open approval workspace</a></p>' if approval_url else ''}
             {f'<p><a href="{escape(status_url)}">View live status</a></p>' if status_url else ''}
@@ -576,12 +599,18 @@ def _fallback_email(report_data: Dict[str, Any], audience: str, extra: Dict[str,
         </html>
         """
     else:
+        greeting = ""
+        submitter_name = extra.get("submitter_name") or author_name
+        if submitter_name:
+            greeting = f"<p>Dear {escape(submitter_name)},</p>"
         subject = f"{document_title} submitted successfully"
         html_body = f"""
         <html>
         <body>
             <h1>Submission received</h1>
+            {greeting if greeting else ''}
             <p>Your report <strong>{escape(document_title)}</strong> has been submitted.</p>
+            {'<p>Prepared by ' + escape(author_name) + '.</p>' if author_name else ''}
             {f'<p><a href="{escape(status_url)}">Track approval progress</a></p>' if status_url else ''}
             {f'<p><a href="{escape(edit_url)}">Update your submission</a></p>' if edit_url else ''}
             {f'<p>Project reference: {escape(project_ref)}</p>' if project_ref else ''}

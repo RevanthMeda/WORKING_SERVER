@@ -449,6 +449,9 @@ def generate():
         context_to_store["approver_1_email"] = approver_emails[0]
         context_to_store["approver_2_email"] = approver_emails[1]
         context_to_store["approver_3_email"] = approver_emails[2]
+        context_to_store["approver_1_name"] = request.form.get("approver_1_name", "").strip()
+        context_to_store["approver_2_name"] = request.form.get("approver_2_name", "").strip()
+        context_to_store["approver_3_name"] = request.form.get("approver_3_name", "").strip()
 
         report.document_title = context_to_store.get('DOCUMENT_TITLE', '')
         report.document_reference = context_to_store.get('DOCUMENT_REFERENCE', '')
@@ -568,6 +571,20 @@ def generate():
         submitter_email_subject = None
         submitter_email_body = None
         try:
+            ctx = submission_data.get("context", {}) if isinstance(submission_data, dict) else {}
+            submitter_name = ctx.get("PREPARED_BY") or ctx.get("prepared_by") or report.prepared_by or current_user.full_name if hasattr(current_user, "full_name") else ""
+
+            def _approver_name_for_stage(stage: Any) -> str:
+                if not isinstance(stage, (int, float)):
+                    return ""
+                if int(stage) == 1:
+                    return ctx.get("approver_1_name", "")
+                if int(stage) == 2:
+                    return ctx.get("approver_2_name", "")
+                if int(stage) == 3:
+                    return ctx.get("approver_3_name", "")
+                return ""
+
             def _build_email_content(audience: str, stage: Any = None, approver_title: str | None = None):
                 """Generate email content locally to avoid auth issues on internal calls."""
                 report_data = submission_data.get("context", {}) if isinstance(submission_data, dict) else {}
@@ -594,6 +611,9 @@ def generate():
                         extra["stage"] = stage
                     if approver_title:
                         extra["approver_title"] = approver_title
+                    approver_name = _approver_name_for_stage(stage)
+                    if approver_name:
+                        extra["approver_name"] = approver_name
                     try:
                         extra["approval_url"] = url_for('approval.approve_submission', submission_id=submission_id, stage=stage or 1, _external=True)
                     except Exception:
@@ -601,6 +621,10 @@ def generate():
                 else:
                     extra["audience"] = audience
                     extra["edit_url"] = url_for('main.edit_submission', submission_id=submission_id, _external=True)
+                    if submitter_name:
+                        extra["submitter_name"] = submitter_name
+                if submitter_name:
+                    extra["prepared_by"] = submitter_name
 
                 return generate_email_content(report_data, audience=audience, extra=extra)
 
