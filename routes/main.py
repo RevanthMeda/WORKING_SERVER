@@ -196,6 +196,7 @@ def generate():
                 current_app.logger.info(f"Version incremented to: {report.version}")
             report.status = 'DRAFT'
             report.locked = False
+            report.approval_notification_sent = False  # allow re-send on new version
 
         sat_report = SATReport.query.filter_by(report_id=submission_id).first()
         if not sat_report:

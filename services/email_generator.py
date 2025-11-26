@@ -181,7 +181,7 @@ def _generate_with_openrouter(model_cfg: Dict[str, str], prompt: str, generation
         raise RuntimeError("OpenRouter credentials are missing.")
 
     try:
-        current_app.logger.debug(f"OpenRouter model={model_id}, key_len={len(token)}")
+        current_app.logger.info(f"OpenRouter call: model={model_id}, key_len={len(token)}")
     except Exception:
         pass
 
