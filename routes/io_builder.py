@@ -237,7 +237,30 @@ def get_comprehensive_module_database():
     }
 
 # AI lookup disabled (Gemini removed); keep imports minimal
-def _ai_lookup_module(company: str, model: str) -> dict | None:
+def _extract_counts_from_text(text: str) -> dict:
+    """Parse counts from free-text description (e.g., '8 AI', '4 AO')."""
+    counts = {"digital_inputs": 0, "digital_outputs": 0, "analog_inputs": 0, "analog_outputs": 0}
+    if not text:
+        return counts
+    patterns = {
+        "analog_inputs": [r'(\d+)\s*(ai\b|analog input)'],
+        "analog_outputs": [r'(\d+)\s*(ao\b|analog output)'],
+        "digital_inputs": [r'(\d+)\s*(di\b|digital input)'],
+        "digital_outputs": [r'(\d+)\s*(do\b|digital output)'],
+    }
+    lower = text.lower()
+    for key, regexes in patterns.items():
+        for reg in regexes:
+            match = re.search(reg, lower, re.IGNORECASE)
+            if match:
+                try:
+                    counts[key] = max(counts[key], int(match.group(1)))
+                except Exception:
+                    continue
+    return counts
+
+
+def _ai_lookup_module(company: str, model: str, description_hint: str = "") -> dict | None:
     """Attempt to fetch module specs using the configured OpenRouter model."""
     api_key = current_app.config.get("OPENROUTER_API_KEY") or current_app.config.get("AI_API_KEY")
     model_id = current_app.config.get("OPENROUTER_MODEL") or "x-ai/grok-4.1-fast:free"
@@ -245,12 +268,15 @@ def _ai_lookup_module(company: str, model: str) -> dict | None:
         current_app.logger.info("OpenRouter API key not configured; skipping AI lookup")
         return None
 
+    extra_hint = description_hint.strip()
     prompt = f"""
     Provide a concise JSON object for industrial I/O module '{company} {model}'.
     Keys: "description", "digital_inputs", "digital_outputs", "analog_inputs", "analog_outputs", "voltage_range", "current_range".
     - description: one short sentence
     - counts must be integers (0 if unknown)
     - voltage/current strings may be null if unknown
+    Use any provided description as ground truth (if present): "{extra_hint}".
+    If the description indicates analog channels, ensure analog_inputs/analog_outputs reflect that.
     Respond with JSON only.
     """
 
@@ -297,6 +323,15 @@ def _ai_lookup_module(company: str, model: str) -> dict | None:
             "voltage_range": parsed.get("voltage_range"),
             "current_range": parsed.get("current_range"),
         }
+        # Heuristic: if description or hint contains counts, prefer them over zero values
+        counts_from_text = _extract_counts_from_text(description_hint or validated["description"])
+        for key, val in counts_from_text.items():
+            if val and (validated.get(key, 0) == 0 or val > validated.get(key, 0)):
+                validated[key] = val
+        # If both analog counts are still zero but text includes "analog", try a minimal bump
+        text_all = f"{description_hint} {validated.get('description','')} {model}".lower()
+        if "analog" in text_all and validated["analog_inputs"] == 0 and validated["analog_outputs"] == 0:
+            current_app.logger.warning(f"Analog hint detected for {company} {model} but counts were zero; leaving for manual confirmation.")
         return validated
     except Exception as e:
         current_app.logger.error(f"OpenRouter IO lookup exception for {company} {model}: {e}", exc_info=True)
@@ -312,6 +347,7 @@ def module_lookup():
 
         vendor = data.get('company', data.get('vendor', '')).strip().upper()
         model = data.get('model', '').strip().upper()
+        description_hint = data.get('description', '').strip()
 
         if not model:
             return jsonify({'success': False, 'message': 'Model is required'}), 400
@@ -363,7 +399,7 @@ def module_lookup():
             return jsonify({'success': True, 'module': module_info, 'source': 'internal_db'})
 
         # Tier 3: OpenRouter AI lookup
-        ai_specs = _ai_lookup_module(vendor, model)
+        ai_specs = _ai_lookup_module(vendor, model, description_hint=description_hint)
         if ai_specs:
             current_app.logger.info(f"OpenRouter AI provided specs for {vendor} {model}")
             try:
