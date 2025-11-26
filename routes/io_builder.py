@@ -7,6 +7,7 @@ from models import db, ModuleSpec
 import time
 from urllib.parse import quote
 import logging
+import json
 
 io_builder_bp = Blueprint('io_builder', __name__)
 
@@ -236,6 +237,70 @@ def get_comprehensive_module_database():
     }
 
 # AI lookup disabled (Gemini removed); keep imports minimal
+def _ai_lookup_module(company: str, model: str) -> dict | None:
+    """Attempt to fetch module specs using the configured OpenRouter model."""
+    api_key = current_app.config.get("OPENROUTER_API_KEY") or current_app.config.get("AI_API_KEY")
+    model_id = current_app.config.get("OPENROUTER_MODEL") or "x-ai/grok-4.1-fast:free"
+    if not api_key:
+        current_app.logger.info("OpenRouter API key not configured; skipping AI lookup")
+        return None
+
+    prompt = f"""
+    Provide a concise JSON object for industrial I/O module '{company} {model}'.
+    Keys: "description", "digital_inputs", "digital_outputs", "analog_inputs", "analog_outputs", "voltage_range", "current_range".
+    - description: one short sentence
+    - counts must be integers (0 if unknown)
+    - voltage/current strings may be null if unknown
+    Respond with JSON only.
+    """
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model_id,
+        "messages": [{"role": "user", "content": prompt.strip()}],
+        "temperature": 0.2,
+        "max_tokens": 300,
+    }
+    try:
+        current_app.logger.info(f"OpenRouter IO lookup: model={model_id}, key_len={len(api_key)} for {company} {model}")
+        resp = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=25)
+        if resp.status_code >= 400:
+            current_app.logger.warning(f"OpenRouter IO lookup failed {resp.status_code}: {resp.text}")
+            return None
+        data = resp.json()
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        if not content:
+            return None
+        try:
+            parsed = json.loads(content)
+        except Exception:
+            # try to extract JSON substring
+            match = re.search(r"\{.*\}", content, re.DOTALL)
+            parsed = json.loads(match.group(0)) if match else None
+        if not isinstance(parsed, dict):
+            return None
+        # validate/normalize
+        def _int(val):
+            try:
+                return int(val)
+            except Exception:
+                return 0
+        validated = {
+            "description": str(parsed.get("description") or f"{company} {model}"),
+            "digital_inputs": _int(parsed.get("digital_inputs")),
+            "digital_outputs": _int(parsed.get("digital_outputs")),
+            "analog_inputs": _int(parsed.get("analog_inputs")),
+            "analog_outputs": _int(parsed.get("analog_outputs")),
+            "voltage_range": parsed.get("voltage_range"),
+            "current_range": parsed.get("current_range"),
+        }
+        return validated
+    except Exception as e:
+        current_app.logger.error(f"OpenRouter IO lookup exception for {company} {model}: {e}", exc_info=True)
+        return None
 
 
 @io_builder_bp.route('/api/module-lookup', methods=['POST'])
@@ -296,6 +361,29 @@ def module_lookup():
                 db.session.add(new_module)
                 db.session.commit()
             return jsonify({'success': True, 'module': module_info, 'source': 'internal_db'})
+
+        # Tier 3: OpenRouter AI lookup
+        ai_specs = _ai_lookup_module(vendor, model)
+        if ai_specs:
+            current_app.logger.info(f"OpenRouter AI provided specs for {vendor} {model}")
+            try:
+                new_module = ModuleSpec(
+                    company=vendor or "UNKNOWN",
+                    model=model,
+                    description=ai_specs.get('description', ''),
+                    digital_inputs=ai_specs.get('digital_inputs', 0),
+                    digital_outputs=ai_specs.get('digital_outputs', 0),
+                    analog_inputs=ai_specs.get('analog_inputs', 0),
+                    analog_outputs=ai_specs.get('analog_outputs', 0),
+                    voltage_range=ai_specs.get('voltage_range'),
+                    current_range=ai_specs.get('current_range'),
+                    verified=False
+                )
+                db.session.add(new_module)
+                db.session.commit()
+            except Exception as db_err:
+                current_app.logger.warning(f"Could not persist AI specs for {vendor} {model}: {db_err}")
+            return jsonify({'success': True, 'module': ai_specs, 'source': 'ai'})
 
         # Tier 3: Module not found - Manual entry required (saved to database for ALL future users)
         current_app.logger.info(f"Module {vendor} {model} not found - manual entry required")
