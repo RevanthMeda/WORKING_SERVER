@@ -24,6 +24,9 @@ TABLE_UI_KEYS = [cfg['ui_section'] for cfg in TABLE_CONFIG] + EXTRA_IMAGE_KEYS
 
 main_bp = Blueprint('main', __name__)
 
+DUP_WINDOW_SECONDS = 10
+RECENT_GENERATE: dict[str, float] = {}
+
 def _utils_unavailable(*args: Any, **kwargs: Any) -> Any:
     raise RuntimeError("Utility helpers are unavailable; ensure utils module is installed.")
 
@@ -169,6 +172,25 @@ def generate():
         if not submission_id:
             submission_id = str(uuid.uuid4())
 
+        now_ts = time.time()
+        last_ts = RECENT_GENERATE.get(submission_id)
+        if last_ts and now_ts - last_ts < DUP_WINDOW_SECONDS:
+            current_app.logger.warning(f"Duplicate generate suppressed for submission {submission_id}")
+            wants_json = (
+                request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                or 'application/json' in request.headers.get('Accept', '')
+            )
+            if wants_json:
+                return jsonify({
+                    "success": True,
+                    "message": "Request already processing. Please refresh status shortly.",
+                    "submission_id": submission_id,
+                    "redirect_url": url_for('status.view_status', submission_id=submission_id),
+                })
+            flash("Your report request is already being processed. Please wait a moment and check status.", "info")
+            return redirect(url_for('status.view_status', submission_id=submission_id))
+        RECENT_GENERATE[submission_id] = now_ts
+
         report = Report.query.get(submission_id)
         is_new_report = False
         if not report:
@@ -194,6 +216,7 @@ def generate():
                 else:
                     report.version = 'R1'
                 current_app.logger.info(f"Version incremented to: {report.version}")
+            report.approval_notification_sent = False
             report.status = 'DRAFT'
             report.locked = False
 
