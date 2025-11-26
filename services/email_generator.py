@@ -135,12 +135,20 @@ def _parse_email_plan(response: Any) -> Optional[Dict[str, Any]]:
 
 
 def _extract_text(response: Any) -> str:
-    text = getattr(response, "text", None)
-    if text:
-        return text.strip()
+    try:
+        text = getattr(response, "text", None)
+        if text:
+            return text.strip()
+    except Exception as exc:
+        # Some Gemini responses raise when .text is accessed (e.g., finish_reason != STOP)
+        current_app.logger.warning(f"Gemini response text unavailable: {exc}")
 
     candidates = getattr(response, "candidates", []) or []
     for candidate in candidates:
+        # Skip candidates that did not finish cleanly
+        finish_reason = getattr(candidate, "finish_reason", None)
+        if finish_reason not in (None, 1, "STOP"):
+            continue
         content = getattr(candidate, "content", None)
         parts = getattr(content, "parts", None) if content else None
         if not parts:

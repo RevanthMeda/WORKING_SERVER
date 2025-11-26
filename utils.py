@@ -347,10 +347,10 @@ def send_email(to_email, subject, html_content, text_content=None):
     Config = config_module.Config
     credentials = Config.get_smtp_credentials()
     
-    smtp_server = credentials['server']
-    smtp_port = credentials['port'] 
-    smtp_username = credentials['username']
-    smtp_password = credentials['password']
+    smtp_server = (credentials.get('server') or '').strip()
+    smtp_port = credentials.get('port') 
+    smtp_username = (credentials.get('username') or '').strip()
+    smtp_password = (credentials.get('password') or '').strip()
 
     if not smtp_username or not smtp_password:
         logger.error("SMTP credentials are not configured")
