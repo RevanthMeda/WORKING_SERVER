@@ -10,6 +10,46 @@ import logging
 
 io_builder_bp = Blueprint('io_builder', __name__)
 
+
+def _safe_int(value, default=0):
+    """Convert values to int safely for module specs."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_module_spec(info, company, model, verified_default=False):
+    """Ensure module spec dictionary has all required fields and sane defaults."""
+    return {
+        'company': company,
+        'model': model,
+        'description': info.get('description') or f'{company} {model}',
+        'digital_inputs': _safe_int(info.get('digital_inputs')),
+        'digital_outputs': _safe_int(info.get('digital_outputs')),
+        'analog_inputs': _safe_int(info.get('analog_inputs')),
+        'analog_outputs': _safe_int(info.get('analog_outputs')),
+        'voltage_range': info.get('voltage_range') or None,
+        'current_range': info.get('current_range') or None,
+        'verified': bool(info.get('verified', verified_default))
+    }
+
+
+def attempt_web_lookup(company: str, model: str):
+    """Fetch module specs using lightweight web lookup with hardcoded fallback."""
+    try:
+        from services.web_module_scraper import get_module_from_web
+    except Exception as import_error:
+        current_app.logger.warning(f"Web lookup service unavailable: {import_error}")
+        return None
+
+    try:
+        return get_module_from_web(company, model)
+    except Exception as e:
+        current_app.logger.warning(f"Web lookup failed for {company} {model}: {e}")
+        return None
+
+
 def get_unread_count():
     """Get unread notifications count with error handling"""
     try:
@@ -288,20 +328,34 @@ def module_lookup():
         if module_info:
             current_app.logger.info(f"Found module in internal database: {search_key}")
             if vendor:
-                new_module = ModuleSpec(
-                    company=vendor, model=model,
-                    description=module_info.get('description', ''),
-                    digital_inputs=module_info.get('digital_inputs', 0),
-                    digital_outputs=module_info.get('digital_outputs', 0),
-                    analog_inputs=module_info.get('analog_inputs', 0),
-                    analog_outputs=module_info.get('analog_outputs', 0),
-                    voltage_range=module_info.get('voltage_range'),
-                    current_range=module_info.get('current_range'),
-                    verified=module_info.get('verified', True)
-                )
-                db.session.add(new_module)
-                db.session.commit()
+                try:
+                    normalized = _normalize_module_spec(module_info, vendor, model, verified_default=True)
+                    new_module = ModuleSpec(**normalized)
+                    db.session.add(new_module)
+                    db.session.commit()
+                except Exception as db_error:
+                    current_app.logger.warning(f"Failed to cache internal module {vendor} {model}: {db_error}")
             return jsonify({'success': True, 'module': module_info, 'source': 'internal_db'})
+
+        # Tier 3: Web lookup with caching
+        web_info = attempt_web_lookup(vendor, model)
+        if web_info:
+            normalized = _normalize_module_spec(web_info, vendor, model, verified_default=False)
+            try:
+                existing = ModuleSpec.query.filter_by(company=vendor, model=model).first()
+                if existing:
+                    for field in ['description', 'digital_inputs', 'digital_outputs',
+                                  'analog_inputs', 'analog_outputs', 'voltage_range', 'current_range']:
+                        setattr(existing, field, normalized.get(field))
+                    existing.verified = normalized.get('verified', False)
+                else:
+                    db.session.add(ModuleSpec(**normalized))
+                db.session.commit()
+                current_app.logger.info(f"Cached module from web lookup: {vendor} {model}")
+            except Exception as cache_error:
+                current_app.logger.warning(f"Could not cache web lookup for {vendor} {model}: {cache_error}")
+                db.session.rollback()
+            return jsonify({'success': True, 'module': normalized, 'source': 'web'})
 
         # Tier 3: AI Lookup
         if vendor and genai and current_app.config.get('AI_ENABLED'):
@@ -334,7 +388,7 @@ def module_lookup():
         
         # Tier 4: Module not found - Manual entry required (saved to database for ALL future users)
         current_app.logger.info(f"Module {vendor} {model} not found - manual entry required")
-        message = f'Module "{vendor} {model}" not in database. Please enter specifications below - they will be saved for all future reports.'
+        message = f'Module "{vendor} {model}" not found in database or online sources. Please enter specifications below - they will be saved for all future reports.'
         return jsonify({'success': False, 'message': message, 'manual_entry_required': True}), 404
 
     except Exception as e:
@@ -737,7 +791,8 @@ def generate_io_table():
             'digital_inputs': len(tables['digital_inputs']),
             'digital_outputs': len(tables['digital_outputs']),
             'analog_inputs': len(tables['analog_inputs']),
-            'analog_outputs': len(tables['analog_outputs'])
+            'analog_outputs': len(tables['analog_outputs']),
+            'modules_processed': len(modules)
         }
 
         return jsonify({

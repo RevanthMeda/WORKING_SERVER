@@ -4393,26 +4393,30 @@ console.log('Module lookup response:', data);
 if (response.ok && data.success && data.module) {
 // --- SUCCESS CASE ---
 // Store module spec with company and model info
-currentModuleSpec = {
-...data.module,
-company: company,
-model: model
+const normalizedModule = {
+    ...data.module,
+    company: company,
+    model: model,
+    source: data.source || 'lookup'
 };
-displayModuleSpecs(data.module);
 
-let message = `Found ${company} ${model} specifications`;
-if (data.source === 'database') {
-message += ' in database';
-} else if (data.source === 'web') {
-message += ' online';
-}
+currentModuleSpec = normalizedModule;
+displayModuleSpecs(normalizedModule);
 
-const totalChannels = (data.module.digital_inputs || 0) + (data.module.digital_outputs || 0) +
-(data.module.analog_inputs || 0) + (data.module.analog_outputs || 0);
+const sourceLabel = {
+    database: 'from database cache',
+    internal_db: 'from built-in catalog',
+    web: 'fetched online & cached',
+    ai: 'via AI helper',
+    lookup: 'from lookup'
+}[normalizedModule.source] || 'from lookup';
 
+const totalChannels = (normalizedModule.digital_inputs || 0) + (normalizedModule.digital_outputs || 0) +
+    (normalizedModule.analog_inputs || 0) + (normalizedModule.analog_outputs || 0);
+
+let message = `Found ${company} ${model} ${sourceLabel}`;
 if (totalChannels > 0) {
-message += ` | DI: ${data.module.digital_inputs || 0}, DO: ${data.module.digital_outputs || 0}, AI:
-${data.module.analog_inputs || 0}, AO: ${data.module.analog_outputs || 0}`;
+    message += ` | DI: ${normalizedModule.digital_inputs || 0}, DO: ${normalizedModule.digital_outputs || 0}, AI: ${normalizedModule.analog_inputs || 0}, AO: ${normalizedModule.analog_outputs || 0}`;
 }
 
 showStatusMessage(message, 'success');
@@ -4476,7 +4480,7 @@ document.getElementById('manual_override').classList.remove('hidden');
 document.getElementById('add_module_btn').disabled = false;
 }
 
-function addModule() {
+async function addModule() {
 const company = document.getElementById('module_company').value;
 const model = document.getElementById('module_model').value;
 const rackNo = parseInt(document.getElementById('module_rack').value) || 0;
@@ -4514,6 +4518,7 @@ id: Date.now()
 configuredModules.push(moduleConfig);
 updateModulesList();
 clearModuleForm();
+persistModuleSpec(moduleSpec);
 
 const total = (moduleSpec.digital_inputs || 0) + (moduleSpec.digital_outputs || 0) +
 (moduleSpec.analog_inputs || 0) + (moduleSpec.analog_outputs || 0);
@@ -4530,19 +4535,18 @@ container.innerHTML = '';
 return;
 }
 
-let html = '<div class="modules-list">
-    <div class="modules-list-header">Configured Modules</div>';
-
-    configuredModules.forEach((module, index) => {
+const items = configuredModules.map((module, index) => {
     const total = (module.digital_inputs || 0) + (module.digital_outputs || 0) +
-    (module.analog_inputs || 0) + (module.analog_outputs || 0);
+        (module.analog_inputs || 0) + (module.analog_outputs || 0);
+    const slot = module.position || module.slot_no || module.module_position || module.slot || 1;
+    const startNumber = module.start_sno || module.starting_sno || 1;
+    const rackNumber = (module.rack_no === 0 || module.rack_no) ? module.rack_no : 0;
 
-    html += `
+    return `
     <div class="module-item">
         <div class="module-info">
             <div class="module-name">${module.company} ${module.model}</div>
-            <div class="module-details">Rack ${module.rack_no}, Slot ${module.slot_no} | Start S.No: ${module.start_sno}
-            </div>
+            <div class="module-details">Rack ${rackNumber}, Slot ${slot} | Start S.No: ${startNumber}</div>
         </div>
         <div class="module-stats">
             <span>DI: ${module.digital_inputs || 0}</span>
@@ -4556,11 +4560,13 @@ let html = '<div class="modules-list">
         </button>
     </div>
     `;
-    });
+}).join('');
 
-    html += '
-</div>';
-container.innerHTML = html;
+container.innerHTML = `
+<div class="modules-list">
+    <div class="modules-list-header">Configured Modules</div>
+    ${items}
+</div>`;
 
 // Update statistics
 updateModuleStats();
@@ -4592,6 +4598,47 @@ else if (hasAnalog) analogModules++;
 document.getElementById('total_modules').value = totalModules;
 document.getElementById('digital_modules').value = digitalModules;
 document.getElementById('analog_modules').value = analogModules;
+}
+
+function clearModuleForm() {
+document.getElementById('module_model').value = '';
+document.getElementById('manual_di').value = 0;
+document.getElementById('manual_do').value = 0;
+document.getElementById('manual_ai').value = 0;
+document.getElementById('manual_ao').value = 0;
+document.getElementById('module_spec_display').classList.add('hidden');
+}
+
+async function persistModuleSpec(moduleSpec) {
+try {
+    const response = await fetch('/io-builder/api/save-module', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
+        },
+        body: JSON.stringify({
+            company: moduleSpec.company,
+            model: moduleSpec.model,
+            description: moduleSpec.description,
+            digital_inputs: moduleSpec.digital_inputs || 0,
+            digital_outputs: moduleSpec.digital_outputs || 0,
+            analog_inputs: moduleSpec.analog_inputs || 0,
+            analog_outputs: moduleSpec.analog_outputs || 0,
+            voltage_range: moduleSpec.voltage_range || null,
+            current_range: moduleSpec.current_range || null
+        })
+    });
+
+    const data = await response.json();
+    if (!data.success) {
+        console.warn('Module spec cache failed:', data.error || data.message);
+    } else {
+        console.log('Module spec saved for future lookups');
+    }
+} catch (error) {
+    console.warn('Unable to save module spec for reuse', error);
+}
 }
 
 async function generateIOTables() {
