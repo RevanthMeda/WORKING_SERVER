@@ -298,6 +298,25 @@
                             </form>
                         {% elif user.status == 'Active' and user.email != current_user.email %}
                             <button type="button" class="btn btn-info edit-name-btn">Edit Name</button>
+                            <div class="email-dropdown" style="display: inline-block; position: relative;">
+                                <button type="button" class="btn btn-success email-menu-btn"><i class="fas fa-envelope"></i> Email</button>
+                                <div class="email-dropdown-menu" style="display: none; position: absolute; top: 100%; left: 0; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; min-width: 180px;">
+                                    <form method="POST" action="{{ url_for('dashboard.send_user_email', user_id=user.id) }}" style="margin: 0;">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="email_type" value="approval">
+                                        <button type="submit" class="email-option" style="display: block; width: 100%; padding: 10px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px;">
+                                            <i class="fas fa-check-circle" style="color: #10b981; margin-right: 8px;"></i> Send Approval Email
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('dashboard.send_user_email', user_id=user.id) }}" style="margin: 0;">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="email_type" value="welcome">
+                                        <button type="submit" class="email-option" style="display: block; width: 100%; padding: 10px 16px; border: none; background: none; text-align: left; cursor: pointer; font-size: 14px; border-top: 1px solid #eee;">
+                                            <i class="fas fa-hand-wave" style="color: #0b5fff; margin-right: 8px;"></i> Send Welcome Email
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
                             <form method="POST" action="{{ url_for('dashboard.change_user_role', user_id=user.id) }}" style="display: inline;">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <select name="role" required class="role-select">
@@ -398,6 +417,43 @@
         
         // Default sort by name
         document.querySelector('.users-table th[data-sort="name"]').click();
+
+        // Email dropdown functionality
+        document.querySelectorAll('.email-menu-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const dropdown = this.nextElementSibling;
+                
+                // Close all other dropdowns
+                document.querySelectorAll('.email-dropdown-menu').forEach(menu => {
+                    if (menu !== dropdown) {
+                        menu.style.display = 'none';
+                    }
+                });
+                
+                // Toggle this dropdown
+                dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+            });
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.email-dropdown')) {
+                document.querySelectorAll('.email-dropdown-menu').forEach(menu => {
+                    menu.style.display = 'none';
+                });
+            }
+        });
+        
+        // Hover effects for email options
+        document.querySelectorAll('.email-option').forEach(option => {
+            option.addEventListener('mouseenter', function() {
+                this.style.backgroundColor = '#f3f4f6';
+            });
+            option.addEventListener('mouseleave', function() {
+                this.style.backgroundColor = 'transparent';
+            });
+        });
 
         // Edit name functionality
         tableBody.addEventListener('click', function(e) {

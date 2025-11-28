@@ -496,7 +496,7 @@ def user_management():
 @dashboard_bp.route('/approve-user/<int:user_id>', methods=['POST'])
 @admin_required
 def approve_user(user_id):
-    """Approve a user and assign role"""
+    """Approve a user and assign role, then send approval email"""
     user = User.query.get_or_404(user_id)
     role = request.form.get('role')
 
@@ -510,11 +510,114 @@ def approve_user(user_id):
     try:
         db.session.commit()
         flash(f'User {user.full_name} approved as {role}.', 'success')
+        
+        # Automatically send approval email
+        email_sent = _send_user_approval_email(user)
+        if email_sent:
+            flash(f'Approval email sent to {user.email}.', 'success')
+        else:
+            flash(f'User approved but email could not be sent. Use "Resend Email" to try again.', 'warning')
+            
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Failed to approve user {user.full_name} ({user_id}): {e}")
         flash('Failed to approve user.', 'error')
 
+    return redirect(url_for('dashboard.user_management'))
+
+
+def _send_user_approval_email(user):
+    """Helper function to send approval email to a user."""
+    try:
+        from services.user_email_service import generate_user_approval_email
+        from utils import send_email
+        
+        # Build login URL
+        login_url = url_for('auth.login', _external=True)
+        
+        user_data = {
+            'full_name': user.full_name,
+            'email': user.email,
+            'role': user.role,
+            'company_name': 'Cully Automation',
+            'login_url': login_url
+        }
+        
+        # Generate AI-written email
+        email_content = generate_user_approval_email(user_data)
+        
+        # Send the email
+        success = send_email(
+            to_email=user.email,
+            subject=email_content['subject'],
+            html_content=email_content['body'],
+            text_content=email_content.get('text')
+        )
+        
+        if success:
+            current_app.logger.info(f"Approval email sent to {user.email}")
+        else:
+            current_app.logger.warning(f"Failed to send approval email to {user.email}")
+        
+        return success
+        
+    except Exception as e:
+        current_app.logger.error(f"Error sending approval email to {user.email}: {e}", exc_info=True)
+        return False
+
+
+@dashboard_bp.route('/send-user-email/<int:user_id>', methods=['POST'])
+@admin_required
+def send_user_email(user_id):
+    """Send or resend approval/welcome email to a user"""
+    user = User.query.get_or_404(user_id)
+    email_type = request.form.get('email_type', 'approval')
+    
+    try:
+        from services.user_email_service import generate_user_approval_email, generate_welcome_email
+        from utils import send_email
+        
+        login_url = url_for('auth.login', _external=True)
+        
+        user_data = {
+            'full_name': user.full_name,
+            'email': user.email,
+            'role': user.role,
+            'company_name': 'Cully Automation',
+            'login_url': login_url
+        }
+        
+        # Generate email based on type
+        if email_type == 'welcome':
+            email_content = generate_welcome_email(user_data)
+        else:
+            email_content = generate_user_approval_email(user_data)
+        
+        # Send the email
+        success = send_email(
+            to_email=user.email,
+            subject=email_content['subject'],
+            html_content=email_content['body'],
+            text_content=email_content.get('text')
+        )
+        
+        if success:
+            current_app.logger.info(f"Email ({email_type}) sent to {user.email} by admin {current_user.email}")
+            if request.is_json:
+                return jsonify({'success': True, 'message': f'Email sent successfully to {user.email}'})
+            flash(f'Email sent successfully to {user.email}.', 'success')
+        else:
+            current_app.logger.warning(f"Failed to send email to {user.email}")
+            if request.is_json:
+                return jsonify({'success': False, 'error': 'Failed to send email. Check SMTP configuration.'}), 500
+            flash('Failed to send email. Please check email configuration.', 'error')
+            
+    except Exception as e:
+        current_app.logger.error(f"Error sending email to {user.email}: {e}", exc_info=True)
+        if request.is_json:
+            return jsonify({'success': False, 'error': str(e)}), 500
+        flash(f'Error sending email: {str(e)}', 'error')
+    
     return redirect(url_for('dashboard.user_management'))
 
 @dashboard_bp.route('/disable-user/<int:user_id>', methods=['POST'])
