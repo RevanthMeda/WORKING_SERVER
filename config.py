@@ -149,8 +149,8 @@ class Config:
         }
     ]
 
-    # Max content length (16MB default)
-    MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', '16777216'))
+    # Max content length (64MB default)
+    MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', '64108864'))
 
     # Allowed file extensions
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'docx'}
