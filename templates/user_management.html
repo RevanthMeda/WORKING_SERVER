@@ -509,7 +509,7 @@
                 const csrfToken = document.querySelector('input[name="csrf_token"]').value;
                 
                 // Make API call to save the name
-                fetch(`/update-user-name/${userId}`, {
+                fetch(`/dashboard/update-user-name/${userId}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
