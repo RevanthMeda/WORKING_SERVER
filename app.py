@@ -150,6 +150,11 @@ def create_app(config_name='default'):
     # Load configuration based on environment
     config_class = config.get(config_name, config['default'])
     app.config.from_object(config_class)
+    
+    # Explicitly set MAX_CONTENT_LENGTH to handle large form submissions with images
+    # Default to 100MB if not set in config (handles multiple image uploads in SAT reports)
+    app.config['MAX_CONTENT_LENGTH'] = app.config.get('MAX_CONTENT_LENGTH', 100 * 1024 * 1024)
+    
     _ensure_required_directories(app)
     _configure_logging(app)
     

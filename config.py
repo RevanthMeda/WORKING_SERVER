@@ -149,8 +149,8 @@ class Config:
         }
     ]
 
-    # Max content length (64MB default)
-    MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', '64108864'))
+    # Max content length (100MB default - needed for large form submissions with multiple images)
+    MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', '104857600'))
 
     # Allowed file extensions
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'docx'}
