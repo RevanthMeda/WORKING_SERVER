@@ -11,6 +11,12 @@ from flask_session import Session
 from typing import Any, cast
 from sqlalchemy import text
 
+# CRITICAL: Set Werkzeug limits BEFORE Flask app is created
+# This fixes the 413 Request Entity Too Large error for large form submissions
+from werkzeug.wrappers import Request as WerkzeugRequest
+WerkzeugRequest.max_form_parts = 10000  # Increase from default 1000
+WerkzeugRequest.max_form_memory_size = 100 * 1024 * 1024  # 100MB for form data
+
 # Import Config directly from config.py file
 config_file_path = os.path.join(os.path.dirname(__file__), 'config.py')
 spec = importlib.util.spec_from_file_location("config_module", config_file_path)
@@ -151,9 +157,11 @@ def create_app(config_name='default'):
     config_class = config.get(config_name, config['default'])
     app.config.from_object(config_class)
     
-    # Explicitly set MAX_CONTENT_LENGTH to handle large form submissions with images
+    # Explicitly set upload limits to handle large form submissions with images
     # Default to 100MB if not set in config (handles multiple image uploads in SAT reports)
     app.config['MAX_CONTENT_LENGTH'] = app.config.get('MAX_CONTENT_LENGTH', 100 * 1024 * 1024)
+    app.config['MAX_FORM_MEMORY_SIZE'] = 100 * 1024 * 1024  # 100MB for form data
+    app.config['MAX_FORM_PARTS'] = 10000  # Allow many form fields
     
     _ensure_required_directories(app)
     _configure_logging(app)
