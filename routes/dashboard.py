@@ -584,6 +584,54 @@ def change_user_role(user_id):
 
     return redirect(url_for('dashboard.user_management'))
 
+@dashboard_bp.route('/update-user-name/<int:user_id>', methods=['POST'])
+@admin_required
+def update_user_name(user_id):
+    """Update a user's name (admin only)"""
+    user = User.query.get_or_404(user_id)
+    
+    # Get new name from form or JSON
+    if request.is_json:
+        new_name = request.json.get('name', '').strip()
+    else:
+        new_name = request.form.get('name', '').strip()
+    
+    if not new_name:
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Name cannot be empty'}), 400
+        flash('Name cannot be empty.', 'error')
+        return redirect(url_for('dashboard.user_management'))
+    
+    if len(new_name) < 2:
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Name must be at least 2 characters'}), 400
+        flash('Name must be at least 2 characters.', 'error')
+        return redirect(url_for('dashboard.user_management'))
+    
+    if len(new_name) > 100:
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Name cannot exceed 100 characters'}), 400
+        flash('Name cannot exceed 100 characters.', 'error')
+        return redirect(url_for('dashboard.user_management'))
+    
+    old_name = user.full_name
+    user.full_name = new_name
+    
+    try:
+        db.session.commit()
+        current_app.logger.info(f"Admin {current_user.email} changed user name from '{old_name}' to '{new_name}' for user ID {user_id}")
+        if request.is_json:
+            return jsonify({'success': True, 'message': f'Name updated successfully', 'new_name': new_name})
+        flash(f'User name changed from "{old_name}" to "{new_name}".', 'success')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to update name for user {user_id}: {e}")
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Failed to update name'}), 500
+        flash('Failed to update user name.', 'error')
+    
+    return redirect(url_for('dashboard.user_management'))
+
 @dashboard_bp.route('/delete-user/<int:user_id>', methods=['POST'])
 @admin_required
 def delete_user(user_id):

@@ -405,28 +405,97 @@
                 const row = e.target.closest('tr');
                 const userNameDiv = row.querySelector('.user-name');
                 const originalName = userNameDiv.dataset.originalName;
+                const editBtn = e.target;
+                
+                // Hide the edit button while editing
+                editBtn.style.display = 'none';
 
                 userNameDiv.innerHTML = `
-                    <input type="text" value="${originalName}" class="edit-name-input">
-                    <button type="button" class="btn btn-sm btn-success save-name-btn">Save</button>
-                    <button type="button" class="btn btn-sm btn-secondary cancel-edit-btn">Cancel</button>
+                    <input type="text" value="${originalName}" class="edit-name-input" style="padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; width: 150px;">
+                    <button type="button" class="btn btn-sm btn-success save-name-btn" style="margin-left: 5px;">Save</button>
+                    <button type="button" class="btn btn-sm btn-secondary cancel-edit-btn" style="margin-left: 3px;">Cancel</button>
                 `;
+                
+                // Focus on the input
+                row.querySelector('.edit-name-input').focus();
             } else if (e.target.classList.contains('cancel-edit-btn')) {
                 const row = e.target.closest('tr');
                 const userNameDiv = row.querySelector('.user-name');
                 const originalName = userNameDiv.dataset.originalName;
                 userNameDiv.innerHTML = originalName;
+                
+                // Show the edit button again
+                const editBtn = row.querySelector('.edit-name-btn');
+                if (editBtn) editBtn.style.display = '';
             } else if (e.target.classList.contains('save-name-btn')) {
                 const row = e.target.closest('tr');
                 const userId = row.dataset.userId;
                 const input = row.querySelector('.edit-name-input');
-                const newName = input.value;
-
-                // Here you would typically make an API call to update the name
-                // For now, we'll just update the UI
+                const newName = input.value.trim();
                 const userNameDiv = row.querySelector('.user-name');
-                userNameDiv.textContent = newName;
-                userNameDiv.dataset.originalName = newName;
+                const originalName = userNameDiv.dataset.originalName;
+                
+                // Validate name
+                if (!newName) {
+                    alert('Name cannot be empty');
+                    return;
+                }
+                if (newName.length < 2) {
+                    alert('Name must be at least 2 characters');
+                    return;
+                }
+                
+                // Disable button while saving
+                e.target.disabled = true;
+                e.target.textContent = 'Saving...';
+                
+                // Get CSRF token
+                const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+                
+                // Make API call to save the name
+                fetch(`/update-user-name/${userId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ name: newName })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update the UI with new name
+                        userNameDiv.textContent = data.new_name;
+                        userNameDiv.dataset.originalName = data.new_name;
+                        
+                        // Update avatar if first letter changed
+                        const avatar = row.querySelector('.user-avatar');
+                        if (avatar && data.new_name) {
+                            avatar.textContent = data.new_name[0].toUpperCase();
+                        }
+                        
+                        // Show the edit button again
+                        const editBtn = row.querySelector('.edit-name-btn');
+                        if (editBtn) editBtn.style.display = '';
+                        
+                        // Show success message
+                        alert('Name updated successfully!');
+                    } else {
+                        alert(data.error || 'Failed to update name');
+                        // Restore original name
+                        userNameDiv.innerHTML = originalName;
+                        const editBtn = row.querySelector('.edit-name-btn');
+                        if (editBtn) editBtn.style.display = '';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to update name. Please try again.');
+                    // Restore original name
+                    userNameDiv.innerHTML = originalName;
+                    const editBtn = row.querySelector('.edit-name-btn');
+                    if (editBtn) editBtn.style.display = '';
+                });
             }
         });
     });
