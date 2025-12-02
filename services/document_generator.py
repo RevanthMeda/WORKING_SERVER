@@ -273,16 +273,20 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
         sig_approver_2 = _load_signature_image(doc, context_data.get('SIG_APPROVER_2'))
         sig_approver_3 = _load_signature_image(doc, context_data.get('SIG_APPROVER_3'))
 
-        preparer_date_value = context_data.get('PREPARER_DATE') or context_data.get('prepared_timestamp')
+        preparer_date_value = (
+            context_data.get('prepared_timestamp')
+            or context_data.get('PREPARER_DATE')
+            or context_data.get('prepared_timestamp')
+        )
         tech_lead_date_value = (
-            context_data.get('TECH_LEAD_DATE')
+            tech_approval.get('timestamp')
+            or context_data.get('TECH_LEAD_DATE')
             or context_data.get('tech_lead_timestamp')
-            or tech_approval.get('timestamp')
         )
         pm_date_value = (
-            context_data.get('PM_DATE')
+            pm_approval.get('timestamp')
+            or context_data.get('PM_DATE')
             or context_data.get('pm_timestamp')
-            or pm_approval.get('timestamp')
         )
 
         def sanitize_value(value):
@@ -336,7 +340,7 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
             "TECH_LEAD_DATE": sanitize_value(_format_timestamp(tech_lead_date_value)),
             "PM_DATE": sanitize_value(_format_timestamp(pm_date_value)),
             "SIG_PREPARED": sig_prepared,
-            "SIG_PREPARED_BY": sanitize_value(context_data.get('SIG_PREPARED_BY', context_data.get('PREPARED_BY', ''))),
+            "SIG_PREPARED_BY": sig_prepared,
             "REVIEWED_BY_TECH_LEAD": sanitize_value(tech_lead_name),
             "SIG_REVIEW_TECH": sig_review_tech,
             "REVIEWED_BY_PM": sanitize_value(pm_name),
