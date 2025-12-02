@@ -310,12 +310,20 @@ def change_password():
         unread_count = 0
 
     if request.method == 'POST':
-        current_password = request.form.get('current_password')
-        new_password = request.form.get('new_password')
-        confirm_password = request.form.get('confirm_password')
+        current_password = request.form.get('current_password', '')
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        # Always work with a fresh, attached user instance so updates persist
+        user = User.query.get(current_user.id)
+        if not user:
+            session_manager.revoke_session()
+            logout_user()
+            flash('Could not verify your account. Please sign in again.', 'error')
+            return redirect(url_for('auth.login'))
 
         # Validate current password
-        if not current_user.check_password(current_password):
+        if not user.check_password(current_password):
             flash('Current password is incorrect', 'error')
             return render_template('change_password.html', unread_count=unread_count)
 
@@ -330,11 +338,17 @@ def change_password():
 
         try:
             # Update password
-            current_user.set_password(new_password)
+            user.set_password(new_password)
+            db.session.add(user)
             db.session.commit()
 
-            flash('Password changed successfully', 'success')
-            return redirect(url_for('dashboard.home'))
+            # Revoke the current session to force re-authentication with new password
+            session_id = session.get('session_id')
+            session_manager.revoke_session(session_id)
+            logout_user()
+
+            flash('Password changed successfully. Please sign in with your new password.', 'success')
+            return redirect(url_for('auth.login'))
         except Exception as e:
             current_app.logger.error(f"Error changing password: {e}")
             flash('An error occurred while changing password', 'error')
