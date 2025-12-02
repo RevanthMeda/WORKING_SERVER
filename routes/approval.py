@@ -51,10 +51,11 @@ def _load_inline_signature_image(tpl: DocxTemplate, filename: str, width_mm: int
     for candidate in candidates:
         try:
             if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
+                current_app.logger.info(f"Loaded signature from {candidate}")
                 return InlineImage(tpl, candidate, width=Mm(width_mm))
         except Exception as exc:
             current_app.logger.error(f"Failed to load signature from {candidate}: {exc}", exc_info=True)
-    current_app.logger.warning(f"No signature file found for {filename}; tried {len(candidates)} candidates")
+    current_app.logger.warning(f"No signature file found for {filename}; tried {len(candidates)} candidates: {candidates}")
     return ""
 
 

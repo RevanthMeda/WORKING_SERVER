@@ -98,12 +98,14 @@ def _load_signature_image(doc: DocxTemplate, value: Any) -> Any:
     for candidate in candidates:
         try:
             if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
+                current_app.logger.info(f"Loaded signature from {candidate}")
                 return InlineImage(doc, candidate, width=Mm(SIGNATURE_WIDTH_MM))
         except Exception as exc:
             current_app.logger.error(
                 f"Failed to load signature image from {candidate}: {exc}",
                 exc_info=True
             )
+    current_app.logger.warning(f"No signature file found for {filename}; tried {len(candidates)} candidates: {candidates}")
     return ""
 
 
@@ -265,6 +267,7 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
             or client_approval.get('signature')
         )
 
+        current_app.logger.info(f"Prepared signature source: {sig_prepared_source}")
         sig_prepared = _load_signature_image(doc, sig_prepared_source)
         sig_review_tech = _load_signature_image(doc, sig_review_tech_source)
         sig_review_pm = _load_signature_image(doc, sig_review_pm_source)
@@ -323,6 +326,13 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
         client_approver_name = resolve_approver_name(
             context_data.get('APPROVED_BY_CLIENT', ''),
             client_approval
+        )
+
+        current_app.logger.info(
+            "Signature timestamps — preparer:%s tech:%s pm:%s",
+            preparer_date_value,
+            tech_lead_date_value,
+            pm_date_value,
         )
 
         # Build rendering context with sanitized values - include ALL template fields
