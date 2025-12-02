@@ -1461,8 +1461,12 @@
     {% if messages %}
       <div class="flash-messages">
       {% for category, message in messages %}
-        <div class="flash-message">
-          <i class="fa fa-check-circle"></i>
+        <div class="flash-message flash-message--{{ category }}">
+          {% if category == 'error' %}
+          <i class="fas fa-exclamation-circle"></i>
+          {% else %}
+          <i class="fas fa-info-circle"></i>
+          {% endif %}
           {{ message }}
         </div>
       {% endfor %}
@@ -3069,13 +3073,15 @@
                 <i class="fas fa-eraser"></i> Clear Signature
               </button>
               {% if saved_signature %}
-              <div class="form-check" style="margin-top: 0.75rem;">
+              <div class="form-check" style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                 <input type="checkbox" id="use_saved_signature" class="form-check-input">
-                <label for="use_saved_signature" class="form-check-label">Use my saved signature on file</label>
+                <label for="use_saved_signature" class="form-check-label" style="margin: 0;">Use my saved signature on file</label>
               </div>
-              <p style="color: #64748b; font-size: 0.95rem; margin-top: 0.35rem;">You uploaded a default signature in Settings. Check this to reuse it instead of drawing.</p>
+              <p style="color: #64748b; font-size: 0.95rem; margin: 0.35rem 0 0 1.8rem;">You uploaded a default signature in Settings. Check this to reuse it instead of drawing.</p>
               {% endif %}
               <input type="hidden" id="sig_prepared_data" name="sig_prepared_data"/>
+              <input type="hidden" id="use_saved_signature_flag" name="use_saved_signature" value="0"/>
+              <input type="hidden" id="saved_signature_filename" name="saved_signature_filename" value="{{ saved_signature or '' }}"/>
             </div>
 
             <div class="btn-group">
@@ -3592,6 +3598,18 @@
           });
         }
       }
+      const useSavedCheckbox = document.getElementById('use_saved_signature');
+      const signaturePadContainer = document.querySelector('.signature-pad-container');
+      if (useSavedCheckbox && signaturePadContainer) {
+        useSavedCheckbox.addEventListener('change', function() {
+          const hidePad = useSavedCheckbox.checked;
+          signaturePadContainer.style.display = hidePad ? 'none' : '';
+          const clearBtn = document.getElementById('fixed_clear_btn');
+          if (clearBtn) {
+            clearBtn.style.display = hidePad ? 'none' : '';
+          }
+        });
+      }
 
       // Initialize rich text editors
       initializeRichTextEditors();
@@ -3654,6 +3672,7 @@
           } else {
             // Use saved signature; don't force drawing
             document.getElementById('sig_prepared_data').value = '';
+            document.getElementById('use_saved_signature_flag').value = '1';
           }
         }
 

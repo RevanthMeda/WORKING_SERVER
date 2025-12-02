@@ -257,8 +257,8 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
         )
         # If no signature stored, try user profile signature
         try:
-            if not sig_prepared_source and report_obj:
-                user = User.query.filter_by(email=report_obj.user_email).first()
+            if not sig_prepared_source and report:
+                user = User.query.filter_by(email=report.user_email).first()
                 if user:
                     user_sig_key = f"user_signature_{user.id}"
                     stored_sig = SystemSettings.get_setting(user_sig_key)

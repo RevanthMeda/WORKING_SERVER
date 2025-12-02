@@ -193,7 +193,8 @@
                 {% if current_user.is_authenticated %}
                     <span>Welcome, {{ current_user.full_name }}</span>
                     <a href="{{ url_for('notifications.notification_center') }}" class="header-icon" title="Notifications" aria-label="Notifications"><i class="fas fa-bell"></i></a>
-                    <a href="{{ url_for('dashboard.profile_settings') }}" title="Settings"><i class="fas fa-cog"></i> Settings</a>
+                    <a href="{{ url_for('dashboard.profile_settings') }}" title="Profile Settings"><i class="fas fa-cog"></i> Settings</a>
+                    <a href="{{ url_for('auth.change_password') }}" title="Change Password"><i class="fas fa-key"></i> Change password</a>
                     <a href="{{ url_for('auth.logout') }}" title="Logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
                 {% else %}
                     <a href="{{ url_for('auth.login') }}">Login</a>

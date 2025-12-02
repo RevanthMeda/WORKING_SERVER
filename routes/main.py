@@ -301,6 +301,8 @@ def generate():
             return ""
 
         sig_data_url = request.form.get("sig_prepared_data", "")
+        use_saved_signature = request.form.get("use_saved_signature") == "1"
+        saved_signature_filename = request.form.get("saved_signature_filename") or ""
         sig_prepared_image: Any = ""
 
         if sig_data_url:
@@ -334,6 +336,16 @@ def generate():
                     raise FileNotFoundError(f"Signature file not created or empty: {out_path}")
             except Exception as error:
                 current_app.logger.error("Error processing signature data: %s", error, exc_info=True)
+        elif use_saved_signature and saved_signature_filename:
+            # Use the saved profile signature without requiring pad input
+            sub.setdefault("context", {})["prepared_signature"] = saved_signature_filename
+            sub["prepared_signature"] = saved_signature_filename
+            prepared_signature_filename = saved_signature_filename
+            try:
+                sig_prepared_image = load_signature_inline(saved_signature_filename)
+                current_app.logger.info(f"Using saved profile signature {saved_signature_filename} for preparer")
+            except Exception as e:
+                current_app.logger.error(f"Could not load saved profile signature {saved_signature_filename}: {e}")
         else:
             sig_prepared_image = load_signature_inline(prepared_signature_filename)
 
