@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-        
+<!-- cSpell:disable -->
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
@@ -4915,7 +4915,8 @@
   </script>
 
     <script>
-        window.SAT_TABLE_CONFIG = {{ (sat_table_config or []) | tojson }};
+        const satConfigJSON = '{{ (sat_table_config or []) | tojson | safe }}';
+        window.SAT_TABLE_CONFIG = satConfigJSON ? JSON.parse(satConfigJSON) : [];
     </script>
     {% include 'partials/chatbot_widget.html' %}
     <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
