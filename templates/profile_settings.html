@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+
+{% block title %}Profile Settings - {{ super() }}{% endblock %}
+
+{% block head %}
+<style>
+  .settings-shell {
+    max-width: 720px;
+    margin: 0 auto;
+    display: grid;
+    gap: var(--space-lg);
+  }
+  .settings-card {
+    background: var(--cully-white);
+    border-radius: 18px;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid rgba(90, 127, 163, 0.08);
+    padding: var(--space-lg);
+    display: grid;
+    gap: var(--space-md);
+  }
+  .settings-card h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--cully-dark);
+  }
+  .upload-row {
+    display: grid;
+    gap: var(--space-sm);
+  }
+  .preview {
+    border: 1px dashed rgba(90, 127, 163, 0.3);
+    border-radius: 12px;
+    padding: var(--space-md);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-md);
+    color: var(--cully-gray);
+  }
+  .preview img {
+    max-height: 80px;
+  }
+  .helper-text {
+    color: var(--cully-gray);
+    font-size: 0.95rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+  <div class="page-hero__content">
+    <div>
+      <h1 class="page-hero__title"><i class="fas fa-user-cog"></i> Profile settings</h1>
+      <p class="page-hero__subtitle">Upload a default signature to reuse on reports without re-signing.</p>
+    </div>
+  </div>
+</section>
+
+<div class="settings-shell">
+  <article class="settings-card">
+    <h2><i class="fas fa-signature"></i> Default signature</h2>
+    <p class="helper-text">PNG or JPG. We’ll apply this automatically as the “Prepared by” signature when generating reports.</p>
+    <form method="POST" enctype="multipart/form-data">
+      <div class="upload-row">
+        <label for="signature_file" class="form-label">Upload new signature</label>
+        <input type="file" id="signature_file" name="signature_file" accept=".png,.jpg,.jpeg">
+        {% if signature_filename %}
+        <p class="helper-text">Current file: {{ signature_filename }}</p>
+        {% endif %}
+      </div>
+      <button type="submit" class="button-primary"><i class="fas fa-upload"></i> Save signature</button>
+    </form>
+    {% if signature_url %}
+    <div class="preview">
+      <img src="{{ signature_url }}" alt="Signature preview">
+      <span>Current default signature</span>
+    </div>
+    {% endif %}
+  </article>
+</div>
+{% endblock %}

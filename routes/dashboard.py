@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, make_response, session
 from flask_login import login_required, current_user
+from werkzeug.utils import secure_filename
 from auth_utils import admin_required, role_required
 from models import (
     db,
@@ -16,6 +17,8 @@ from models import (
 )
 from api.security import APIKey, APIUsage
 from datetime import datetime
+import time
+import os
 
 from sqlalchemy.orm import joinedload
 from sqlalchemy import and_, or_, func, case, text
@@ -527,6 +530,51 @@ def technical_manager():
 def project_manager():
     """Legacy redirect for PM dashboard"""
     return redirect(url_for('dashboard.pm'))
+
+@dashboard_bp.route('/profile/settings', methods=['GET', 'POST'])
+@login_required
+def profile_settings():
+    """Allow any user to manage their saved signature"""
+    key = f"user_signature_{current_user.id}"
+    existing_signature = SystemSettings.get_setting(key, None)
+    error = None
+
+    if request.method == 'POST':
+        upload = request.files.get('signature_file')
+        if not upload or not upload.filename:
+            error = 'Please choose a PNG/JPG file to upload.'
+        else:
+            ext = upload.filename.rsplit('.', 1)[-1].lower()
+            if ext not in ['png', 'jpg', 'jpeg']:
+                error = 'Only PNG or JPG files are allowed for signatures.'
+            else:
+                try:
+                    filename = secure_filename(upload.filename)
+                    unique_name = f"user_{current_user.id}_{int(time.time())}_{filename}"
+                    sig_dir = current_app.config.get('SIGNATURES_FOLDER', os.path.join(current_app.root_path, 'static', 'signatures'))
+                    os.makedirs(sig_dir, exist_ok=True)
+                    save_path = os.path.join(sig_dir, unique_name)
+                    upload.save(save_path)
+
+                    SystemSettings.set_setting(key, unique_name)
+                    existing_signature = unique_name
+                    flash('Signature uploaded successfully. It will be used automatically for prepared-by.', 'success')
+                except Exception as e:
+                    current_app.logger.error(f"Error saving profile signature: {e}", exc_info=True)
+                    error = 'Could not save signature. Please try again.'
+
+        if error:
+            flash(error, 'error')
+
+    # Build a preview URL if we have a saved file
+    preview_url = None
+    if existing_signature:
+        try:
+            preview_url = url_for('static', filename=f"signatures/{existing_signature}")
+        except Exception:
+            preview_url = None
+
+    return render_template('profile_settings.html', signature_url=preview_url, signature_filename=existing_signature)
 
 @dashboard_bp.route('/user-management')
 @admin_required

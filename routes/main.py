@@ -150,6 +150,8 @@ def edit_submission(submission_id):
 @login_required
 def sat_form():
     """Render the SAT form (index.html) for creating a new report"""
+    from models import SystemSettings
+    saved_signature = SystemSettings.get_setting(f"user_signature_{current_user.id}", None)
     submission_data = {
         'USER_EMAIL': current_user.email if current_user.is_authenticated else '',
         'PREPARED_BY': current_user.full_name if current_user.is_authenticated else '',
@@ -157,7 +159,8 @@ def sat_form():
     return render_template(
         'SAT.html',
         submission_data=submission_data,
-        user_role=current_user.role if hasattr(current_user, 'role') else 'user'
+        user_role=current_user.role if hasattr(current_user, 'role') else 'user',
+        saved_signature=saved_signature
     )
 
 @main_bp.route('/generate', methods=['POST'])

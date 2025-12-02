@@ -6,6 +6,7 @@ import json
 import tempfile
 import datetime as dt
 import re
+import glob
 from html import unescape
 from typing import Dict, Any, List
 from flask import current_app, url_for
@@ -17,7 +18,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from PIL import Image
 
-from models import Report, SATReport, User
+from models import Report, SATReport, User, SystemSettings
 from services.sat_tables import extract_ui_tables, build_doc_tables, migrate_context_tables, TABLE_CONFIG
 from utils import update_toc_page_numbers
 
@@ -254,6 +255,18 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
             context_data.get('prepared_signature')
             or context_data.get('SIG_PREPARED')
         )
+        # If no signature stored, try user profile signature
+        try:
+            if not sig_prepared_source and report_obj:
+                user = User.query.filter_by(email=report_obj.user_email).first()
+                if user:
+                    user_sig_key = f"user_signature_{user.id}"
+                    stored_sig = SystemSettings.get_setting(user_sig_key)
+                    if stored_sig:
+                        sig_prepared_source = stored_sig
+                        current_app.logger.info(f"Using profile signature for user {user.email}: {stored_sig}")
+        except Exception as profile_error:
+            current_app.logger.warning(f"Could not load profile signature: {profile_error}")
         sig_review_tech_source = (
             context_data.get('SIG_REVIEW_TECH')
             or tech_approval.get('signature')
@@ -268,6 +281,25 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
         )
 
         current_app.logger.info(f"Prepared signature source: {sig_prepared_source}")
+        fallback_prepared_mtime = None
+        if not sig_prepared_source:
+            # Try to locate the latest prepared signature file for this submission
+            sig_dir = current_app.config.get('SIGNATURES_FOLDER')
+            fallback_candidates = []
+            if sig_dir and os.path.isdir(sig_dir):
+                pattern = os.path.join(sig_dir, f"{submission_id}_prepared*.png")
+                fallback_candidates = sorted(
+                    glob.glob(pattern),
+                    key=lambda p: os.path.getmtime(p),
+                    reverse=True
+                )
+            if fallback_candidates:
+                sig_prepared_source = fallback_candidates[0]
+                fallback_prepared_mtime = os.path.getmtime(sig_prepared_source)
+                current_app.logger.info(f"Using fallback prepared signature: {sig_prepared_source}")
+            else:
+                current_app.logger.info("No prepared signature found in context or filesystem fallback.")
+
         sig_prepared = _load_signature_image(doc, sig_prepared_source)
         sig_review_tech = _load_signature_image(doc, sig_review_tech_source)
         sig_review_pm = _load_signature_image(doc, sig_review_pm_source)
@@ -281,6 +313,8 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
             or context_data.get('PREPARER_DATE')
             or context_data.get('prepared_timestamp')
         )
+        if not preparer_date_value and fallback_prepared_mtime:
+            preparer_date_value = dt.datetime.fromtimestamp(fallback_prepared_mtime).isoformat()
         tech_lead_date_value = (
             tech_approval.get('timestamp')
             or context_data.get('TECH_LEAD_DATE')

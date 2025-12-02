@@ -3068,6 +3068,13 @@
               <button type="button" id="fixed_clear_btn" class="btn btn-secondary">
                 <i class="fas fa-eraser"></i> Clear Signature
               </button>
+              {% if saved_signature %}
+              <div class="form-check" style="margin-top: 0.75rem;">
+                <input type="checkbox" id="use_saved_signature" class="form-check-input">
+                <label for="use_saved_signature" class="form-check-label">Use my saved signature on file</label>
+              </div>
+              <p style="color: #64748b; font-size: 0.95rem; margin-top: 0.35rem;">You uploaded a default signature in Settings. Check this to reuse it instead of drawing.</p>
+              {% endif %}
               <input type="hidden" id="sig_prepared_data" name="sig_prepared_data"/>
             </div>
 
@@ -3632,13 +3639,22 @@
       document.getElementById('satForm').addEventListener('submit', async function(e) {
         e.preventDefault(); // Always prevent default submission first
 
-        if (currentStep === 10 && window.signaturePadInstance) {
-          if (window.signaturePadInstance.isEmpty()) {
-            alert('Please provide your signature before submitting.');
-            return;
+        if (currentStep === 10) {
+          const useSaved = document.getElementById('use_saved_signature')?.checked;
+          const padEmpty = window.signaturePadInstance ? window.signaturePadInstance.isEmpty() : true;
+          if (!useSaved) {
+            if (window.signaturePadInstance && padEmpty) {
+              alert('Please provide your signature before submitting.');
+              return;
+            }
+            if (window.signaturePadInstance && !padEmpty) {
+              document.getElementById('sig_prepared_data').value =
+                window.signaturePadInstance.toDataURL('image/png');
+            }
+          } else {
+            // Use saved signature; don't force drawing
+            document.getElementById('sig_prepared_data').value = '';
           }
-          document.getElementById('sig_prepared_data').value =
-            window.signaturePadInstance.toDataURL('image/png');
         }
 
         // Show loading state

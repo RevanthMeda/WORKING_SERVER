@@ -807,6 +807,8 @@ def sat_wizard():
         unread_count = get_unread_count()
         
         # Render the SAT form with existing data for editing
+        from models import SystemSettings
+        saved_signature = SystemSettings.get_setting(f"user_signature_{current_user.id}", None)
         return render_template('SAT.html',
                              submission_data=submission_data,
                              submission_id=submission_id,
@@ -814,6 +816,7 @@ def sat_wizard():
                              user_role=current_user.role if hasattr(current_user, 'role') else 'user',
                              edit_mode=True,
                              is_new_report=False,
+                             saved_signature=saved_signature,
                              sat_table_config=TABLE_CONFIG)
                              
     except Exception as e:
