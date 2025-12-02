@@ -96,6 +96,20 @@ def view_status(submission_id):
     if not submission_data:
         submission_data = stored_data  # Fallback if context doesn't exist
 
+    # Determine if the current user is an assigned approver with a pending action
+    current_user_email = (current_user.email or '').lower()
+    user_pending_stage = None
+    user_pending_title = None
+    approval_link = None
+    for idx, approval in enumerate(approvals):
+        approver_email = (approval.get("approver_email") or "").strip().lower()
+        approval_status = (approval.get("status") or "pending").strip().lower()
+        if approver_email == current_user_email and approval_status in ["pending", "in_review"]:
+            user_pending_stage = approval.get("stage") or (idx + 1)
+            user_pending_title = approval.get("title") or "Approver"
+            approval_link = url_for('approval.approve_submission', submission_id=submission_id, stage=user_pending_stage)
+            break
+
     # Check if report files exist
     pdf_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.pdf')
     docx_path = os.path.join(current_app.config['OUTPUT_DIR'], f'SAT_Report_{submission_id}_Final.docx')
@@ -133,7 +147,10 @@ def view_status(submission_id):
         "overall_status": overall_status,
         "download_available": download_available,
         "has_pdf": has_pdf,
-        "auto_download": True
+        "auto_download": True,
+        "user_pending_stage": user_pending_stage,
+        "user_pending_title": user_pending_title,
+        "approval_link": approval_link
     }
 
     return render_template('status.html', **context)

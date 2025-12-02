@@ -359,6 +359,14 @@
       </div>
     </div>
     <div class="page-hero__actions">
+      {% if approval_link %}
+      <a href="{{ approval_link }}" class="btn btn--primary">
+        <i class="fas fa-check"></i> Approve as {{ user_pending_title or 'Approver' }}
+      </a>
+      <a href="{{ approval_link }}#reject" class="btn btn--ghost">
+        <i class="fas fa-circle-xmark"></i> Reject / Send back
+      </a>
+      {% endif %}
       {% if can_edit and not locked %}
       <a href="{{ url_for('edit.edit_report', report_id=submission_id) }}" class="btn btn--ghost">
         <i class="fas fa-pen"></i> Continue Editing
@@ -590,6 +598,13 @@
         {% endif %}
       </div>
       <ul class="status-next-actions">
+        {% if approval_link %}
+        <li>
+          <a href="{{ approval_link }}">
+            <i class="fas fa-check"></i> Open approval form (your stage)
+          </a>
+        </li>
+        {% endif %}
         <li>
           <a href="{{ url_for('status.download_report', submission_id=submission_id) }}">
             <i class="fas fa-download"></i> {{ 'Download PDF' if has_pdf else 'Download Package' }}

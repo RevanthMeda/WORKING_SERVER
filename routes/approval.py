@@ -1,8 +1,10 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
+from flask_login import current_user
 import os
 import datetime
 import base64
 import json
+import html
 from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Mm
 from models import db, Report, SATReport
@@ -13,10 +15,46 @@ from utils import (
     notify_completion,
     convert_to_pdf,
     send_client_final_document,
+    send_email,
 )
 from services.dashboard_stats import compute_and_cache_dashboard_stats
 
 approval_bp = Blueprint('approval', __name__)
+
+
+def _load_inline_signature_image(tpl: DocxTemplate, filename: str, width_mm: int = 40):
+    """Return an InlineImage for a signature file using robust path resolution."""
+    if not filename:
+        return ""
+
+    candidates = []
+    base_names = [filename]
+    if not os.path.splitext(filename)[1]:
+        base_names.append(f"{filename}.png")
+
+    base_dirs = [
+        current_app.config.get('SIGNATURES_FOLDER'),
+        os.path.join(current_app.root_path, 'static', 'signatures'),
+        os.path.join(os.getcwd(), 'static', 'signatures'),
+    ]
+
+    # If the filename is already an absolute path or contains a separator, try it directly first
+    for name in base_names:
+        if os.path.isabs(name) or os.path.sep in name or '/' in name:
+            candidates.append(name)
+
+    for base in filter(None, base_dirs):
+        for name in base_names:
+            candidates.append(os.path.join(base, name))
+
+    for candidate in candidates:
+        try:
+            if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
+                return InlineImage(tpl, candidate, width=Mm(width_mm))
+        except Exception as exc:
+            current_app.logger.error(f"Failed to load signature from {candidate}: {exc}", exc_info=True)
+    current_app.logger.warning(f"No signature file found for {filename}; tried {len(candidates)} candidates")
+    return ""
 
 
 def _extract_flagged_items(raw_payload):
@@ -385,49 +423,7 @@ def approve_submission(submission_id, stage):
                     current_app.logger.info(f"Found prepared signature in context: {prep_fn}")
 
                 if prep_fn:
-                    # Make sure it has .png extension
-                    if not prep_fn.lower().endswith('.png'):
-                        prep_fn += '.png'
-                        
-                    # Try the full absolute path first
-                    sig_path = os.path.join(current_app.config['SIGNATURES_FOLDER'], prep_fn)
-                    
-                    # Debug signature path extensively
-                    current_app.logger.info(f"Preparer signature file: {prep_fn}")
-                    current_app.logger.info(f"Full signature path: {os.path.abspath(sig_path)}")
-                    current_app.logger.info(f"Signature directory exists: {os.path.exists(os.path.dirname(sig_path))}")
-                    current_app.logger.info(f"Signature file exists: {os.path.exists(sig_path)}")
-                    
-                    if os.path.exists(sig_path):
-                        try:
-                            # Verify file is readable and has content
-                            file_size = os.path.getsize(sig_path)
-                            current_app.logger.info(f"Signature file size: {file_size} bytes")
-                            
-                            if file_size > 0:
-                                # Create inline image with the signature
-                                sig_prepared = InlineImage(tpl, sig_path, width=Mm(40))
-                                current_app.logger.info("Successfully created InlineImage for preparer signature")
-                            else:
-                                current_app.logger.error(f"Signature file exists but is empty (0 bytes)")
-                        except Exception as e:
-                            current_app.logger.error(f"Error loading preparer signature: {e}", exc_info=True)
-                    else:
-                        # Try alternate paths as fallback
-                        alternate_paths = [
-                            os.path.join(current_app.root_path, 'static', 'signatures', prep_fn),
-                            os.path.join(os.getcwd(), 'static', 'signatures', prep_fn)
-                        ]
-                        
-                        for alt_path in alternate_paths:
-                            current_app.logger.info(f"Trying alternate path: {os.path.abspath(alt_path)}")
-                            if os.path.exists(alt_path):
-                                try:
-                                    sig_prepared = InlineImage(tpl, alt_path, width=Mm(40))
-                                    current_app.logger.info(f"Successfully loaded signature from alternate path: {alt_path}")
-                                    break
-                                except Exception as e:
-                                    current_app.logger.error(f"Error loading from alternate path: {e}")
+                    sig_prepared = _load_inline_signature_image(tpl, prep_fn)
                 
                 # Load Automation Manager signature (stage 1) with better error handling
                 tech_lead_approval = next((a for a in approvals if a["stage"] == 1), None)
@@ -436,38 +432,7 @@ def approve_submission(submission_id, stage):
                     if sig_fn and isinstance(submission_data.get("context"), dict):
                         submission_data["context"]["SIG_REVIEW_TECH"] = sig_fn
                     if sig_fn:
-                        # Make sure it has .png extension
-                        if not sig_fn.lower().endswith('.png'):
-                            sig_fn += '.png'
-                            
-                        sig_path = os.path.join(current_app.config['SIGNATURES_FOLDER'], sig_fn)
-                        current_app.logger.info(f"Automation Manager signature path: {os.path.abspath(sig_path)}")
-                        current_app.logger.info(f"File exists: {os.path.exists(sig_path)}")
-                        
-                        if os.path.exists(sig_path):
-                            try:
-                                file_size = os.path.getsize(sig_path)
-                                current_app.logger.info(f"Automation Manager signature file size: {file_size} bytes")
-                                
-                                if file_size > 0:
-                                    tech_lead_sig = InlineImage(tpl, sig_path, width=Mm(40))
-                                    current_app.logger.info(f"Successfully loaded Automation Manager signature")
-                            except Exception as e:
-                                current_app.logger.error(f"Error loading Automation Manager signature: {e}")
-                                tech_lead_sig = ""
-                        else:
-                            # Try alternate paths
-                            for alt_path in [
-                                os.path.join(current_app.root_path, 'static', 'signatures', sig_fn),
-                                os.path.join(os.getcwd(), 'static', 'signatures', sig_fn)
-                            ]:
-                                if os.path.exists(alt_path):
-                                    try:
-                                        tech_lead_sig = InlineImage(tpl, alt_path, width=Mm(40))
-                                        current_app.logger.info(f"Used alternate path for Automation Manager signature: {alt_path}")
-                                        break
-                                    except Exception as e:
-                                        current_app.logger.error(f"Error loading from alt path: {e}")
+                        tech_lead_sig = _load_inline_signature_image(tpl, sig_fn)
                 
                 # Load PM signature (stage 2) with better error handling
                 pm_approval = next((a for a in approvals if a["stage"] == 2), None)
@@ -476,38 +441,7 @@ def approve_submission(submission_id, stage):
                     if sig_fn and isinstance(submission_data.get("context"), dict):
                         submission_data["context"]["SIG_REVIEW_PM"] = sig_fn
                     if sig_fn:
-                        # Make sure it has .png extension
-                        if not sig_fn.lower().endswith('.png'):
-                            sig_fn += '.png'
-                            
-                        sig_path = os.path.join(current_app.config['SIGNATURES_FOLDER'], sig_fn)
-                        current_app.logger.info(f"PM signature path: {os.path.abspath(sig_path)}")
-                        current_app.logger.info(f"File exists: {os.path.exists(sig_path)}")
-                        
-                        if os.path.exists(sig_path):
-                            try:
-                                file_size = os.path.getsize(sig_path)
-                                current_app.logger.info(f"PM signature file size: {file_size} bytes")
-                                
-                                if file_size > 0:
-                                    pm_sig = InlineImage(tpl, sig_path, width=Mm(40))
-                                    current_app.logger.info(f"Successfully loaded PM signature")
-                            except Exception as e:
-                                current_app.logger.error(f"Error loading PM signature: {e}")
-                                pm_sig = ""
-                        else:
-                            # Try alternate paths
-                            for alt_path in [
-                                os.path.join(current_app.root_path, 'static', 'signatures', sig_fn),
-                                os.path.join(os.getcwd(), 'static', 'signatures', sig_fn)
-                            ]:
-                                if os.path.exists(alt_path):
-                                    try:
-                                        pm_sig = InlineImage(tpl, alt_path, width=Mm(40))
-                                        current_app.logger.info(f"Used alternate path for PM signature: {alt_path}")
-                                        break
-                                    except Exception as e:
-                                        current_app.logger.error(f"Error loading from alt path: {e}")
+                        pm_sig = _load_inline_signature_image(tpl, sig_fn)
                 
                 # Format timestamps consistently
                 tech_lead_date = ""
@@ -724,11 +658,16 @@ def reject_submission(submission_id, stage):
             flash("This stage is not pending approval", "error")
             return redirect(url_for('status.view_status', submission_id=submission_id))
 
+        rejection_comment = request.form.get("rejection_comment", "") or ""
+        approver_name = request.form.get("approver_name", "")
+
         # Mark as rejected with comment
         current_stage["status"] = "rejected"
-        current_stage["comment"] = request.form.get("rejection_comment", "")
+        current_stage["comment"] = rejection_comment
         current_stage["timestamp"] = datetime.datetime.now().isoformat()
-        current_stage["approver_name"] = request.form.get("approver_name", "")
+        current_stage["approver_name"] = approver_name
+        # Ensure approver email is stored for downstream stats/notifications
+        current_stage.setdefault("approver_email", getattr(current_user, "email", None))
 
         flags_payload = request.form.get("flagged_issues", "")
         flagged_items = _extract_flagged_items(flags_payload)
@@ -739,32 +678,80 @@ def reject_submission(submission_id, stage):
             current_stage.pop("flags", None)
             current_stage.pop("flag_summary", None)
         
+        # Update submission state for UI and history
+        submission_data["status"] = "REJECTED"
+        submission_data["locked"] = False
+        submission_data["approvals"] = approvals
+        submission_data["updated_at"] = datetime.datetime.now().isoformat()
+        submissions[submission_id] = submission_data
+        save_submissions(submissions)
+
+        # Persist rejection to the Report record for dashboard counts and gating
+        try:
+            report = Report.query.get(submission_id)
+            if report:
+                report.approvals_json = json.dumps(approvals)
+                report.status = "REJECTED"
+                report.locked = False
+                report.approved_at = None
+                report.approved_by = None
+                db.session.commit()
+            else:
+                current_app.logger.warning(f"Report {submission_id} not found when applying rejection update")
+        except Exception as db_error:
+            current_app.logger.error(f"Error updating report status on rejection: {db_error}", exc_info=True)
+            db.session.rollback()
+
+        # Refresh dashboard stats caches so rejected counts update immediately
+        try:
+            for approval in approvals:
+                approver_email = approval.get("approver_email")
+                stage_num = str(approval.get("stage"))
+                role = "Automation Manager" if stage_num == "1" else "PM" if stage_num == "2" else None
+                if role and approver_email:
+                    compute_and_cache_dashboard_stats(role, approver_email)
+        except Exception as stats_error:
+            current_app.logger.warning(f"Could not refresh dashboard stats after rejection: {stats_error}")
+
         # Create rejection notification for submitter
         from utils import create_status_update_notification
+        document_title = submission_data.get("context", {}).get("DOCUMENT_TITLE", "SAT Report")
+        user_email = submission_data.get("user_email")
         try:
-            user_email = submission_data.get("user_email")
-            document_title = submission_data.get("context", {}).get("DOCUMENT_TITLE", "SAT Report")
             if user_email:
                 create_status_update_notification(
                     user_email=user_email,
                     submission_id=submission_id,
                     status="rejected",
                     document_title=document_title,
-                    approver_name=current_stage["approver_name"]
+                    approver_name=approver_name
                 )
         except Exception as e:
             current_app.logger.error(f"Error creating rejection notification: {e}")
-        
-        # Update submission
-        submission_data["updated_at"] = datetime.datetime.now().isoformat()
-        submissions[submission_id] = submission_data
-        save_submissions(submissions)
-        
-        # Notify submitter about rejection
-        user_email = submission_data.get("user_email")
-        if user_email:
-            # In a real implementation, you would add code to notify the submitter about rejection
-            pass
+
+        # Email the engineer with rejection details and next steps
+        try:
+            if user_email:
+                status_url = url_for('status.view_status', submission_id=submission_id, _external=True)
+                edit_url = url_for('main.edit_submission', submission_id=submission_id, _external=True)
+                safe_comment = html.escape(rejection_comment).replace("\n", "<br>") or "No reason provided."
+                subject = f"Report rejected at stage {stage} - action required"
+                html_body = f"""
+                <html>
+                <body>
+                    <h2>{document_title}</h2>
+                    <p>Your report was rejected at stage {stage} by {html.escape(approver_name or 'the approver')}.</p>
+                    <p><strong>Reason:</strong><br>{safe_comment}</p>
+                    <p>
+                        <a href="{status_url}">View status</a> | 
+                        <a href="{edit_url}">Update the report</a>
+                    </p>
+                </body>
+                </html>
+                """
+                send_email(user_email, subject, html_body)
+        except Exception as email_error:
+            current_app.logger.error(f"Error sending rejection email: {email_error}")
             
         flash("Submission has been rejected with comments", "warning")
         return redirect(url_for('status.view_status', submission_id=submission_id))

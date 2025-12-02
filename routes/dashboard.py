@@ -431,17 +431,25 @@ def pm():
                     if stage1_approved:
                         # Find stage 2 approval for PM
                         for approval in approvals:
-                            if (str(approval.get('stage')) == '2' and 
-                                (approval.get('approver_email') or '').lower() == pm_email and 
-                                (approval.get('status') or '').lower() == 'pending'):
+                            approval_email = (approval.get('approver_email') or '').strip().lower()
+                            approval_status = (approval.get('status') or '').strip().lower() or 'pending'
+                            is_pm_stage = str(approval.get('stage')) == '2'
+                            if (
+                                is_pm_stage
+                                and approval_email == pm_email
+                                and approval_status in ['pending', 'in_review']
+                            ):
 
                                 _enrich_sat_metadata(report)
                                 
                                 # Add approval stage info
-                                report.approval_stage = 2
-                                report.approval_url = url_for('approval.approve_submission', 
-                                                             submission_id=report.id, 
-                                                             stage=2)
+                                stage_number = approval.get('stage') or 2
+                                report.approval_stage = stage_number
+                                report.approval_url = url_for(
+                                    'approval.approve_submission', 
+                                    submission_id=report.id, 
+                                    stage=stage_number
+                                )
                                 pending_reports.append(report)
                                 pending_deliverables += 1
                                 current_app.logger.info(f"Found pending approval for PM: Report {report.id}")
