@@ -16,6 +16,7 @@ from utils import (
     convert_to_pdf,
     send_client_final_document,
     send_email,
+    update_toc_page_numbers,
 )
 from services.dashboard_stats import compute_and_cache_dashboard_stats
 
@@ -516,11 +517,18 @@ def approve_submission(submission_id, stage):
                         current_app.logger.info(f"Template successfully rendered and saved to: {out} ({os.path.getsize(out)} bytes)")
                     else:
                         raise Exception("Document generation failed - empty or missing file")
-                        
+
                 except Exception as e:
                     current_app.logger.error(f"Error rendering template: {e}", exc_info=True)
                     flash(f"Error generating final document: {str(e)}", "error")
                     return redirect(url_for('status.view_status', submission_id=submission_id))
+
+                # Optionally refresh TOC page numbers (Windows/Word only)
+                if current_app.config.get('AUTO_UPDATE_TOC', False):
+                    try:
+                        update_toc_page_numbers(out)
+                    except Exception as toc_error:
+                        current_app.logger.warning(f"TOC page-number update skipped: {toc_error}")
 
                 # Generate PDF if enabled
                 if current_app.config.get('ENABLE_PDF_EXPORT', False):

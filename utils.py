@@ -616,6 +616,35 @@ def update_toc(doc_path):
     finally:
         pythoncom.CoUninitialize()
 
+def update_toc_page_numbers(doc_path):
+    """Update only TOC page numbers using Word automation (Windows/Word required)."""
+    if not windows_com_available:
+        logger.warning("Windows COM automation not available - skipping TOC page-number update")
+        return
+
+    pythoncom.CoInitialize()
+    try:
+        word = win32com.client.Dispatch("Word.Application")
+        word.Visible = False
+        abs_doc_path = os.path.abspath(doc_path)
+        doc_word = word.Documents.Open(abs_doc_path)
+
+        if doc_word.TablesOfContents.Count > 0:
+            for toc in doc_word.TablesOfContents:
+                toc.UpdatePageNumbers()
+            logger.info(f"Updated TOC page numbers in {doc_path}")
+        else:
+            logger.info(f"No TOC found to update in {doc_path}")
+
+        doc_word.Save()
+        doc_word.Close()
+        word.Quit()
+    except Exception as e:
+        logger.error(f"Error updating TOC page numbers: {e}", exc_info=True)
+        raise
+    finally:
+        pythoncom.CoUninitialize()
+
 def convert_to_pdf(docx_path):
     """Convert a DOCX file to PDF using Word automation"""
     if not current_app.config.get('ENABLE_PDF_EXPORT', False):

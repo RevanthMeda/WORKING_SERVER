@@ -19,6 +19,7 @@ from PIL import Image
 
 from models import Report, SATReport, User
 from services.sat_tables import extract_ui_tables, build_doc_tables, migrate_context_tables, TABLE_CONFIG
+from utils import update_toc_page_numbers
 
 
 HTML_TAG_RE = re.compile(r'<[^>]+>')
@@ -73,13 +74,17 @@ def _load_signature_image(doc: DocxTemplate, value: Any) -> Any:
         return ""
 
     candidates = []
+    base_names = [filename]
+    if not os.path.splitext(filename)[1]:
+        base_names.append(f"{filename}.png")
+
+    # Always try the stored value directly (covers relative paths with separators)
+    for name in base_names:
+        candidates.append(name)
+
     if os.path.isabs(filename):
         candidates.append(filename)
     else:
-        base_names = [filename]
-        if not os.path.splitext(filename)[1]:
-            base_names.append(f"{filename}.png")
-
         base_dirs = [
             current_app.config.get('SIGNATURES_FOLDER'),
             os.path.join(current_app.root_path, 'static', 'signatures'),
@@ -391,6 +396,13 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
         temp_path = os.path.join(tempfile.gettempdir(), filename)
         
         doc.save(temp_path)
+
+        # Optionally refresh TOC page numbers (Windows/Word only)
+        try:
+            if current_app.config.get('AUTO_UPDATE_TOC', False):
+                update_toc_page_numbers(temp_path)
+        except Exception as toc_error:
+            current_app.logger.warning(f"TOC page-number update skipped during regeneration: {toc_error}")
         
         # Verify file
         if not os.path.exists(temp_path):

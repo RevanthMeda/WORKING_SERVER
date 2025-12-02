@@ -134,6 +134,8 @@ class Config:
 
     # PDF export
     ENABLE_PDF_EXPORT = os.environ.get('ENABLE_PDF_EXPORT', 'False').lower() == 'true'
+    # Automatically refresh TOC page numbers after generation (Windows/Word only)
+    AUTO_UPDATE_TOC = os.environ.get('AUTO_UPDATE_TOC', 'True').lower() == 'true'
 
     # Default approvers configuration
     DEFAULT_APPROVERS = [

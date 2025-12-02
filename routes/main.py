@@ -245,6 +245,10 @@ def generate():
             or existing_data.get('prepared_timestamp')
             if isinstance(existing_data, dict) else None
         )
+        # If we have a signature filename but no timestamp, capture the current time
+        if prepared_signature_filename and not prepared_timestamp:
+            prepared_timestamp = dt.datetime.now().isoformat()
+            sub.setdefault("context", {})["prepared_timestamp"] = prepared_timestamp
         existing_sig_review_tech_file = existing_context.get('SIG_REVIEW_TECH', '') or ''
         existing_sig_review_pm_file = existing_context.get('SIG_REVIEW_PM', '') or ''
         existing_sig_client_file = existing_context.get('SIG_APPROVAL_CLIENT', '') or ''
@@ -315,6 +319,7 @@ def generate():
                     sub["prepared_signature"] = fn
                     current_timestamp = dt.datetime.now().isoformat()
                     sub.setdefault("context", {})["prepared_timestamp"] = current_timestamp
+                    prepared_timestamp = current_timestamp
                     prepared_signature_filename = fn
                     prepared_timestamp = current_timestamp
                     current_app.logger.info("Stored preparer signature at %s", os.path.abspath(out_path))
