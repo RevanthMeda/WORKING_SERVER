@@ -136,6 +136,13 @@ def approve_submission(submission_id, stage):
         if not current_stage:
             flash("Approval stage not found", "error")
             return redirect(url_for('index'))
+
+        if stage == 2:
+            stage1 = next((a for a in approvals if str(a.get("stage")) == "1"), None)
+            stage1_status = (stage1.get("status") or "").lower() if stage1 else ""
+            if stage1_status != "approved":
+                flash("Automation Manager approval is required before PM review.", "warning")
+                return redirect(url_for('status.view_status', submission_id=submission_id))
             
         # If already approved, show status page
         if current_stage["status"] == "approved":

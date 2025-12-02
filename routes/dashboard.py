@@ -389,6 +389,25 @@ def pm():
         current_app.logger.warning(f"Could not get unread count for PM: {e}")
         unread_count = 0
 
+    pm_email = (current_user.email or '').lower()
+
+    def _enrich_sat_metadata(report):
+        """Fill in SAT metadata used on the dashboard cards."""
+        if getattr(report, 'type', '') != 'SAT':
+            return report
+        sat_report = SATReport.query.filter_by(report_id=report.id).first()
+        if sat_report and sat_report.data_json:
+            try:
+                data = json.loads(sat_report.data_json)
+                context_data = data.get('context', {})
+                report.document_title = context_data.get('DOCUMENT_TITLE', report.document_title or 'Untitled')
+                report.project_reference = context_data.get('PROJECT_REFERENCE', report.project_reference or 'N/A')
+                report.client_name = context_data.get('CLIENT_NAME', report.client_name or 'N/A')
+                report.prepared_by = context_data.get('PREPARED_BY', report.prepared_by or 'N/A')
+            except json.JSONDecodeError:
+                current_app.logger.warning(f"Could not decode SAT report data for report {report.id}")
+        return report
+
     # Get pending reports for PM (Stage 2 approval)
     pending_reports = []
     pending_deliverables = 0
@@ -404,27 +423,19 @@ def pm():
                     approvals = json.loads(report.approvals_json)
                     
                     # Check if stage 1 is approved (AM approved)
-                    stage1_approved = any(a.get('stage') == 1 and a.get('status') == 'approved' for a in approvals)
+                    stage1_approved = any(
+                        str(a.get('stage')) == '1' and (a.get('status') or '').lower() == 'approved'
+                        for a in approvals
+                    )
                     
                     if stage1_approved:
                         # Find stage 2 approval for PM
                         for approval in approvals:
-                            if (approval.get('stage') == 2 and 
-                                approval.get('approver_email') == current_user.email and 
-                                approval.get('status') == 'pending'):
-                                
-                                # Get additional data from SAT report
-                                sat_report = SATReport.query.filter_by(report_id=report.id).first()
-                                if sat_report and sat_report.data_json:
-                                    try:
-                                        data = json.loads(sat_report.data_json)
-                                        context_data = data.get('context', {})
-                                        report.document_title = context_data.get('DOCUMENT_TITLE', report.document_title or 'Untitled')
-                                        report.project_reference = context_data.get('PROJECT_REFERENCE', report.project_reference or 'N/A')
-                                        report.client_name = context_data.get('CLIENT_NAME', report.client_name or 'N/A')
-                                        report.prepared_by = context_data.get('PREPARED_BY', report.prepared_by or 'N/A')
-                                    except:
-                                        pass
+                            if (str(approval.get('stage')) == '2' and 
+                                (approval.get('approver_email') or '').lower() == pm_email and 
+                                (approval.get('status') or '').lower() == 'pending'):
+
+                                _enrich_sat_metadata(report)
                                 
                                 # Add approval stage info
                                 report.approval_stage = 2
@@ -457,8 +468,37 @@ def pm():
             )
             stats = EMPTY_DASHBOARD_STATS.copy()
 
-    # Get recent reports for PM
-    recent_reports = Report.query.order_by(Report.created_at.desc()).limit(5).all()
+    # Get recent reports for PM - only after Automation Manager approval
+    recent_reports = []
+    try:
+        candidates = Report.query.order_by(Report.updated_at.desc()).limit(50).all()
+        for report in candidates:
+            if not report.approvals_json:
+                continue
+            try:
+                approvals = json.loads(report.approvals_json)
+            except json.JSONDecodeError:
+                current_app.logger.warning(f"Could not decode approvals_json for report {report.id}")
+                continue
+
+            stage1_approved = any(
+                str(approval.get('stage')) == '1' and (approval.get('status') or '').lower() == 'approved'
+                for approval in approvals
+            )
+            pm_assigned = any(
+                str(approval.get('stage')) == '2' and (approval.get('approver_email') or '').lower() == pm_email
+                for approval in approvals
+            )
+
+            if not (stage1_approved and pm_assigned):
+                continue
+
+            _enrich_sat_metadata(report)
+            recent_reports.append(report)
+            if len(recent_reports) >= 5:
+                break
+    except Exception as exc:
+        current_app.logger.warning(f"Could not build PM recent reports: {exc}")
 
     return render_template('pm_dashboard.html',
                              pending_deliverables=pending_deliverables,
@@ -1317,6 +1357,8 @@ def delete_report(report_id):
 def my_reports():
     """View reports relevant to the current user"""
 
+    pm_email = (current_user.email or '').lower()
+
     # Build reports queryset based on role
     if current_user.role == 'Engineer':
         reports_query = Report.query.filter_by(user_email=current_user.email)
@@ -1348,6 +1390,42 @@ def my_reports():
 
     report_list = []
     for report in reports:
+        approvals_raw = []
+        has_stage_approved = False
+        pm_assigned = current_user.role != 'PM'
+        stage1_approved_for_pm = current_user.role != 'PM'
+
+        if report.approvals_json:
+            try:
+                approvals_raw = json.loads(report.approvals_json)
+                has_stage_approved = any(
+                    (stage.get('status') or '').lower() == 'approved'
+                    for stage in approvals_raw
+                )
+                if current_user.role == 'PM':
+                    pm_assigned = any(
+                        str(stage.get('stage')) == '2'
+                        and (stage.get('approver_email') or '').lower() == pm_email
+                        for stage in approvals_raw
+                    )
+                    stage1_approved_for_pm = any(
+                        str(stage.get('stage')) == '1'
+                        and (stage.get('status') or '').lower() == 'approved'
+                        for stage in approvals_raw
+                    )
+            except json.JSONDecodeError:
+                approvals_raw = []
+                pm_assigned = current_user.role != 'PM'
+                stage1_approved_for_pm = current_user.role != 'PM'
+
+        if current_user.role == 'PM' and not (pm_assigned and stage1_approved_for_pm):
+            current_app.logger.info(
+                "Skipping report %s for PM %s - awaiting Automation Manager approval or assignment",
+                report.id,
+                current_user.email,
+            )
+            continue
+
         document_title = report.document_title or f"{report.type} Report"
         project_reference = report.project_reference or ''
         client_name = report.client_name or ''
@@ -1389,18 +1467,6 @@ def my_reports():
 
         # Normalize status for display (convert DRAFT -> draft, etc.)
         normalized_status = actual_status.lower() if actual_status else 'draft'
-
-        approvals_raw = []
-        has_stage_approved = False
-        if report.approvals_json:
-            try:
-                approvals_raw = json.loads(report.approvals_json)
-                has_stage_approved = any(
-                    (stage.get('status') or '').lower() == 'approved'
-                    for stage in approvals_raw
-                )
-            except json.JSONDecodeError:
-                approvals_raw = []
 
         status_upper = (actual_status or 'DRAFT').upper()
         is_admin = current_user.role == 'Admin'

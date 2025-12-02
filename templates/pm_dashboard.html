@@ -240,7 +240,7 @@
   <div class="module-nav__links">
     <a class="module-nav__link module-nav__link--active" href="{{ url_for('dashboard.pm') }}"><i class="fas fa-home"></i> Dashboard</a>
     <a class="module-nav__link" href="{{ url_for('dashboard.my_reports') }}"><i class="fas fa-folder-open"></i> Reports</a>
-    <a class="module-nav__link" href="{{ url_for('dashboard.reviews') }}"><i class="fas fa-list-check"></i> Reviews</a>
+    <a class="module-nav__link" href="{{ url_for('dashboard.pm') }}#pending-approvals"><i class="fas fa-list-check"></i> Reviews</a>
     <a class="module-nav__link" href="{{ url_for('notifications.notification_center') }}"><i class="fas fa-bell"></i> Notifications</a>
   </div>
   <div class="module-nav__meta">
@@ -303,7 +303,7 @@
 </div>
 
 <div class="action-grid">
-  <a href="{{ url_for('dashboard.pm') }}" class="action-card">
+  <a href="{{ url_for('dashboard.pm') }}#pending-approvals" class="action-card">
     <div class="action-header">
       <i class="fas fa-list-check action-icon"></i>
       <h3 class="action-title">Pending approvals</h3>
@@ -337,7 +337,7 @@
   </a>
 </div>
 
-<div class="widget-card">
+<div class="widget-card" id="pending-approvals">
   <div class="widget-header">
     <h3 class="widget-title"><i class="fas fa-exclamation-triangle"></i> Approvals awaiting you</h3>
     <span class="widget-action">{{ pending_deliverables or 0 }} open items</span>

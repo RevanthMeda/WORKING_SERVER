@@ -7,6 +7,30 @@ import datetime as dt
 
 status_bp = Blueprint('status', __name__)
 
+
+def _pm_can_access_report(report, approvals):
+    """Ensure PMs only see reports after Automation Manager approval."""
+    if current_user.role != 'PM':
+        return True, None
+
+    pm_email = (current_user.email or '').lower()
+    stage1_approved = any(
+        str(approval.get("stage")) == "1"
+        and (approval.get("status") or "").lower() == "approved"
+        for approval in approvals
+    )
+    pm_assigned = any(
+        str(approval.get("stage")) == "2"
+        and (approval.get("approver_email") or "").lower() == pm_email
+        for approval in approvals
+    )
+
+    if not pm_assigned:
+        return False, "You are not assigned as the PM for this report."
+    if not stage1_approved:
+        return False, "Automation Manager approval is required before PM review."
+    return True, None
+
 @status_bp.route('/<submission_id>')
 @login_required
 def view_status(submission_id):
@@ -50,6 +74,11 @@ def view_status(submission_id):
                 "severity": (item.get("severity") or "Medium").strip() or "Medium",
             })
         approval["flags"] = cleaned_flags
+
+    allowed, denial_reason = _pm_can_access_report(report, approvals)
+    if not allowed:
+        flash(denial_reason, 'warning')
+        return redirect(url_for('dashboard.pm'))
 
     # Determine overall status
     statuses = [a.get("status", "pending") for a in approvals]
@@ -116,6 +145,19 @@ def download_report(submission_id):
     try:
         current_app.logger.info(f"Starting SAT download generation for {submission_id}")
         
+        from models import Report
+
+        report = Report.query.filter_by(id=submission_id).first()
+        if not report:
+            flash('Report not found.', 'error')
+            return redirect(url_for('dashboard.home'))
+
+        approvals = json.loads(report.approvals_json) if report.approvals_json else []
+        allowed, denial_reason = _pm_can_access_report(report, approvals)
+        if not allowed:
+            flash(denial_reason, 'warning')
+            return redirect(url_for('dashboard.pm'))
+
         from services.document_generator import regenerate_document_from_db
 
         # Prefer generating from the SAT template first
@@ -171,6 +213,19 @@ def download_report_modern(submission_id):
     if not submission_id or submission_id == 'None':
         flash('Invalid submission ID.', 'error')
         return redirect(url_for('dashboard.home'))
+
+    from models import Report
+
+    report = Report.query.filter_by(id=submission_id).first()
+    if not report:
+        flash('Report not found.', 'error')
+        return redirect(url_for('dashboard.home'))
+
+    approvals = json.loads(report.approvals_json) if report.approvals_json else []
+    allowed, denial_reason = _pm_can_access_report(report, approvals)
+    if not allowed:
+        flash(denial_reason, 'warning')
+        return redirect(url_for('dashboard.pm'))
 
     from services.report_renderer import generate_modern_sat_report
 
