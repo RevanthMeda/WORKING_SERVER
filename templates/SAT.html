@@ -4992,7 +4992,22 @@
     </script>
     {% include 'partials/chatbot_widget.html' %}
     <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
+    <div class="developer-credit">
+      Developed by <a href="https://www.linkedin.com/in/revanth-meda-1ab294226/" target="_blank">Revanth Meda</a> for <a href="https://www.cully.ie/" target="_blank">CULLY LTD</a>
+    </div>
     <style>
+      .developer-credit {
+        margin: 16px auto;
+        text-align: center;
+        color: #5f6c85;
+        font-size: 12px;
+      }
+      .developer-credit a {
+        color: #0b5fff;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .developer-credit a:hover { text-decoration: underline; }
       .signature-section {
         border: 1px solid rgba(90, 127, 163, 0.18);
         border-radius: 16px;
