@@ -7,6 +7,7 @@ import tempfile
 import datetime as dt
 import re
 import glob
+import html
 from html import unescape
 from typing import Dict, Any, List
 from flask import current_app, url_for
@@ -29,6 +30,7 @@ PARA_CLOSE_RE = re.compile(r'</p\s*>', re.IGNORECASE)
 PARA_OPEN_RE = re.compile(r'<p\s*>', re.IGNORECASE)
 LI_OPEN_RE = re.compile(r'<li\s*>', re.IGNORECASE)
 LI_CLOSE_RE = re.compile(r'</li\s*>', re.IGNORECASE)
+AMP_RE = re.compile(r'&(?![a-zA-Z]+;|#\d+;)')
 
 
 def _strip_html(value: str) -> str:
@@ -343,6 +345,9 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
                 cleaned = cleaned.replace('\xa0', ' ')
                 if HTML_TAG_RE.search(cleaned):
                     cleaned = _strip_html(cleaned)
+                # Escape bare XML-sensitive characters without double-escaping existing entities
+                cleaned = AMP_RE.sub('&amp;', cleaned)
+                cleaned = cleaned.replace('<', '&lt;').replace('>', '&gt;')
                 return cleaned
             return str(value)
 

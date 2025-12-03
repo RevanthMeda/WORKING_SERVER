@@ -78,9 +78,9 @@ def construct_prompt(
 
     summary_payload = _build_context_snapshot(report_data)
     if stage:
+        # Provide role context without exposing stage numbering to keep copy professional
         summary_payload["approval_stage"] = {
-            "stage": stage,
-            "title": approver_title or "Approver",
+            "role": approver_title or "Approver",
         }
 
     prompt_lines: List[str] = [
@@ -332,7 +332,13 @@ def _compose_email(
         or "SAT Report"
     )
 
-    subject = plan.get("subject") or f"{document_title} - Update"
+    if (audience or "").strip().lower() == "approver":
+        fallback_subject = f"Approval requested: {document_title}"
+        if extra.get("approver_title"):
+            fallback_subject = f"{extra.get('approver_title')}: {document_title} approval"
+    else:
+        fallback_subject = f"{document_title} - Update"
+    subject = plan.get("subject") or fallback_subject
     preheader = plan.get("preheader") or plan.get("intro") or ""
     intro = plan.get("intro") or ""
     synopsis = plan.get("synopsis") or ""
@@ -346,7 +352,12 @@ def _compose_email(
         greeting_name = extra.get("approver_name") or extra.get("approver_title") or ""
     else:
         greeting_name = extra.get("submitter_name") or extra.get("prepared_by") or report_data.get("PREPARED_BY") or report_data.get("prepared_by") or ""
-    if greeting_name:
+    def _looks_like_greeting(text: str) -> bool:
+        if not text:
+            return False
+        prefix = text.strip().lower()
+        return prefix.startswith("dear ")
+    if greeting_name and not _looks_like_greeting(intro):
         intro = f"Dear {greeting_name},\n{intro}".strip()
 
     author_name = extra.get("prepared_by") or report_data.get("PREPARED_BY") or report_data.get("prepared_by") or ""
@@ -470,6 +481,12 @@ def _render_email_html(context: Dict[str, Any]) -> str:
       <tr>
         <td style="text-align:center;padding:18px 0 8px 0;">
           <p style="margin:0;color:#5f6c85;font-size:12px;line-height:1.4;">This message was generated automatically by the Cully Automation reporting platform.</p>
+          <p style="margin:4px 0 0;color:#5f6c85;font-size:12px;line-height:1.6;">
+            Developed by
+            <a href="https://www.linkedin.com/in/revanth-meda-1ab294226/" style="color:#0b5fff;text-decoration:none;font-weight:600;" target="_blank">Revanth Meda</a>
+            for
+            <a href="https://www.cully.ie/" style="color:#0b5fff;text-decoration:none;font-weight:600;" target="_blank">CULLY LTD</a>
+          </p>
         </td>
       </tr>
     </table>
@@ -478,15 +495,10 @@ def _render_email_html(context: Dict[str, Any]) -> str:
 
 
 def _format_stage_label(extra: Dict[str, Any]) -> str:
-    stage = extra.get("stage")
     title = extra.get("approver_title")
-    if stage and title:
-        return f"Stage {stage} - {title}"
-    if stage:
-        return f"Approval Stage {stage}"
     if title:
         return str(title)
-    return ""
+    return "Approval request"
 
 
 def _build_context_snapshot(report_data: Dict[str, Any]) -> Dict[str, Any]:
