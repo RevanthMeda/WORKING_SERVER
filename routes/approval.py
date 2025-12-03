@@ -17,6 +17,7 @@ from utils import (
     send_client_final_document,
     send_email,
     update_toc_page_numbers,
+    create_status_update_notification,
 )
 from services.dashboard_stats import compute_and_cache_dashboard_stats
 
@@ -556,22 +557,41 @@ def approve_submission(submission_id, stage):
                         client_email = submission_data["context"]["CLIENT_EMAIL"]
                         current_app.logger.info(f"Using fallback CLIENT_EMAIL from context: {client_email}")
 
-                # Notify the submitter 
-                notify_completion(submission_data.get("user_email"), submission_id)
-                
-                # Create completion notification
-                from utils import create_completion_notification
-                try:
-                    user_email = submission_data.get("user_email")
-                    document_title = submission_data.get("context", {}).get("DOCUMENT_TITLE", "SAT Report")
-                    if user_email:
+                # Notify the submitter (email + in-app) when fully approved
+                creator_email = (
+                    submission_data.get("user_email")
+                    or submission_data.get("context", {}).get("user_email")
+                )
+                if not creator_email:
+                    try:
+                        report_record = Report.query.get(submission_id)
+                        creator_email = getattr(report_record, "user_email", None)
+                    except Exception as lookup_error:
+                        current_app.logger.warning(f"Could not resolve creator email for {submission_id}: {lookup_error}")
+
+                document_title = submission_data.get("context", {}).get("DOCUMENT_TITLE", "SAT Report")
+
+                if creator_email:
+                    notify_completion(creator_email, submission_id)
+                    from utils import create_completion_notification
+                    try:
                         create_completion_notification(
-                            user_email=user_email,
+                            user_email=creator_email,
                             submission_id=submission_id,
                             document_title=document_title
                         )
-                except Exception as e:
-                    current_app.logger.error(f"Error creating completion notification: {e}")
+                        create_status_update_notification(
+                            user_email=creator_email,
+                            submission_id=submission_id,
+                            status="approved",
+                            document_title=document_title,
+                            approver_name=current_user.full_name if hasattr(current_user, "full_name") else ""
+                        )
+                        current_app.logger.info(f"Final approval notifications sent to submitter {creator_email}")
+                    except Exception as e:
+                        current_app.logger.error(f"Error creating completion/status notifications: {e}")
+                else:
+                    current_app.logger.warning(f"Final approval completed for {submission_id} but creator email was not found; no submitter notification sent.")
                 
                 # Send the final document to the client
                 if client_email:

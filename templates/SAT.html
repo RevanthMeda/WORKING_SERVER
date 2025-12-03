@@ -3064,23 +3064,49 @@
               <p style="color: #64748b;">Please review all information before submitting your SAT report.</p>
             </div>
 
-            <div class="form-section">
-              <h4><i class="fas fa-signature"></i> Digital Signature</h4>
-              <div class="signature-row" style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-                <div class="signature-pad-container" style="flex: 1 1 320px;">
-                  <canvas id="fixed_signature_canvas" width="600" height="200"></canvas>
+            <div class="form-section signature-section">
+              <div class="signature-header">
+                <div>
+                  <h4><i class="fas fa-signature"></i> Digital Signature</h4>
+                  <p class="signature-subtitle">Sign off the report or reuse your saved signature from Settings.</p>
                 </div>
-                <div class="signature-controls" style="display: grid; gap: 0.5rem; min-width: 200px;">
-                  <button type="button" id="fixed_clear_btn" class="btn btn-secondary" style="width: 100%; max-width: 220px;">
-                    <i class="fas fa-eraser"></i> Clear Signature
-                  </button>
-                  {% if saved_signature %}
-                  <label class="form-check" style="display: flex; align-items: center; gap: 0.5rem; margin: 0;">
-                    <input type="checkbox" id="use_saved_signature" class="form-check-input">
-                    <span class="form-check-label">Use my saved signature on file</span>
-                  </label>
-                  <p style="color: #64748b; font-size: 0.95rem; margin: 0;">You uploaded a default signature in Settings. Check this to reuse it instead of drawing.</p>
-                  {% endif %}
+              </div>
+              <div class="signature-body signature-body--grid">
+                <div class="signature-pad-panel">
+                  <div class="signature-pad-toolbar">
+                    <span><i class="fas fa-pen"></i> Draw your signature</span>
+                    <button type="button" id="fixed_clear_btn" class="btn btn-light btn-sm">
+                      <i class="fas fa-eraser"></i> Clear
+                    </button>
+                  </div>
+                  <div class="signature-pad-container">
+                    <canvas id="fixed_signature_canvas" width="600" height="200"></canvas>
+                  </div>
+                  <div class="signature-pad-hint">Use a mouse or touch to sign. Your signature will be embedded in the report.</div>
+                </div>
+                <div class="signature-meta-card">
+                  <div class="signature-meta-row">
+                    <div class="signature-meta-label">Signing as</div>
+                    <div class="signature-meta-value">{{ current_user.full_name if current_user and current_user.full_name else (submission_data.PREPARED_BY or 'Engineer') }}</div>
+                  </div>
+                  <div class="signature-meta-row">
+                    <div class="signature-meta-label">Signature source</div>
+                    <div class="signature-meta-control">
+                      {% if saved_signature %}
+                      <label class="form-check signature-save-toggle">
+                        <input type="checkbox" id="use_saved_signature" class="form-check-input">
+                        <span class="form-check-label">Use my saved signature on file</span>
+                      </label>
+                      <div class="signature-note">We’ll pull the signature you uploaded in Settings.</div>
+                      {% else %}
+                      <div class="signature-note">No saved signature on file. Draw above to sign.</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="signature-meta-row">
+                    <div class="signature-meta-label">Signed on</div>
+                    <div class="signature-meta-value" id="prepared_date_display">Not captured yet</div>
+                  </div>
                 </div>
               </div>
               <input type="hidden" id="sig_prepared_data" name="sig_prepared_data"/>
@@ -3587,6 +3613,16 @@
       }
       
       // Initialize signature pad if available
+      const preparedDateDisplay = document.getElementById('prepared_date_display');
+      const useSavedFlagInput = document.getElementById('use_saved_signature_flag');
+      const signaturePadContainer = document.querySelector('.signature-pad-container');
+      function updatePreparedDateLabel(source) {
+        if (!preparedDateDisplay) return;
+        const nowText = new Date().toLocaleString();
+        const suffix = source === 'saved' ? ' (saved signature)' : '';
+        preparedDateDisplay.textContent = `${nowText}${suffix}`;
+      }
+
       if (typeof SignaturePad !== 'undefined') {
         const canvas = document.getElementById('fixed_signature_canvas');
         if (canvas) {
@@ -3597,13 +3633,33 @@
             backgroundColor: "rgba(255, 255, 255, 0)"
           });
 
-          document.getElementById('fixed_clear_btn').addEventListener('click', function() {
-            window.signaturePadInstance.clear();
-          });
+          const clearBtn = document.getElementById('fixed_clear_btn');
+          if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+              window.signaturePadInstance.clear();
+              if (preparedDateDisplay) {
+                preparedDateDisplay.textContent = 'Awaiting signature';
+              }
+              if (useSavedFlagInput) {
+                useSavedFlagInput.value = '0';
+              }
+            });
+          }
+
+          window.signaturePadInstance.onEnd = function() {
+            updatePreparedDateLabel('drawn');
+            if (useSavedFlagInput) {
+              useSavedFlagInput.value = '0';
+            }
+            const useSavedCheckbox = document.getElementById('use_saved_signature');
+            if (useSavedCheckbox) {
+              useSavedCheckbox.checked = false;
+            }
+          };
         }
       }
+
       const useSavedCheckbox = document.getElementById('use_saved_signature');
-      const signaturePadContainer = document.querySelector('.signature-pad-container');
       if (useSavedCheckbox && signaturePadContainer) {
         useSavedCheckbox.addEventListener('change', function() {
           const hidePad = useSavedCheckbox.checked;
@@ -3611,6 +3667,18 @@
           const clearBtn = document.getElementById('fixed_clear_btn');
           if (clearBtn) {
             clearBtn.style.display = hidePad ? 'none' : '';
+          }
+          if (useSavedFlagInput) {
+            useSavedFlagInput.value = hidePad ? '1' : '0';
+          }
+          const sigDataField = document.getElementById('sig_prepared_data');
+          if (sigDataField && hidePad) {
+            sigDataField.value = '';
+          }
+          if (hidePad) {
+            updatePreparedDateLabel('saved');
+          } else if (preparedDateDisplay) {
+            preparedDateDisplay.textContent = 'Draw to capture timestamp';
           }
         });
       }
@@ -4924,6 +4992,115 @@
     </script>
     {% include 'partials/chatbot_widget.html' %}
     <script src="{{ url_for('static', filename='js/chatbot-assistant.js') }}" defer></script>
+    <style>
+      .signature-section {
+        border: 1px solid rgba(90, 127, 163, 0.18);
+        border-radius: 16px;
+        padding: var(--space-lg);
+        box-shadow: 0 14px 32px rgba(14, 38, 74, 0.07);
+        background: linear-gradient(180deg, #f9fcff 0%, #f6f8fb 100%);
+      }
+      .signature-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: var(--space-md);
+        margin-bottom: var(--space-md);
+      }
+      .signature-header h4 {
+        margin: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .signature-subtitle {
+        margin: 4px 0 0;
+        color: #5f6c85;
+      }
+      .signature-body--grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: var(--space-lg);
+        align-items: stretch;
+      }
+      .signature-pad-panel {
+        background: #fff;
+        border-radius: 14px;
+        border: 1px solid rgba(90, 127, 163, 0.16);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 10px 24px rgba(14,38,74,0.05);
+        display: grid;
+        gap: 0.5rem;
+        padding: 0.75rem 0.75rem 1rem;
+      }
+      .signature-pad-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-sm);
+        color: #0b1b3a;
+        font-weight: 600;
+      }
+      .signature-pad-container {
+        min-height: 210px;
+        border-radius: 12px;
+        border: 1px dashed rgba(90, 127, 163, 0.35);
+        background: #fff;
+        padding: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .signature-pad-container canvas {
+        width: 100%;
+        height: 180px;
+      }
+      .signature-pad-hint {
+        color: #64748b;
+        font-size: 0.95rem;
+      }
+      .signature-meta-card {
+        background: #fff;
+        border-radius: 14px;
+        border: 1px solid rgba(90, 127, 163, 0.16);
+        box-shadow: 0 10px 24px rgba(14,38,74,0.05);
+        padding: var(--space-md);
+        display: grid;
+        gap: var(--space-sm);
+      }
+      .signature-meta-row {
+        display: grid;
+        gap: 4px;
+      }
+      .signature-meta-label {
+        font-weight: 700;
+        color: #0b1b3a;
+      }
+      .signature-meta-value {
+        color: #1f2a44;
+        font-weight: 600;
+      }
+      .signature-meta-control {
+        display: grid;
+        gap: 6px;
+      }
+      .signature-save-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+        font-weight: 600;
+        color: #0b1b3a;
+      }
+      .signature-note {
+        color: #64748b;
+        font-size: 0.95rem;
+      }
+      @media (max-width: 900px) {
+        .signature-body--grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
 </body>
 </html>
 

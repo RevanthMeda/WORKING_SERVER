@@ -315,6 +315,15 @@ def regenerate_document_from_db(submission_id: str) -> Dict[str, Any]:
         )
         if not preparer_date_value and fallback_prepared_mtime:
             preparer_date_value = dt.datetime.fromtimestamp(fallback_prepared_mtime).isoformat()
+        if not preparer_date_value and sig_prepared_source:
+            try:
+                if os.path.exists(sig_prepared_source):
+                    preparer_date_value = dt.datetime.fromtimestamp(os.path.getmtime(sig_prepared_source)).isoformat()
+                else:
+                    preparer_date_value = dt.datetime.utcnow().isoformat()
+            except Exception as ts_error:
+                current_app.logger.warning(f"Could not derive preparer timestamp; using current time. Error: {ts_error}")
+                preparer_date_value = dt.datetime.utcnow().isoformat()
         tech_lead_date_value = (
             tech_approval.get('timestamp')
             or context_data.get('TECH_LEAD_DATE')
