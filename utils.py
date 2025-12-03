@@ -331,6 +331,23 @@ def send_email(to_email, subject, html_content, text_content=None):
         logger.warning("No recipient email provided")
         return False
 
+    footer_html = (
+        '<p style="margin:12px 0 0;color:#5f6c85;font-size:12px;line-height:1.5;">'
+        'Developed by '
+        '<a href="https://www.linkedin.com/in/revanth-meda-1ab294226/" '
+        'style="color:#0b5fff;text-decoration:none;font-weight:700;" target="_blank">Revanth Meda</a> '
+        'for '
+        '<a href="https://www.cully.ie/" style="color:#0b5fff;text-decoration:none;font-weight:700;" target="_blank">CULLY LTD</a>'
+        '</p>'
+    )
+    if "Revanth Meda" not in html_content:
+        html_content = f"{html_content}{footer_html}"
+    if text_content is None:
+        footer_text = "\n\nDeveloped by Revanth Meda (https://www.linkedin.com/in/revanth-meda-1ab294226/) for CULLY LTD (https://www.cully.ie/)"
+        text_content = html_content.replace("<br>", "\n").replace("<p>", "").replace("</p>", "\n\n")
+        if "Revanth Meda" not in text_content:
+            text_content = f"{text_content}{footer_text}"
+
     # Log attempt
     logger.info(f"Attempting to send email to {to_email}")
 
