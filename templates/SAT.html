@@ -3066,19 +3066,23 @@
 
             <div class="form-section">
               <h4><i class="fas fa-signature"></i> Digital Signature</h4>
-              <div class="signature-pad-container">
-                <canvas id="fixed_signature_canvas" width="600" height="200"></canvas>
+              <div class="signature-row" style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                <div class="signature-pad-container" style="flex: 1 1 320px;">
+                  <canvas id="fixed_signature_canvas" width="600" height="200"></canvas>
+                </div>
+                <div class="signature-controls" style="display: grid; gap: 0.5rem; min-width: 200px;">
+                  <button type="button" id="fixed_clear_btn" class="btn btn-secondary" style="width: 100%; max-width: 220px;">
+                    <i class="fas fa-eraser"></i> Clear Signature
+                  </button>
+                  {% if saved_signature %}
+                  <label class="form-check" style="display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+                    <input type="checkbox" id="use_saved_signature" class="form-check-input">
+                    <span class="form-check-label">Use my saved signature on file</span>
+                  </label>
+                  <p style="color: #64748b; font-size: 0.95rem; margin: 0;">You uploaded a default signature in Settings. Check this to reuse it instead of drawing.</p>
+                  {% endif %}
+                </div>
               </div>
-              <button type="button" id="fixed_clear_btn" class="btn btn-secondary">
-                <i class="fas fa-eraser"></i> Clear Signature
-              </button>
-              {% if saved_signature %}
-              <div class="form-check" style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
-                <input type="checkbox" id="use_saved_signature" class="form-check-input">
-                <label for="use_saved_signature" class="form-check-label" style="margin: 0;">Use my saved signature on file</label>
-              </div>
-              <p style="color: #64748b; font-size: 0.95rem; margin: 0.35rem 0 0 1.8rem;">You uploaded a default signature in Settings. Check this to reuse it instead of drawing.</p>
-              {% endif %}
               <input type="hidden" id="sig_prepared_data" name="sig_prepared_data"/>
               <input type="hidden" id="use_saved_signature_flag" name="use_saved_signature" value="0"/>
               <input type="hidden" id="saved_signature_filename" name="saved_signature_filename" value="{{ saved_signature or '' }}"/>

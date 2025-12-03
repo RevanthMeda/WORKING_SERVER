@@ -341,6 +341,8 @@ def generate():
             sub.setdefault("context", {})["prepared_signature"] = saved_signature_filename
             sub["prepared_signature"] = saved_signature_filename
             prepared_signature_filename = saved_signature_filename
+            prepared_timestamp = dt.datetime.now().isoformat()
+            sub.setdefault("context", {})["prepared_timestamp"] = prepared_timestamp
             try:
                 sig_prepared_image = load_signature_inline(saved_signature_filename)
                 current_app.logger.info(f"Using saved profile signature {saved_signature_filename} for preparer")
