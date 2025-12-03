@@ -1,11 +1,13 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, session, make_response
 from flask_login import login_user, logout_user, current_user
-from models import db, User, CullyStatistics
+from models import db, User, CullyStatistics, SystemSettings
 from auth import login_required
 from werkzeug.security import generate_password_hash, check_password_hash
 from session_manager import session_manager
 from datetime import datetime, timedelta
 import time
+import secrets
+import json
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -228,33 +230,60 @@ def pending_approval():
 
 @auth_bp.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
-    """Forgot password - reset user password"""
+    """Forgot password - allow user to choose email link or OTP reset"""
     if current_user.is_authenticated:
         return redirect(url_for('dashboard.home'))
 
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
+        method = request.form.get('reset_method', 'link')
 
         if not email:
             flash('Email is required.', 'error')
             return render_template('forgot_password.html')
 
         user = User.query.filter_by(email=email).first()
+        # Always respond generically to avoid revealing account presence
+        if not user:
+            flash('If this email exists, reset instructions have been sent.', 'info')
+            return redirect(url_for('auth.forgot_password'))
 
-        if user:
-            # For demo purposes, set a default password
-            # In production, you'd send an email with reset link
-            user.set_password('newpassword123')
-            try:
-                db.session.commit()
-                flash(f'Password reset for {email}. New password: newpassword123', 'success')
-                return redirect(url_for('auth.login'))
-            except Exception as e:
-                db.session.rollback()
-                flash('Password reset failed. Please try again.', 'error')
-        else:
-            # Don't reveal if email exists for security
-            flash('If this email exists, a password reset has been sent.', 'info')
+        try:
+            if method == 'otp':
+                code = f"{secrets.randbelow(1000000):06d}"
+                expires_at = datetime.utcnow() + timedelta(minutes=10)
+                payload = {"code": code, "expires_at": expires_at.isoformat()}
+                SystemSettings.set_setting(f"pwd_otp_{email}", json.dumps(payload))
+                otp_html = f"""
+                <html><body>
+                <p>Hello,</p>
+                <p>Your password reset code is: <strong style="font-size:18px;">{code}</strong></p>
+                <p>This code expires in 10 minutes.</p>
+                <p>If you did not request this, please ignore.</p>
+                </body></html>
+                """
+                from utils import send_email
+                send_email(email, "Password reset code", otp_html)
+                flash('If this email exists, a reset code has been sent. Enter it below to reset your password.', 'info')
+                return redirect(url_for('auth.reset_password_otp', email=email))
+            else:
+                token = user.generate_reset_token(expires_sec=3600)
+                reset_url = url_for('auth.reset_password', token=token, _external=True)
+                link_html = f"""
+                <html><body>
+                <p>Hello,</p>
+                <p>You requested a password reset. Click the button below to set a new password.</p>
+                <p><a href="{reset_url}" style="display:inline-block;padding:12px 20px;background:#0b5fff;color:#fff;text-decoration:none;border-radius:8px;">Reset Password</a></p>
+                <p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>
+                </body></html>
+                """
+                from utils import send_email
+                send_email(email, "Reset your password", link_html)
+                flash('If this email exists, a reset link has been sent.', 'info')
+                return redirect(url_for('auth.forgot_password'))
+        except Exception as e:
+            current_app.logger.error(f"Error handling password reset request: {e}", exc_info=True)
+            flash('An error occurred sending reset instructions. Please try again.', 'error')
 
     return render_template('forgot_password.html')
 
@@ -294,6 +323,70 @@ def reset_password():
             return render_template('reset_password.html', token=token)
 
     return render_template('reset_password.html', token=token)
+
+@auth_bp.route('/reset-password-otp', methods=['GET', 'POST'])
+def reset_password_otp():
+    """Reset password using emailed OTP code"""
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard.home'))
+
+    email = (request.args.get('email') or request.form.get('email') or '').strip().lower()
+
+    if request.method == 'POST':
+        code = (request.form.get('otp_code') or '').strip()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        if not email or not code:
+            flash('Email and code are required.', 'error')
+            return render_template('reset_password_otp.html', email=email)
+
+        setting = SystemSettings.get_setting(f"pwd_otp_{email}")
+        payload = {}
+        try:
+            payload = json.loads(setting) if setting else {}
+        except Exception:
+            payload = {}
+
+        expires_at = payload.get("expires_at")
+        stored_code = payload.get("code")
+        now = datetime.utcnow()
+        if not stored_code or not expires_at:
+            flash('Code is invalid or expired.', 'error')
+            return render_template('reset_password_otp.html', email=email)
+        try:
+            exp_dt = datetime.fromisoformat(expires_at)
+        except Exception:
+            exp_dt = now - timedelta(seconds=1)
+
+        if now > exp_dt or code != stored_code:
+            flash('Code is invalid or expired.', 'error')
+            return render_template('reset_password_otp.html', email=email)
+
+        if password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return render_template('reset_password_otp.html', email=email)
+        if not password or len(password) < 6:
+            flash('Password must be at least 6 characters long.', 'error')
+            return render_template('reset_password_otp.html', email=email)
+
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            flash('User not found.', 'error')
+            return redirect(url_for('auth.forgot_password'))
+
+        try:
+            user.set_password(password)
+            SystemSettings.set_setting(f"pwd_otp_{email}", json.dumps({}))
+            db.session.commit()
+            flash('Your password has been reset. You can now log in.', 'success')
+            return redirect(url_for('auth.login'))
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error resetting password with OTP: {e}", exc_info=True)
+            flash('An error occurred while resetting your password.', 'error')
+
+    return render_template('reset_password_otp.html', email=email)
 
 @auth_bp.route('/change-password', methods=['GET', 'POST'])
 @login_required

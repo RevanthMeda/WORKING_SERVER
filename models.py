@@ -43,6 +43,29 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f'<User {self.email}>'
 
+    def generate_reset_token(self, expires_sec: int = 3600) -> str:
+        """Create a time-bound password reset token."""
+        serializer = URLSafeTimedSerializer(current_app.config.get('SECRET_KEY', ''))
+        return serializer.dumps(
+            {"user_id": self.id, "email": self.email, "purpose": "password_reset"},
+            salt="password-reset"
+        )
+
+    @staticmethod
+    def verify_reset_token(token: str, max_age: int = 3600):
+        """Validate a password reset token and return the user if valid."""
+        if not token:
+            return None
+        serializer = URLSafeTimedSerializer(current_app.config.get('SECRET_KEY', ''))
+        try:
+            data = serializer.loads(token, salt="password-reset", max_age=max_age)
+            if data.get("purpose") != "password_reset":
+                return None
+            user_id = data.get("user_id")
+            return User.query.get(int(user_id)) if user_id else None
+        except Exception:
+            return None
+
 class SystemSettings(db.Model):
     __tablename__ = 'system_settings'
 
