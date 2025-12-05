@@ -1,5 +1,7 @@
 import json
 import os
+import re
+import html as html_lib
 from html import escape
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -80,7 +82,7 @@ def construct_prompt(
     if stage:
         # Provide role context without exposing stage numbering to keep copy professional
         summary_payload["approval_stage"] = {
-            "role": approver_title or "Approver",
+            "role": extra.get("approver_name") or approver_title or "Approver",
         }
 
     prompt_lines: List[str] = [
@@ -106,7 +108,7 @@ def construct_prompt(
                 "Audience context:",
                 "- The recipient is an approval stakeholder (e.g. Automation Manager or Project Manager).",
                 "- Reinforce why their approval matters by referencing the value to operations or schedule.",
-                "- Mention the approval stage number when provided.",
+                "- Reference the approver's role or name when provided; avoid numeric stage labels.",
                 '- Keep the call to action directive, e.g. "Review & Approve Report".',
             ]
         )
@@ -495,7 +497,12 @@ def _render_email_html(context: Dict[str, Any]) -> str:
 
 
 def _format_stage_label(extra: Dict[str, Any]) -> str:
+    name = extra.get("approver_name")
     title = extra.get("approver_title")
+    if name and title:
+        return f"{name} · {title}"
+    if name:
+        return str(name)
     if title:
         return str(title)
     return "Approval request"
@@ -575,62 +582,89 @@ def _fallback_email(report_data: Dict[str, Any], audience: str, extra: Dict[str,
     )
     project_ref = report_data.get("PROJECT_REFERENCE") or report_data.get("project_reference") or ""
     client_name = report_data.get("CLIENT_NAME") or report_data.get("client_name") or ""
-    purpose = report_data.get("PURPOSE") or report_data.get("purpose") or ""
-    scope = report_data.get("SCOPE") or report_data.get("scope") or ""
+    purpose = _normalize_text(report_data.get("PURPOSE") or report_data.get("purpose") or "")
+    scope = _normalize_text(report_data.get("SCOPE") or report_data.get("scope") or "")
+    synopsis_text = _compact_text(" ".join(filter(None, [purpose, scope])), max_len=360)
     approval_url = extra.get("approval_url")
     status_url = extra.get("status_url")
     edit_url = extra.get("edit_url")
     author_name = extra.get("prepared_by") or report_data.get("PREPARED_BY") or report_data.get("prepared_by") or ""
+    stage_label = _format_stage_label(extra)
 
     if audience_key == "approver":
-        details = []
-        if project_ref:
-            details.append(f"Project reference: {escape(project_ref)}")
+        approver_name = extra.get("approver_name") or extra.get("approver_title") or "Approver"
+        preheader = f"{document_title} is ready for your review."
+        intro = f"Dear {approver_name},\nA new report is ready for your decision."
+        synopsis = synopsis_text or "This package documents the latest updates and validations for the project."
+        highlights = [f"Project reference: {project_ref}"] if project_ref else []
         if client_name:
-            details.append(f"Client: {escape(client_name)}")
-        if purpose:
-            details.append(f"Purpose: {escape(purpose)}")
-        if scope:
-            details.append(f"Scope: {escape(scope)}")
-
-        greeting = ""
-        approver_name = extra.get("approver_name") or extra.get("approver_title")
-        if approver_name:
-            greeting = f"<p>Dear {escape(approver_name)},</p>"
-        subject = f"Approval requested: {document_title}"
-        html_body = f"""
-        <html>
-        <body>
-            <h1>{escape(document_title)} - Approval Required</h1>
-            {greeting if greeting else '<p>A new report is ready for your review.</p>'}
-            {'<p>This report was prepared by ' + escape(author_name) + '.</p>' if author_name else ''}
-            {''.join(f'<p>{line}</p>' for line in details)}
-            {f'<p><a href="{escape(approval_url)}">Open approval workspace</a></p>' if approval_url else ''}
-            {f'<p><a href="{escape(status_url)}">View live status</a></p>' if status_url else ''}
-        </body>
-        </html>
-        """
+            highlights.append(f"Client: {client_name}")
+        if author_name:
+            highlights.append(f"Prepared by: {author_name}")
+        call_to_action = "Review & Approve Report"
+        closing = "Thank you for keeping the approvals moving."
+        subject = f"{document_title} – {stage_label or 'approval requested'}"
+        meta = {
+            "document_title": document_title,
+            "stage_label": stage_label,
+            "audience": audience,
+            "preheader": preheader,
+            "intro": intro,
+            "synopsis": synopsis,
+            "highlights": highlights,
+            "call_to_action": call_to_action,
+            "closing": closing,
+            "approval_url": approval_url,
+            "status_url": status_url,
+            "author_line": f"Prepared by {author_name}" if author_name else "",
+        }
     else:
-        greeting = ""
-        submitter_name = extra.get("submitter_name") or author_name
-        if submitter_name:
-            greeting = f"<p>Dear {escape(submitter_name)},</p>"
+        submitter_name = extra.get("submitter_name") or author_name or "team member"
+        preheader = f"{document_title} submitted successfully."
+        intro = f"Dear {submitter_name},\nYour report has been submitted for review."
+        synopsis = synopsis_text or "We captured your submission details and started the approval workflow."
+        highlights = []
+        if project_ref:
+            highlights.append(f"Project reference: {project_ref}")
+        if client_name:
+            highlights.append(f"Client: {client_name}")
+        if purpose:
+            highlights.append(f"Purpose: {_compact_text(purpose, 140)}")
+        call_to_action = "Update submission" if edit_url else "View status"
+        closing = "You can track approvals or update the report if needed."
         subject = f"{document_title} submitted successfully"
-        html_body = f"""
-        <html>
-        <body>
-            <h1>Submission received</h1>
-            {greeting if greeting else ''}
-            <p>Your report <strong>{escape(document_title)}</strong> has been submitted.</p>
-            {'<p>Prepared by ' + escape(author_name) + '.</p>' if author_name else ''}
-            {f'<p><a href="{escape(status_url)}">Track approval progress</a></p>' if status_url else ''}
-            {f'<p><a href="{escape(edit_url)}">Update your submission</a></p>' if edit_url else ''}
-            {f'<p>Project reference: {escape(project_ref)}</p>' if project_ref else ''}
-            {f'<p>Client: {escape(client_name)}</p>' if client_name else ''}
-            {f'<p>Purpose: {escape(purpose)}</p>' if purpose else ''}
-            {f'<p>Scope: {escape(scope)}</p>' if scope else ''}
-        </body>
-        </html>
-        """
+        meta = {
+            "document_title": document_title,
+            "stage_label": "",
+            "audience": audience,
+            "preheader": preheader,
+            "intro": intro,
+            "synopsis": synopsis,
+            "highlights": highlights,
+            "call_to_action": call_to_action,
+            "closing": closing,
+            "status_url": status_url,
+            "edit_url": edit_url,
+            "author_line": f"Prepared by {author_name}" if author_name else "",
+        }
 
-    return {"subject": subject.strip(), "body": html_body.strip(), "preheader": ""}
+    body_html = _render_email_html(meta)
+    return {"subject": subject.strip(), "body": body_html.strip(), "preheader": preheader.strip()}
+
+
+def _normalize_text(raw: Optional[str]) -> str:
+    if not raw or not isinstance(raw, str):
+        return ""
+    text = re.sub(r"<[^>]+>", " ", raw)
+    text = html_lib.unescape(text)
+    return " ".join(text.split()).strip()
+
+
+def _compact_text(raw: str, max_len: int = 240) -> str:
+    text = _normalize_text(raw)
+    if not text:
+        return ""
+    if len(text) <= max_len:
+        return text
+    shortened = text[:max_len].rsplit(" ", 1)[0].strip()
+    return f"{shortened}…"

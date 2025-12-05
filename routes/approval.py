@@ -7,7 +7,7 @@ import json
 import html
 from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Mm
-from models import db, Report, SATReport
+from models import db, Report, SATReport, SystemSettings
 from utils import (
     load_submissions,
     save_submissions,
@@ -139,6 +139,12 @@ def approve_submission(submission_id, stage):
     """Handle approval workflow for a submission"""
     try:
         submissions = load_submissions()
+        saved_signature = None
+        try:
+            if current_user and getattr(current_user, "id", None):
+                saved_signature = SystemSettings.get_setting(f"user_signature_{current_user.id}", None)
+        except Exception as sig_err:
+            current_app.logger.warning(f"Could not load saved signature for user: {sig_err}")
         
         # Fix: Ensure submissions is a dictionary, not a list
         if isinstance(submissions, list):
@@ -191,9 +197,12 @@ def approve_submission(submission_id, stage):
             return redirect(url_for('status.view_status', submission_id=submission_id))
 
         if request.method == "POST":
-            # Process the pad‐drawn signature (base64 PNG) from the hidden field
+            use_saved_signature = request.form.get("use_saved_signature") == "1"
+            saved_signature_filename = request.form.get("saved_signature_filename") or saved_signature or ""
+
+            # Process the pad‐drawn signature (base64 PNG) from the hidden field, unless using saved signature
             sig_data = request.form.get("signature_data", "")
-            if sig_data.startswith("data:image"):
+            if not use_saved_signature and sig_data.startswith("data:image"):
                 # strip off "data:image/png;base64,"
                 _header, b64 = sig_data.split(",", 1)
                 data = base64.b64decode(b64)
@@ -230,6 +239,11 @@ def approve_submission(submission_id, stage):
                 except Exception as e:
                     current_app.logger.error(f"Error saving signature: {e}")
                     flash("Could not save signature, but approval will continue", "warning")
+            elif use_saved_signature and saved_signature_filename:
+                current_stage["signature"] = saved_signature_filename
+            else:
+                flash("Signature is required to approve", "error")
+                return redirect(url_for('approval.approve_submission', submission_id=submission_id, stage=stage))
 
             # Capture approval comment and mark as approved
             current_stage["comment"] = request.form.get("approval_comment", "")
@@ -654,7 +668,8 @@ def approve_submission(submission_id, stage):
             "document_title": submission_data.get("context", {}).get("DOCUMENT_TITLE", "SAT Report"),
             "project_reference": submission_data.get("context", {}).get("PROJECT_REFERENCE", ""),
             "client_name": submission_data.get("context", {}).get("CLIENT_NAME", ""),
-            "prepared_by": submission_data.get("context", {}).get("PREPARED_BY", "")
+            "prepared_by": submission_data.get("context", {}).get("PREPARED_BY", ""),
+            "saved_signature": saved_signature
         }
         
         return render_template("approve.html", **context)
@@ -758,20 +773,26 @@ def reject_submission(submission_id, stage):
         except Exception as e:
             current_app.logger.error(f"Error creating rejection notification: {e}")
 
-        # Email the engineer with rejection details and next steps
+        # Email the engineer with rejection details and next steps (and notify earlier approvers)
         try:
+            safe_comment = html.escape(rejection_comment).replace("\n", "<br>") or "No reason provided."
+            status_url = url_for('status.view_status', submission_id=submission_id, _external=True)
+            edit_url = url_for('main.edit_submission', submission_id=submission_id, _external=True)
+            approver_role = current_stage.get("title") or approver_name or "Approver"
+            approver_display = approver_name or approver_role
             if user_email:
-                status_url = url_for('status.view_status', submission_id=submission_id, _external=True)
-                edit_url = url_for('main.edit_submission', submission_id=submission_id, _external=True)
-                safe_comment = html.escape(rejection_comment).replace("\n", "<br>") or "No reason provided."
-                subject = f"Report rejected at stage {stage} - action required"
+                subject = f"{document_title} rejected by {approver_display}"
                 html_body = f"""
                 <html>
                 <body>
-                    <h2>{document_title}</h2>
-                    <p>Your report was rejected at stage {stage} by {html.escape(approver_name or 'the approver')}.</p>
-                    <p><strong>Reason:</strong><br>{safe_comment}</p>
-                    <p>
+                    <h2 style="margin:0 0 12px 0;font-family:Segoe UI,Arial,sans-serif;color:#0b1b3a;">{html.escape(document_title)}</h2>
+                    <p style="margin:0 0 12px 0;font-family:Segoe UI,Arial,sans-serif;color:#1f2a44;">
+                        Your report was rejected by {html.escape(approver_display)}.
+                    </p>
+                    <p style="margin:0 0 12px 0;font-family:Segoe UI,Arial,sans-serif;color:#1f2a44;">
+                        <strong>Reason:</strong><br>{safe_comment}
+                    </p>
+                    <p style="margin:0 0 18px 0;font-family:Segoe UI,Arial,sans-serif;color:#1f2a44;">
                         <a href="{status_url}">View status</a> | 
                         <a href="{edit_url}">Update the report</a>
                     </p>
@@ -779,6 +800,37 @@ def reject_submission(submission_id, stage):
                 </html>
                 """
                 send_email(user_email, subject, html_body)
+
+            # Notify earlier approver (e.g., Automation Manager) if a later stage rejected the report
+            try:
+                previous_stage = None
+                previous_candidates = [a for a in approvals if a.get("stage") and a.get("stage") < stage and a.get("approver_email")]
+                if previous_candidates:
+                    previous_stage = sorted(previous_candidates, key=lambda a: a.get("stage"), reverse=True)[0]
+                if previous_stage:
+                    prev_email = previous_stage.get("approver_email")
+                    prev_name = previous_stage.get("approver_name") or previous_stage.get("title") or "Approver"
+                    if prev_email and prev_email != user_email:
+                        prev_subject = f"{document_title} rejected by {approver_display}"
+                        prev_body = f"""
+                        <html>
+                        <body>
+                            <h2 style="margin:0 0 12px 0;font-family:Segoe UI,Arial,sans-serif;color:#0b1b3a;">{html.escape(document_title)}</h2>
+                            <p style="margin:0 0 12px 0;font-family:Segoe UI,Arial,sans-serif;color:#1f2a44;">
+                                The report you previously reviewed was rejected by {html.escape(approver_display)}.
+                            </p>
+                            <p style="margin:0 0 12px 0;font-family:Segoe UI,Arial,sans-serif;color:#1f2a44;">
+                                <strong>Reason:</strong><br>{safe_comment}
+                            </p>
+                            <p style="margin:0 0 18px 0;font-family:Segoe UI,Arial,sans-serif;color:#1f2a44;">
+                                <a href="{status_url}">View status</a>
+                            </p>
+                        </body>
+                        </html>
+                        """
+                        send_email(prev_email, prev_subject, prev_body)
+            except Exception as prev_notice_error:
+                current_app.logger.error(f"Error notifying previous approver about rejection: {prev_notice_error}")
         except Exception as email_error:
             current_app.logger.error(f"Error sending rejection email: {email_error}")
             

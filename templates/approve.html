@@ -297,6 +297,12 @@
       cursor: pointer;
     }
 
+    .signature-note {
+      color: #5f6c85;
+      font-size: 0.95rem;
+      margin-top: 4px;
+    }
+
     .approval-buttons {
       display: flex;
       flex-wrap: wrap;
@@ -496,6 +502,13 @@
         <section class="signature-pad-container">
           <div>
             <strong>Signature <span class="text-required">*</span></strong>
+            {% if saved_signature %}
+            <label class="signature-save-toggle" style="margin-top: 6px; display: inline-flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="use_saved_signature" class="form-check-input">
+              <span>Use my saved signature on file</span>
+            </label>
+            <div class="signature-note">We’ll pull the signature you uploaded in Settings.</div>
+            {% endif %}
           </div>
           <canvas id="signature-pad"></canvas>
           <div class="signature-actions">
@@ -504,6 +517,8 @@
             </button>
           </div>
           <input type="hidden" name="signature_data" id="signature_data">
+          <input type="hidden" name="use_saved_signature" id="use_saved_signature_flag" value="0">
+          <input type="hidden" name="saved_signature_filename" id="saved_signature_filename" value="{{ saved_signature or '' }}">
         </section>
 
         <div class="approval-buttons">
@@ -577,6 +592,36 @@
       document.getElementById('clear-signature').addEventListener('click', function() {
         signaturePad.clear();
       });
+
+      const useSavedCheckbox = document.getElementById('use_saved_signature');
+      const useSavedFlagInput = document.getElementById('use_saved_signature_flag');
+      const savedSignatureField = document.getElementById('saved_signature_filename');
+      const signatureContainer = document.querySelector('.signature-pad-container');
+      const signatureActions = document.querySelector('.signature-actions');
+
+      function toggleSignatureMode() {
+        if (!useSavedCheckbox) return;
+        const useSaved = useSavedCheckbox.checked;
+        if (useSaved) {
+          signaturePad.clear();
+          canvas.style.display = 'none';
+          if (signatureActions) signatureActions.style.display = 'none';
+          useSavedFlagInput.value = '1';
+          document.getElementById('signature_data').value = '';
+        } else {
+          canvas.style.display = '';
+          if (signatureActions) signatureActions.style.display = '';
+          useSavedFlagInput.value = '0';
+        }
+      }
+
+      if (useSavedCheckbox && savedSignatureField && savedSignatureField.value) {
+        useSavedCheckbox.addEventListener('change', toggleSignatureMode);
+        toggleSignatureMode();
+      } else if (useSavedCheckbox) {
+        // Hide option if no saved signature
+        useSavedCheckbox.closest('label').style.display = 'none';
+      }
 
       const flagSection = document.querySelector('[data-flag-section]');
       const flagList = flagSection ? flagSection.querySelector('[data-flag-list]') : null;
@@ -737,12 +782,19 @@
 
       document.getElementById('approvalForm').addEventListener('submit', function(e) {
         serializeFlags();
-        if (signaturePad.isEmpty()) {
+        const useSaved = useSavedCheckbox && useSavedCheckbox.checked && savedSignatureField && savedSignatureField.value;
+        if (!useSaved && signaturePad.isEmpty()) {
           e.preventDefault();
           alert('Please provide your signature before approving');
           return false;
         }
-        document.getElementById('signature_data').value = signaturePad.toDataURL();
+        if (!useSaved) {
+          document.getElementById('signature_data').value = signaturePad.toDataURL();
+          useSavedFlagInput.value = '0';
+        } else {
+          document.getElementById('signature_data').value = '';
+          useSavedFlagInput.value = '1';
+        }
       });
 
       document.getElementById('rejectBtn').addEventListener('click', function() {

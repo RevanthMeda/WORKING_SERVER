@@ -633,7 +633,11 @@ def generate():
                         extra["stage"] = stage
                     if approver_title:
                         extra["approver_title"] = approver_title
-                    approver_name = _approver_name_for_stage(stage)
+                    approver_name = (
+                        _approver_name_for_stage(stage)
+                        or (first_stage.get("approver_name") if first_stage else None)
+                        or approver_title
+                    )
                     if approver_name:
                         extra["approver_name"] = approver_name
                     try:

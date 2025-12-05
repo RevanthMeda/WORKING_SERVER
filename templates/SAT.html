@@ -5084,7 +5084,9 @@
       }
       .signature-meta-row {
         display: grid;
-        gap: 4px;
+        grid-template-columns: 1fr 1.25fr;
+        align-items: center;
+        gap: var(--space-md);
       }
       .signature-meta-label {
         font-weight: 700;
@@ -5097,6 +5099,8 @@
       .signature-meta-control {
         display: grid;
         gap: 6px;
+        align-items: center;
+        justify-items: start;
       }
       .signature-save-toggle {
         display: inline-flex;
@@ -5112,6 +5116,9 @@
       }
       @media (max-width: 900px) {
         .signature-body--grid {
+          grid-template-columns: 1fr;
+        }
+        .signature-meta-row {
           grid-template-columns: 1fr;
         }
       }
