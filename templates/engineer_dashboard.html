@@ -1,309 +1,377 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
 {% block title %}Engineer Dashboard - {{ super() }}{% endblock %}
 
 {% block head %}
 <style>
-    .dashboard-summary {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: var(--space-lg);
-        margin-bottom: var(--space-xl);
-    }
+  .eng-layout {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: var(--space-xl);
+    align-items: start;
+  }
 
-    .summary-card {
-        background: var(--cully-white);
-        border-radius: 20px;
-        box-shadow: var(--shadow-sm);
-        border: 1px solid rgba(90, 127, 163, 0.08);
-        padding: var(--space-lg);
-        display: flex;
-        align-items: center;
-        gap: var(--space-md);
-        transition: var(--transition-smooth);
-    }
+  .eng-layout__main { display: grid; gap: var(--space-xl); }
+  .eng-layout__side { display: grid; gap: var(--space-lg); }
 
-    .summary-card:hover {
-        transform: translateY(-3px);
-        box-shadow: var(--shadow-lg);
-    }
+  .panel {
+    background: var(--cully-white);
+    border-radius: 18px;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid rgba(90, 127, 163, 0.06);
+    overflow: hidden;
+  }
 
-    .summary-icon {
-        width: 64px;
-        height: 64px;
-        border-radius: 18px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2rem;
-        color: var(--cully-white);
-    }
+  .panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-lg);
+    border-bottom: 1px solid rgba(90, 127, 163, 0.08);
+    gap: var(--space-md);
+  }
 
-    .summary-icon--draft { background: linear-gradient(145deg, #60a5fa, #3b82f6); }
-    .summary-icon--pending { background: linear-gradient(145deg, #facc15, #f59e0b); }
-    .summary-icon--rejected { background: linear-gradient(145deg, #fca5a5, #ef4444); }
-    .summary-icon--approved { background: linear-gradient(145deg, #86efac, #22c55e); }
+  .panel__title {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--cully-dark);
+  }
 
-    .summary-meta {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-xs);
-    }
+  .panel__body {
+    padding: var(--space-lg);
+    display: grid;
+    gap: var(--space-md);
+  }
 
-    .summary-value {
-        font-size: 2.2rem;
-        font-weight: 700;
-        color: var(--cully-dark);
-        line-height: 1;
-    }
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: var(--space-sm);
+  }
 
-    .summary-label {
-        color: var(--cully-gray);
-        font-weight: 600;
-    }
+  .metric {
+    padding: var(--space-md);
+    border-radius: 14px;
+    background: linear-gradient(135deg, #f8fbff, #eef4fb);
+    border: 1px solid rgba(90, 127, 163, 0.08);
+    display: grid;
+    gap: var(--space-xs);
+  }
 
-    .action-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: var(--space-lg);
-        margin-bottom: var(--space-xl);
-    }
+  .metric__label {
+    color: var(--cully-gray);
+    font-weight: 600;
+  }
 
-    .action-card {
-        background: var(--cully-white);
-        border-radius: 20px;
-        box-shadow: var(--shadow-sm);
-        border: 1px solid rgba(90, 127, 163, 0.08);
-        padding: var(--space-lg);
-        text-decoration: none;
-        color: var(--cully-dark);
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-md);
-        transition: var(--transition-smooth);
-    }
+  .metric__value {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--cully-navy);
+  }
 
-    .action-card:hover {
-        transform: translateY(-3px);
-        box-shadow: var(--shadow-lg);
-        color: var(--cully-navy);
-    }
+  .queue { display: grid; gap: var(--space-sm); }
 
-    .action-header {
-        display: flex;
-        align-items: center;
-        gap: var(--space-sm);
-    }
+  .queue-item {
+    border: 1px solid rgba(90, 127, 163, 0.1);
+    border-radius: 14px;
+    padding: var(--space-md);
+    display: grid;
+    gap: var(--space-sm);
+    background: rgba(90, 127, 163, 0.03);
+  }
 
-    .action-icon {
-        font-size: 1.4rem;
-        color: var(--cully-blue);
-    }
+  .queue-item__top {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-md);
+    align-items: center;
+  }
 
-    .action-title {
-        margin: 0;
-        font-size: 1.15rem;
-        font-weight: 600;
-    }
+  .queue-item__title {
+    font-weight: 700;
+    color: var(--cully-dark);
+  }
 
-    .action-description {
-        margin: 0;
-        color: var(--cully-gray);
-        line-height: 1.5;
-    }
+  .queue-item__meta {
+    color: var(--cully-gray);
+    font-size: 0.95rem;
+  }
 
-    .action-link {
-        margin-left: auto;
-        font-weight: 600;
-        color: var(--cully-blue);
-    }
+  .queue-item__status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
 
-    .action-link i { margin-left: 0.35rem; }
+  .queue-item__actions {
+    display: flex;
+    gap: var(--space-xs);
+    flex-wrap: wrap;
+  }
 
-    .widget-card {
-        background: var(--cully-white);
-        border-radius: 20px;
-        box-shadow: var(--shadow-sm);
-        border: 1px solid rgba(90, 127, 163, 0.08);
-        overflow: hidden;
-    }
+  .queue-item__actions a {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(90, 127, 163, 0.2);
+    color: var(--cully-dark);
+    text-decoration: none;
+    transition: var(--transition-smooth);
+  }
 
-    .widget-header {
-        padding: var(--space-md) var(--space-lg);
-        border-bottom: 1px solid var(--cully-light-gray);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
+  .queue-item__actions a:hover { background: rgba(123, 165, 199, 0.14); }
 
-    .widget-title { margin: 0; }
+  .empty {
+    text-align: center;
+    color: var(--cully-gray);
+    padding: var(--space-lg);
+    display: grid;
+    gap: var(--space-xs);
+    justify-items: center;
+  }
 
-    .widget-action {
-        font-weight: 600;
-        color: var(--cully-blue);
-        text-decoration: none;
-    }
+  .empty i { font-size: 2rem; }
 
-    .widget-content,
-    .report-list {
-        padding: var(--space-lg);
-        display: grid;
-        gap: var(--space-md);
-    }
+  .actions-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: var(--space-sm);
+  }
 
-    .report-list-item {
-        display: grid;
-        grid-template-columns: minmax(0, 2fr) auto auto;
-        gap: var(--space-md);
-        align-items: center;
-        padding: var(--space-md);
-        border-radius: 14px;
-        background: rgba(123, 165, 199, 0.08);
-    }
+  .actions-list__item {
+    border: 1px solid rgba(90, 127, 163, 0.08);
+    border-radius: 12px;
+    padding: var(--space-md);
+    background: linear-gradient(135deg, rgba(123,165,199,0.08), rgba(123,165,199,0.02));
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-md);
+  }
 
-    .report-info { display: grid; gap: var(--space-xs); }
-    .report-title { font-weight: 600; color: var(--cully-dark); }
-    .report-meta { font-size: 0.85rem; color: var(--cully-gray); }
+  .actions-list__meta { display: grid; gap: 4px; }
+  .actions-list__title { margin: 0; font-weight: 700; color: var(--cully-dark); }
+  .actions-list__desc { margin: 0; color: var(--cully-gray); font-size: 0.95rem; }
 
-    .report-status {
-        padding: 0.4rem 0.8rem;
-        border-radius: 999px;
-        font-weight: 600;
-        font-size: 0.85rem;
-        text-transform: uppercase;
-    }
+  .actions-list__link {
+    text-decoration: none;
+    font-weight: 700;
+    color: var(--cully-blue);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
 
-    .report-actions {
-        display: inline-flex;
-        gap: var(--space-sm);
-    }
-
-    .report-actions a {
-        color: var(--cully-gray);
-        text-decoration: none;
-        font-size: 1rem;
-    }
-
-    .report-actions a:hover { color: var(--cully-navy); }
-
-    .status-DRAFT { background: rgba(96, 165, 250, 0.18); color: #1d4ed8; }
-    .status-PENDING { background: rgba(250, 204, 21, 0.18); color: #b45309; }
-    .status-APPROVED { background: rgba(134, 239, 172, 0.2); color: #15803d; }
-    .status-REJECTED { background: rgba(248, 113, 113, 0.2); color: #b91c1c; }
-
-    @media (max-width: 768px) {
-        .report-list-item {
-            grid-template-columns: 1fr;
-            align-items: flex-start;
-        }
-        .report-actions { justify-content: flex-start; }
-    }
+  @media (max-width: 1100px) {
+    .eng-layout { grid-template-columns: 1fr; }
+    .eng-layout__side { grid-template-columns: 1fr; }
+  }
 </style>
 {% endblock %}
 
 {% block content %}
 <section class="page-hero">
-    <div class="page-hero__content">
-        <div>
-            <h1 class="page-hero__title">Engineer Dashboard</h1>
-            <p class="page-hero__subtitle">Welcome back, {{ current_user.full_name }}. Track your documentation progress and jump into key actions.</p>
-        </div>
+  <div class="page-hero__content">
+    <div>
+      <h1 class="page-hero__title">Engineer Dashboard</h1>
+      <p class="page-hero__subtitle">
+        Welcome back, {{ current_user.full_name }}. Keep your reports moving, pick up drafts, and stay ahead of approvals.
+      </p>
     </div>
+  </div>
 </section>
 
 <nav class="module-nav">
-    <div class="module-nav__links">
-        <a class="module-nav__link module-nav__link--active" href="{{ url_for('dashboard.engineer') }}"><i class="fas fa-home"></i> Dashboard</a>
-        <a class="module-nav__link" href="{{ url_for('dashboard.my_reports') }}"><i class="fas fa-folder-open"></i> Reports</a>
-        <a class="module-nav__link" href="{{ url_for('io_builder.index') }}"><i class="fas fa-sitemap"></i> I/O builder</a>
-    </div>
-    <div class="module-nav__meta">
-        <i class="fas fa-chart-line"></i> Live summary of your report workflow
-    </div>
+  <div class="module-nav__links">
+    <a class="module-nav__link module-nav__link--active" href="{{ url_for('dashboard.engineer') }}"><i class="fas fa-home"></i> Dashboard</a>
+    <a class="module-nav__link" href="{{ url_for('dashboard.my_reports') }}"><i class="fas fa-folder-open"></i> Reports</a>
+    <a class="module-nav__link" href="{{ url_for('reports.new') }}"><i class="fas fa-plus-circle"></i> New report</a>
+    <a class="module-nav__link" href="{{ url_for('io_builder.index') }}"><i class="fas fa-sitemap"></i> I/O builder</a>
+  </div>
+  <div class="module-nav__meta">
+    <i class="fas fa-bell"></i>
+    <a href="{{ url_for('notifications.notification_center') }}" style="text-decoration:none;color:inherit;">
+      Notifications{% if unread_count %} ({{ unread_count }}){% endif %}
+    </a>
+  </div>
 </nav>
 
-<div class="dashboard-summary">
-    <article class="summary-card">
-        <span class="summary-icon summary-icon--draft"><i class="fas fa-file-alt"></i></span>
-        <div class="summary-meta">
-            <div class="summary-value">{{ stats.get('draft', 0) }}</div>
-            <div class="summary-label">Reports in draft</div>
-        </div>
-    </article>
-    <article class="summary-card">
-        <span class="summary-icon summary-icon--pending"><i class="fas fa-paper-plane"></i></span>
-        <div class="summary-meta">
-            <div class="summary-value">{{ stats.get('pending', 0) }}</div>
-            <div class="summary-label">Pending approval</div>
-        </div>
-    </article>
-    <article class="summary-card">
-        <span class="summary-icon summary-icon--rejected"><i class="fas fa-exclamation-circle"></i></span>
-        <div class="summary-meta">
-            <div class="summary-value">{{ stats.get('rejected', 0) }}</div>
-            <div class="summary-label">Rejected reports</div>
-        </div>
-    </article>
-    <article class="summary-card">
-        <span class="summary-icon summary-icon--approved"><i class="fas fa-check-circle"></i></span>
-        <div class="summary-meta">
-            <div class="summary-value">{{ stats.get('approved', 0) }}</div>
-            <div class="summary-label">Approved reports</div>
-        </div>
-    </article>
-</div>
+{% set stats = stats if stats is defined else {} %}
+{% set in_progress = (reports|rejectattr('status', 'equalto', 'APPROVED')|rejectattr('status', 'equalto', 'approved'))|list if reports is defined else [] %}
+{% set recent_reports = reports[:6] if reports is defined else [] %}
 
-<div class="action-grid">
-    <a href="{{ url_for('reports.new') }}" class="action-card">
-        <div class="action-header">
-            <i class="fas fa-plus-circle action-icon"></i>
-            <h3 class="action-title">Create new report</h3>
-        </div>
-        <p class="action-description">Start a new SAT, Site Survey, or other report from an approved template.</p>
-        <span class="action-link">Start now <i class="fas fa-arrow-right"></i></span>
-    </a>
-    <a href="{{ url_for('dashboard.my_reports') }}" class="action-card">
-        <div class="action-header">
-            <i class="fas fa-folder-open action-icon"></i>
-            <h3 class="action-title">View my reports</h3>
-        </div>
-        <p class="action-description">Access and manage your previously created reports, regardless of status.</p>
-        <span class="action-link">View all <i class="fas fa-arrow-right"></i></span>
-    </a>
-    <a href="{{ url_for('io_builder.index') }}" class="action-card">
-        <div class="action-header">
-            <i class="fas fa-sitemap action-icon"></i>
-            <h3 class="action-title">I/O builder</h3>
-        </div>
-        <p class="action-description">Use the I/O list generation tool to build and export hardware configurations.</p>
-        <span class="action-link">Open tool <i class="fas fa-arrow-right"></i></span>
-    </a>
-</div>
-
-<div class="widget-card">
-    <div class="widget-header">
-        <h3 class="widget-title">My Reports</h3>
-        <a href="{{ url_for('dashboard.my_reports') }}" class="widget-action">View all</a>
-    </div>
-    <div class="report-list">
-        {% if reports and reports|length > 0 %}
-            {% for report in reports %}
-                <div class="report-list-item">
-                    <div class="report-info">
-                        <div class="report-title">{{ report.document_title or 'Untitled Report' }}</div>
-                        <div class="report-meta">Last updated: {{ report.updated_at.strftime('%d %b %Y, %H:%M') }}</div>
-                    </div>
-                    <div class="report-status status-{{ report.status or 'DRAFT' }}">{{ report.status | replace('_', ' ') | title }}</div>
-                    <div class="report-actions">
-                        <a href="{{ url_for('status.view_status', submission_id=report.id) }}" title="View"><i class="fas fa-eye"></i></a>
-                        <a href="{{ url_for('reports.new_sat_full', template_id=report.id) }}" title="Use as template"><i class="fas fa-copy"></i></a>
-                        <a href="{{ url_for('edit.edit_report', report_id=report.id) }}" title="Edit"><i class="fas fa-pencil-alt"></i></a>
-                    </div>
+<section class="eng-layout">
+  <div class="eng-layout__main">
+    <article class="panel" id="work-queue">
+      <div class="panel__header">
+        <h2 class="panel__title"><i class="fas fa-clipboard-list"></i> Your work queue</h2>
+        <a href="{{ url_for('dashboard.my_reports') }}" class="actions-list__link">View all <i class="fas fa-arrow-right"></i></a>
+      </div>
+      <div class="panel__body">
+        {% if in_progress and in_progress|length > 0 %}
+        <div class="queue">
+          {% for report in in_progress %}
+          {% set status_lower = (report.status or 'draft')|lower %}
+          <div class="queue-item">
+            <div class="queue-item__top">
+              <div>
+                <div class="queue-item__title">{{ report.document_title or 'Untitled Report' }}</div>
+                <div class="queue-item__meta">
+                  {{ report.project_reference or 'N/A' }} · Updated {{ report.updated_at.strftime('%d %b %Y, %H:%M') if report.updated_at else 'recently' }}
                 </div>
-            {% endfor %}
+              </div>
+              <div class="queue-item__status">
+                <span class="status-chip {% if status_lower == 'approved' %}status-chip--approved{% elif status_lower == 'rejected' %}status-chip--rejected{% elif status_lower == 'pending' %}status-chip--pending{% elif status_lower == 'draft' %}status-chip--draft{% else %}status-chip--pending{% endif %}">
+                  {{ status_lower|replace('_', ' ')|title }}
+                </span>
+              </div>
+            </div>
+            <div class="queue-item__actions">
+              <a href="{{ url_for('status.view_status', submission_id=report.id) }}" title="View status"><i class="fas fa-eye"></i></a>
+              <a href="{{ url_for('reports.new_sat_full', template_id=report.id) }}" title="Use as template"><i class="fas fa-copy"></i></a>
+              <a href="{{ url_for('edit.edit_report', report_id=report.id) }}" title="Edit"><i class="fas fa-pencil-alt"></i></a>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
         {% else %}
-            <p>No reports found. <a href="{{ url_for('reports.new') }}">Create one now</a>.</p>
+        <div class="empty">
+          <i class="fas fa-check-circle"></i>
+          <div>You're all caught up</div>
+          <small>When new drafts or rework items arrive, they'll appear here.</small>
+          <a href="{{ url_for('reports.new') }}" class="actions-list__link">Create a report <i class="fas fa-plus-circle"></i></a>
+        </div>
         {% endif %}
-    </div>
-</div>
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel__header">
+        <h2 class="panel__title"><i class="fas fa-clock"></i> Recent updates</h2>
+        <a href="{{ url_for('reports.new') }}" class="actions-list__link">Create new <i class="fas fa-arrow-right"></i></a>
+      </div>
+      <div class="panel__body">
+        {% if recent_reports and recent_reports|length > 0 %}
+        <div class="queue">
+          {% for report in recent_reports %}
+          {% set status_lower = (report.status or 'draft')|lower %}
+          <div class="queue-item">
+            <div class="queue-item__top">
+              <div>
+                <div class="queue-item__title">{{ report.document_title or 'Untitled Report' }}</div>
+                <div class="queue-item__meta">Updated {{ report.updated_at.strftime('%d %b %Y, %H:%M') if report.updated_at else 'recently' }}</div>
+              </div>
+              <div class="queue-item__status">
+                <span class="status-chip {% if status_lower == 'approved' %}status-chip--approved{% elif status_lower == 'rejected' %}status-chip--rejected{% elif status_lower == 'pending' %}status-chip--pending{% elif status_lower == 'draft' %}status-chip--draft{% else %}status-chip--pending{% endif %}">
+                  {{ status_lower|replace('_', ' ')|title }}
+                </span>
+              </div>
+            </div>
+            <div class="queue-item__actions">
+              <a href="{{ url_for('status.view_status', submission_id=report.id) }}" title="View"><i class="fas fa-eye"></i></a>
+              <a href="{{ url_for('reports.new_sat_full', template_id=report.id) }}" title="Use as template"><i class="fas fa-copy"></i></a>
+              <a href="{{ url_for('edit.edit_report', report_id=report.id) }}" title="Edit"><i class="fas fa-pencil-alt"></i></a>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty">
+          <i class="fas fa-file-circle-question"></i>
+          <div>No recent activity yet</div>
+          <small>Start a new report or pick up a saved draft.</small>
+        </div>
+        {% endif %}
+      </div>
+    </article>
+  </div>
+
+  <aside class="eng-layout__side">
+    <article class="panel">
+      <div class="panel__header">
+        <h2 class="panel__title"><i class="fas fa-chart-pie"></i> At a glance</h2>
+      </div>
+      <div class="panel__body">
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric__label">Drafts</div>
+            <div class="metric__value">{{ stats.get('draft', 0) }}</div>
+          </div>
+          <div class="metric">
+            <div class="metric__label">Pending approval</div>
+            <div class="metric__value">{{ stats.get('pending', 0) }}</div>
+          </div>
+          <div class="metric">
+            <div class="metric__label">Rejected</div>
+            <div class="metric__value">{{ stats.get('rejected', 0) }}</div>
+          </div>
+          <div class="metric">
+            <div class="metric__label">Approved</div>
+            <div class="metric__value">{{ stats.get('approved', 0) }}</div>
+          </div>
+          <div class="metric">
+            <div class="metric__label">Total reports</div>
+            <div class="metric__value">
+              {{ stats.get('draft', 0) + stats.get('pending', 0) + stats.get('rejected', 0) + stats.get('approved', 0) }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="panel__header">
+        <h2 class="panel__title"><i class="fas fa-bolt"></i> Quick actions</h2>
+      </div>
+      <div class="panel__body">
+        <ul class="actions-list">
+          <li class="actions-list__item">
+            <div class="actions-list__meta">
+              <p class="actions-list__title">Resume drafts</p>
+              <p class="actions-list__desc">Jump to items still in progress or rework.</p>
+            </div>
+            <a class="actions-list__link" href="#work-queue">Open <i class="fas fa-arrow-right"></i></a>
+          </li>
+          <li class="actions-list__item">
+            <div class="actions-list__meta">
+              <p class="actions-list__title">Create new report</p>
+              <p class="actions-list__desc">Start a SAT, Site Survey, or other template.</p>
+            </div>
+            <a class="actions-list__link" href="{{ url_for('reports.new') }}">Start <i class="fas fa-plus-circle"></i></a>
+          </li>
+          <li class="actions-list__item">
+            <div class="actions-list__meta">
+              <p class="actions-list__title">My reports</p>
+              <p class="actions-list__desc">Browse or hand off your submissions.</p>
+            </div>
+            <a class="actions-list__link" href="{{ url_for('dashboard.my_reports') }}">View <i class="fas fa-folder-open"></i></a>
+          </li>
+          <li class="actions-list__item">
+            <div class="actions-list__meta">
+              <p class="actions-list__title">I/O builder</p>
+              <p class="actions-list__desc">Configure and export I/O lists.</p>
+            </div>
+            <a class="actions-list__link" href="{{ url_for('io_builder.index') }}">Open <i class="fas fa-sitemap"></i></a>
+          </li>
+          <li class="actions-list__item">
+            <div class="actions-list__meta">
+              <p class="actions-list__title">Notifications</p>
+              <p class="actions-list__desc">Catch up on approvals and edits.</p>
+            </div>
+            <a class="actions-list__link" href="{{ url_for('notifications.notification_center') }}">Open <i class="fas fa-bell"></i></a>
+          </li>
+        </ul>
+      </div>
+    </article>
+  </aside>
+</section>
 {% endblock %}
